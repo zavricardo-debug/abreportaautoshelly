@@ -55,7 +55,7 @@ class Prefs(context: Context) {
      * Isto é o que impede reaberturas enquanto andas à volta do prédio.
      */
     var rearmMarginM: Float
-        get() = sp.getFloat(KEY_REARM_MARGIN, 25f)
+        get() = sp.getFloat(KEY_REARM_MARGIN, 10f)
         set(v) = sp.edit().putFloat(KEY_REARM_MARGIN, v).apply()
 
     /**
@@ -67,7 +67,7 @@ class Prefs(context: Context) {
      * isso a morada não arma e a porta não abre atrás de ti.
      */
     var awayConfirmSeconds: Int
-        get() = sp.getInt(KEY_AWAY_CONFIRM, 60)
+        get() = sp.getInt(KEY_AWAY_CONFIRM, 30)
         set(v) = sp.edit().putInt(KEY_AWAY_CONFIRM, v).apply()
 
     /**

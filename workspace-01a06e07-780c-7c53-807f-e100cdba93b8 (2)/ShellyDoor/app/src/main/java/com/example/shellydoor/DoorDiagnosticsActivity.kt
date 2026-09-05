@@ -58,6 +58,7 @@ class DoorDiagnosticsActivity : AppCompatActivity() {
 
     private var fusedCallback: LocationCallback? = null
     private var lastLocation: Location? = null
+    private var tvArmAt: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -148,6 +149,13 @@ class DoorDiagnosticsActivity : AppCompatActivity() {
                 startActivity(Intent(this@DoorDiagnosticsActivity, GlobalSettingsActivity::class.java))
             }
         })
+        tvArmAt = TextView(this).apply {
+            textSize = 11.5f
+            setTextColor(color(R.color.text_hint))
+            setPadding(dp(4), 0, 0, dp(6))
+        }
+        root.addView(tvArmAt)
+
         root.addView(TextView(this).apply {
             text = "Secção \"Aproximação\": \"Margem de rearme (metros)\" e " +
                 "\"Tempo longe para armar (segundos)\"."
@@ -233,6 +241,16 @@ class DoorDiagnosticsActivity : AppCompatActivity() {
     private fun refresh() {
         val door = store.byId(doorId ?: "") ?: return
         tvHeader.text = "🏠 ${door.name}"
+
+        // A conta que interessa: arma-se a raio + margem. Mostrada feita, para
+        // nao ser preciso somar de cabeca nem adivinhar de onde vem o numero.
+        tvArmAt?.text = "Agora: arma a %.0f m (raio %.0f + margem %.0f), depois de %d s seguidos longe."
+            .format(
+                door.radiusM + prefs.rearmMarginM,
+                door.radiusM,
+                prefs.rearmMarginM,
+                prefs.awayConfirmSeconds
+            )
 
         val loc = lastLocation
         val diag: Diagnostics? = if (loc != null && door.hasPoint()) {

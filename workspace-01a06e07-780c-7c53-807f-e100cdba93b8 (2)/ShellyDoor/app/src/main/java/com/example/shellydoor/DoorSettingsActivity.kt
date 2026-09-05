@@ -63,7 +63,8 @@ class DoorSettingsActivity : AppCompatActivity() {
             val d = store.byId(door.id) ?: return@setOnClickListener
             d.name = findViewById<EditText>(R.id.etName).text.toString().ifBlank { "Morada" }
             d.enabled = findViewById<CompoundButton>(R.id.swEnabled).isChecked
-            d.radiusM = findViewById<EditText>(R.id.etRadius).text.toString().toFloatOrNull() ?: d.radiusM
+            d.radiusM = (findViewById<EditText>(R.id.etRadius).text.toString().toFloatOrNull() ?: d.radiusM)
+                .coerceIn(5f, 500f)
             findViewById<EditText>(R.id.etLat).text.toString().toDoubleOrNull()?.let { d.lat = it }
             findViewById<EditText>(R.id.etLng).text.toString().toDoubleOrNull()?.let { d.lng = it }
             d.homeSsid = findViewById<EditText>(R.id.etHomeSsid).text.toString()

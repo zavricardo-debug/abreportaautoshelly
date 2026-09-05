@@ -72,7 +72,8 @@ class GlobalSettingsActivity : AppCompatActivity() {
             prefs.autoPauseAfterOpen = cbAutoPause.isChecked
             prefs.networkGraceSeconds = etGrace.text.toString().toIntOrNull() ?: 60
             prefs.cloudAuthKeyGlobal = etAuthKeyGlobal.text.toString().trim()
-            prefs.rearmMarginM = etRearm.text.toString().toFloatOrNull() ?: prefs.rearmMarginM
+            prefs.rearmMarginM = (etRearm.text.toString().toFloatOrNull() ?: prefs.rearmMarginM)
+                .coerceIn(0f, 500f)
             prefs.awayConfirmSeconds = (etAway.text.toString().toIntOrNull() ?: 60).coerceIn(0, 3600)
             prefs.minAccuracyM = etMinAcc.text.toString().toFloatOrNull() ?: prefs.minAccuracyM
             prefs.nearIntervalSec = (etNearInt.text.toString().toIntOrNull() ?: 4).coerceIn(1, 60)
