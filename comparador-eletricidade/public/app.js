@@ -88,19 +88,35 @@ function bindUpload() {
   });
 }
 
-async function handleFile(file) {
+async function handleFile(file, password) {
   hideError();
-  if (!/pdf$/i.test(file.name) && file.type !== 'application/pdf') return showError('Por favor escolha um ficheiro PDF.');
+  const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+  if (!isPdf) return showError(`"${file.name}" não parece ser um PDF (tipo: ${file.type || 'desconhecido'}). Escolha o PDF da fatura – imagens (JPG/PNG) e capturas de ecrã não são suportadas.`);
+  if (file.size === 0) return showError('O ficheiro está vazio (0 bytes). Volte a descarregar a fatura do site do seu comercializador.');
   if (file.size > 25 * 1024 * 1024) return showError('O ficheiro é demasiado grande (máx. 25 MB).');
   const prog = $('#progress'); prog.classList.remove('hidden');
   setProgress(5, 'A abrir o PDF…');
   try {
     const buf = await file.arrayBuffer();
-    const { text, numPages } = await extractPdfText(buf, ({ page, pages }) => setProgress(10 + 70 * page / pages, `A ler página ${page} de ${pages}…`));
+    const head = new TextDecoder('latin1').decode(new Uint8Array(buf, 0, Math.min(1024, buf.byteLength)));
+    if (!/%PDF-/.test(head)) {
+      throw new Error(/^\s*</.test(head) ? 'o conteúdo do ficheiro é HTML e não um PDF – provavelmente foi guardada a página web em vez da fatura. Descarregue o PDF a partir da área de cliente.' : 'o conteúdo não é um PDF válido (cabeçalho %PDF em falta). Volte a descarregar a fatura.');
+    }
+    const { text, numPages, info } = await extractPdfText(buf, ({ page, pages }) => setProgress(10 + 70 * page / pages, `A ler página ${page} de ${pages}…`), { password });
     setProgress(85, 'A identificar as linhas da fatura…');
-    if (!text.trim()) throw new Error('O PDF não contém texto pesquisável (parece ser uma imagem digitalizada). Introduza os valores manualmente.');
+    if (!text.trim() || info.textItems < 5) {
+      state.parsed = null;
+      fillForm(null);
+      $('#raw-text').textContent = text;
+      show('#step-values');
+      hide('#step-results');
+      prog.classList.add('hidden');
+      showError(`O PDF (${numPages} página(s)) não contém texto pesquisável – parece ser uma digitalização/imagem${info.producer ? ` (gerado por ${info.producer})` : ''}. Introduza os valores manualmente em baixo ou descarregue a fatura original em PDF da área de cliente do comercializador.`);
+      $('#step-values').scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
     const parsed = parseInvoiceText(text);
-    parsed.fileName = file.name; parsed.numPages = numPages;
+    parsed.fileName = file.name; parsed.numPages = numPages; parsed.pdfInfo = info;
     state.parsed = parsed;
     $('#raw-text').textContent = text;
     fillForm(parsed);
@@ -112,7 +128,15 @@ async function handleFile(file) {
   } catch (e) {
     prog.classList.add('hidden');
     console.error(e);
-    showError(`Erro ao ler o PDF: ${e.message || e}`);
+    if (e?.name === 'PasswordException') {
+      // Many suppliers protect the invoice with the customer's NIF / contract number
+      const pw = window.prompt(e.code === 2 || password ? 'Palavra-passe incorreta. Tente novamente (normalmente é o NIF do titular):' : 'Este PDF está protegido por palavra-passe (normalmente é o NIF do titular ou o n.º de cliente). Introduza-a para continuar:');
+      if (pw) return handleFile(file, pw);
+      return showError('O PDF está protegido por palavra-passe. Sem ela não é possível ler a fatura – pode introduzir os valores manualmente.');
+    }
+    if (e?.name === 'InvalidPDFException') return showError(`O ficheiro não é um PDF válido ou está corrompido (${e.message}). Volte a descarregar a fatura.`);
+    if (e?.code === 'PDFJS_LOAD') return showError(e.message);
+    showError(`Erro ao ler o PDF: ${e?.message || e}. Pode introduzir os valores manualmente com o botão "Não tenho PDF".`);
   }
 }
 

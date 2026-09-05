@@ -17,20 +17,41 @@ async function loadPdfjs() {
 /**
  * @param {ArrayBuffer} data
  * @param {(info:{page:number,pages:number})=>void} [onProgress]
- * @returns {Promise<{text:string, pages:string[], numPages:number}>}
+ * @param {{password?:string}} [opts]
+ * @returns {Promise<{text:string, pages:string[], numPages:number, info:object}>}
+ * Throws pdf.js errors as-is: `err.name === 'PasswordException'` (code 1 = needs password,
+ * 2 = wrong password), 'InvalidPDFException', … `err.code === 'PDFJS_LOAD'` when pdf.js itself
+ * could not be loaded (very old browser / vendor files missing).
  */
-export async function extractPdfText(data, onProgress) {
-  const pdfjs = await loadPdfjs();
-  const doc = await pdfjs.getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise;
+export async function extractPdfText(data, onProgress, opts = {}) {
+  let pdfjs;
+  try {
+    pdfjs = await loadPdfjs();
+  } catch (e) {
+    const err = new Error('Não foi possível carregar o leitor de PDF (pdf.js). Atualize o browser ou confirme que a pasta vendor/pdfjs foi publicada.');
+    err.code = 'PDFJS_LOAD'; err.cause = e;
+    throw err;
+  }
+  const doc = await pdfjs.getDocument({ data, useSystemFonts: true, isEvalSupported: false, password: opts.password || undefined }).promise;
   const pages = [];
+  let textItems = 0;
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const content = await page.getTextContent();
+    textItems += content.items.filter((it) => it.str && it.str.trim()).length;
     pages.push(itemsToLines(content.items));
     onProgress?.({ page: p, pages: doc.numPages });
   }
+  let info = {};
+  try {
+    const m = await doc.getMetadata();
+    info = { producer: m.info?.Producer, creator: m.info?.Creator, title: m.info?.Title, xfa: !!m.info?.IsXFAPresent };
+  } catch { /* metadata is optional */ }
+  info.textItems = textItems;
+  info.encrypted = !!opts.password;
+  info.pdfjsVersion = pdfjs.version;
   await doc.destroy();
-  return { text: pages.join('\n'), pages, numPages: pages.length };
+  return { text: pages.join('\n'), pages, numPages: pages.length, info };
 }
 
 /** Group text items into lines by their y coordinate, then sort by x. */
