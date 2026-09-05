@@ -1,0 +1,25 @@
+edp EDP Comercial – Comercialização de Energia, S.A.
+NIF 503504564 · Linha de apoio 808 53 53 53
+Fatura de Eletricidade nº FT 2026/987654
+Data de emissão: 05/09/2026
+Período de faturação: 05/08/2026 a 04/09/2026 (31 dias)
+Cliente: JOÃO EXEMPLO PEREIRA · Local: AV. DA REPÚBLICA 45, 4000-200 PORTO
+CPE: PT0002000987654321ZZ · Potência contratada: 6,9 kVA · Opção horária: Bi-horária (ciclo diário)
+Descrição Quantidade x Preço = Valor - Desconto* = Total** IVA
+Eletricidade
+Termo de Energia (Real) - Fora de Vazio (IVA 6%) 122,6 kWh 0,193500 € 23,72 € 23,72 € 6% (b)
+Termo de Energia (Real) - Fora de Vazio (IVA 23%) 122,4 kWh 0,193500 € 23,68 € 23,68 € 23% (c)
+Termo de Energia (Real) - Vazio (IVA 6%) 84,1 kWh 0,111900 € 9,41 € 9,41 € 6% (b)
+Termo de Energia (Real) - Vazio (IVA 23%) 83,9 kWh 0,111900 € 9,39 € 9,39 € 23% (c)
+Termo de Potência (6.9 kVA) 31 dias 0,234400 € 7,27 € 7,27 € 23% (c)
+Termo Fixo Acesso às Redes 31 dias 0,343600 € 10,65 € 10,65 € 23% (c)
+TOTAL Eletricidade 84,12 €
+Taxas e Impostos
+Contribuição Audiovisual 1,0192 meses 2,850000 € 2,90 € 2,90 € 6% (b)
+Taxa Exploração DGEG (DL-4/93) 1,0192 meses 0,070000 € 0,07 € 0,07 € 23% (c)
+Imposto Especial Consumo (Real) 413 kWh 0,001000 € 0,41 € 0,41 € 23% (c)
+IVA 23% 51,47 € 11,84 €
+IVA 6% 36,03 € 2,16 €
+TOTAL Taxas e Impostos 17,38 €
+TOTAL DA FATURA 101,50 €
+Documento de exemplo com dados fictícios, gerado para demonstração do comparador. Não é uma fatura real.

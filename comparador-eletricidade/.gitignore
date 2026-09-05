@@ -1,0 +1,6 @@
+node_modules/
+*.log
+.DS_Store
+# generated: npm run vendor / npm run data:build
+public/vendor/
+public/data/ofertas.json

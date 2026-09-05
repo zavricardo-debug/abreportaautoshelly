@@ -1,0 +1,24 @@
+{
+  "name": "comparador-eletricidade",
+  "version": "1.0.0",
+  "description": "Carregue a sua fatura de eletricidade (PDF) e compare com todas as ofertas do mercado português (dados ERSE).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs",
+    "vendor": "node scripts/vendor-pdfjs.mjs",
+    "data:build": "node scripts/update-erse.mjs --csv-dir ./data-src",
+    "data:update": "node scripts/update-erse.mjs",
+    "samples": "node scripts/make-sample-pdf.mjs",
+    "pdf:text": "node scripts/pdf-to-text.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.1",
+    "pdfjs-dist": "^5.4.0",
+    "pdfkit": "^0.17.0"
+  }
+}

@@ -1,0 +1,45 @@
+endesa Endesa Energia S.A. – Sucursal em Portugal
+NIF 980245974
+Apoio ao cliente: 800 101 030
+A sua fatura de LUZ
+Fatura: FAC 2026/00123456 Titular: MARIA EXEMPLO SILVA
+Data: 03 set 2026 Morada de fornecimento: RUA DAS FLORES 12, 3º ESQ
+Período de Faturação: 03 ago 2026 a 02 set 2026 1000-100 LISBOA
+Data limite de pagamento: 23 set 2026 CPE: PT0002000123456789XY
+Nº de contrato: 0012345678
+Dados do contrato
+Tarifa: Endesa Tarifa Livre – Simples Leitura anterior (Real): 12.345 kWh em 03 ago 2026
+Potência contratada: 3,45 kVA Leitura atual (Real): 12.502 kWh em 02 set 2026
+Ciclo horário: Simples Consumo faturado: 157 kWh
+TOTAL A PAGAR 32,85 €
+Débito direto na conta PT50 **** **** **** **** 1234 em 23 set 2026
+Documento de exemplo com dados fictícios, gerado para demonstração do comparador. Não é uma fatura real.
+endesa Fatura: FAC 2026/00123456 Página 2/2
+Detalhe da fatura de LUZ
+Período de Faturação: 03 ago 2026 a 02 set 2026 | Potência contratada 3,45 kVA | Opção horária: Simples
+Descrição Quantidade x Preço = Valor - Desconto* = Total** IVA
+Luz (Consumo)
+Termo de Energia (Real) 157 kWh 0,166823 € 26,19 € -1,31 € 24,88 € 6% (b)
+03 ago a 02 set
+* Desconto Fatura Digital (26,19 € x 5,00%)
+Termo de Potência (3.45 kVA) 31 dias 0,151400 € 4,69 € -0,23 € 4,46 € 23% (c)
+03 ago a 02 set
+* Desconto Fatura Digital (4,69 € x 5,00%)
+Termo Fixo Acesso às Redes 31 dias 0,171800 € 5,33 € 5,33 € 6% (b)
+03 ago a 02 set
+TOTAL Luz (Consumo) 34,67 €
+Taxas e Impostos
+Contribuição Audiovisual 1,0192 meses 2,850000 € 2,90 € 2,90 € 6% (b)
+Taxa Exploração DGEG (DL-4/93) 1,0192 meses 0,070000 € 0,07 € 0,07 € 23% (c)
+Imposto Especial Consumo (Real) 157 kWh 0,001000 € 0,16 € 0,16 € 23% (c)
+(c) IVA 23% 4,69 € 1,08 €
+(b) IVA 6% 33,11 € 1,99 €
+TOTAL Taxas e Impostos 6,20 €
+TOTAL DA FATURA DE LUZ 40,87 €
+Nota de crédito aplicada: -8,02 € (acerto de leitura estimada da fatura anterior). Valor a pagar: 32,85 €.
+Outros
+Mecanismo DL 33/2022 (ajuste ibérico) 157 kWh 0,000000 € 0,00 €
+** Os preços apresentados não incluem IVA. Tarifas de Acesso às Redes aprovadas pela ERSE para 2026. O Termo de Energia inclui a componente de
+acesso às redes (0,0607 €/kWh).
+Consumo médio diário neste período: 5,06 kWh. No período homólogo do ano anterior: 5,40 kWh.
+Documento de exemplo com dados fictícios, gerado para demonstração do comparador. Não é uma fatura real.
