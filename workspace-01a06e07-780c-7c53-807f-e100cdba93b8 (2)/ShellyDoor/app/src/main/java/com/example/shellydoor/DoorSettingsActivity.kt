@@ -9,7 +9,7 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
-import android.widget.Switch
+import android.widget.CompoundButton
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -41,7 +41,7 @@ class DoorSettingsActivity : AppCompatActivity() {
         }
 
         findViewById<EditText>(R.id.etName).setText(door.name)
-        findViewById<Switch>(R.id.swEnabled).isChecked = door.enabled
+        findViewById<CompoundButton>(R.id.swEnabled).isChecked = door.enabled
         findViewById<EditText>(R.id.etRadius).setText(door.radiusM.toString())
         findViewById<EditText>(R.id.etLat).setText(if (door.hasPoint()) door.lat.toString() else "")
         findViewById<EditText>(R.id.etLng).setText(if (door.hasPoint()) door.lng.toString() else "")
@@ -62,7 +62,7 @@ class DoorSettingsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnSaveDoor).setOnClickListener {
             val d = store.byId(door.id) ?: return@setOnClickListener
             d.name = findViewById<EditText>(R.id.etName).text.toString().ifBlank { "Morada" }
-            d.enabled = findViewById<Switch>(R.id.swEnabled).isChecked
+            d.enabled = findViewById<CompoundButton>(R.id.swEnabled).isChecked
             d.radiusM = findViewById<EditText>(R.id.etRadius).text.toString().toFloatOrNull() ?: d.radiusM
             findViewById<EditText>(R.id.etLat).text.toString().toDoubleOrNull()?.let { d.lat = it }
             findViewById<EditText>(R.id.etLng).text.toString().toDoubleOrNull()?.let { d.lng = it }

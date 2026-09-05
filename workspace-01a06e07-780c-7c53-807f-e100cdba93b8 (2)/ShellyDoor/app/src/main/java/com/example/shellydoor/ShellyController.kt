@@ -64,12 +64,12 @@ class ShellyController(private val prefs: Prefs) {
         return local.ifEmpty { prefs.cloudAuthKeyGlobal.trim() }
     }
 
-    private data class Result(val ok: Boolean, val message: String)
+    private data class CallResult(val ok: Boolean, val message: String)
 
-    private fun controlRelay(door: Door, turn: String, timerSeconds: Int): Result {
+    private fun controlRelay(door: Door, turn: String, timerSeconds: Int): CallResult {
         val key = authKeyFor(door)
-        if (key.isEmpty()) return Result(false, "sem auth key (Definições globais)")
-        if (door.cloudDeviceId.isBlank()) return Result(false, "sem device ID")
+        if (key.isEmpty()) return CallResult(false, "sem auth key (Definições globais)")
+        if (door.cloudDeviceId.isBlank()) return CallResult(false, "sem device ID")
 
         val form = FormBody.Builder()
             .add("channel", door.channel.toString())
@@ -86,44 +86,44 @@ class ShellyController(private val prefs: Prefs) {
     }
 
     /** Modo local: liga, espera o impulso, desliga. */
-    private fun pulseLocal(door: Door): Result {
+    private fun pulseLocal(door: Door): CallResult {
         val on = controlRelayLocal(door, "on")
         if (!on.ok) return on
         try { Thread.sleep(door.relayPulseSeconds.coerceIn(1, 10) * 1000L) } catch (e: InterruptedException) { }
         controlRelayLocal(door, "off")
-        return Result(true, "ok")
+        return CallResult(true, "ok")
     }
 
-    private fun controlRelayLocal(door: Door, turn: String): Result {
-        if (door.shellIp.isBlank()) return Result(false, "sem IP do Shelly")
+    private fun controlRelayLocal(door: Door, turn: String): CallResult {
+        if (door.shellIp.isBlank()) return CallResult(false, "sem IP do Shelly")
         val url = "http://${door.shellIp.trim()}/relay/${door.channel}?turn=$turn"
         return try {
             client.newCall(Request.Builder().url(url).get().build()).execute().use { resp ->
-                if (resp.isSuccessful) Result(true, "ok")
-                else Result(false, "HTTP ${resp.code} (local)")
+                if (resp.isSuccessful) CallResult(true, "ok")
+                else CallResult(false, "HTTP ${resp.code} (local)")
             }
         } catch (e: Exception) {
-            Result(false, "rede local: ${e.message}")
+            CallResult(false, "rede local: ${e.message}")
         }
     }
 
-    private fun execJson(request: Request): Result {
+    private fun execJson(request: Request): CallResult {
         client.newCall(request).execute().use { resp ->
             val body = resp.body?.string() ?: ""
             Log.d(TAG, "HTTP ${resp.code} $body")
 
-            if (resp.code == 401) return Result(false, "auth key inválida (401)")
-            if (!resp.isSuccessful) return Result(false, "HTTP ${resp.code}")
+            if (resp.code == 401) return CallResult(false, "auth key inválida (401)")
+            if (!resp.isSuccessful) return CallResult(false, "HTTP ${resp.code}")
 
             return try {
                 val obj = JSONObject(body)
                 val ok = obj.optBoolean("isok", false) ||
                         obj.optJSONObject("data")?.optBoolean("isok", false) == true
-                if (ok) Result(true, "ok")
-                else Result(false, obj.optString("errors", body.take(120)).ifBlank { "resposta sem isok" })
+                if (ok) CallResult(true, "ok")
+                else CallResult(false, obj.optString("errors", body.take(120)).ifBlank { "resposta sem isok" })
             } catch (e: Exception) {
                 // Alguns firmwares devolvem texto simples num 200.
-                if (resp.isSuccessful) Result(true, "ok") else Result(false, "resposta inválida")
+                if (resp.isSuccessful) CallResult(true, "ok") else CallResult(false, "resposta inválida")
             }
         }
     }

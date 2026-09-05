@@ -41,7 +41,7 @@ object Notifier {
 
     /** Id de notificação próprio de cada morada (não se sobrepõem entre moradas). */
     private fun idFor(door: Door, offset: Int) =
-        NOTIF_ID_ALERT + offset + (Math.abs(door.id.hashCode()) % 100) * 10
+        NOTIF_ID_ALERT + offset + (door.id.hashCode().toLong().let { kotlin.math.abs(it) } % 100).toInt() * 10
 
     fun showOpenNotification(context: Context, door: Door, text: String) {
         val nm = context.getSystemService(NotificationManager::class.java)
