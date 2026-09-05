@@ -312,6 +312,17 @@ O seletor de mapa usa o **Maps SDK for Android**, que precisa de uma chave da Go
 
 ---
 
+## 📖 Legenda das configurações
+
+Todos os campos, o que fazem e o que acontece se aumentares ou diminuires cada
+número: **[CONFIGURACAO.md](CONFIGURACAO.md)**.
+
+Os dois que mais afetam o "não abre": **Margem de rearme** (distância a que
+tens de te afastar = raio + margem) e **Delay de troca de rede** (durante esses
+segundos a morada não pode armar).
+
+---
+
 ## Ajuste da sensibilidade (a parte que pediste)
 
 | Problema | Como resolver |
