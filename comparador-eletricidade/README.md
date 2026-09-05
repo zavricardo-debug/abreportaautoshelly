@@ -31,8 +31,45 @@ npm start            # http://localhost:3000  (PORT=8080 npm start para outra po
 npm test             # testes do parser, do simulador e da interface (jsdom)
 ```
 
-`public/` é 100 % estático – pode ser publicado em qualquer alojamento (GitHub Pages, Netlify,
-nginx…) sem o `server.mjs`.
+`public/` é 100 % estático – pode ser publicado em qualquer alojamento (Cloudflare Pages, GitHub
+Pages, Netlify, nginx…) sem o `server.mjs`.
+
+## Deploy no Cloudflare Pages
+
+```bash
+npm install && npm run vendor && npm run data:build && npm run build
+```
+
+`npm run build` cria a pasta **`dist/`** (e o ficheiro `comparador-eletricidade-cloudflare.zip`)
+com tudo o que o browser precisa: `index.html`, `app.js`, `styles.css`, `lib/`, `vendor/pdfjs/`,
+`data/ofertas.json`, `samples/`, mais `_headers`, `_redirects`, `404.html`, `robots.txt` e
+`build.json` (indica a data do dataset ERSE em produção).
+
+**Opção A – upload direto (sem Git):** Cloudflare Dashboard → *Workers & Pages* → *Create* →
+*Pages* → *Upload assets* → dar nome ao projeto → arrastar a **pasta `dist/`** (ou o `.zip`) →
+*Deploy site*. Cada atualização = repetir o upload (*Create new deployment*).
+
+**Opção B – CLI (wrangler):**
+
+```bash
+npx wrangler login
+npx wrangler pages deploy dist --project-name comparador-eletricidade
+```
+
+**Opção C – ligado ao GitHub (build automático a cada push):** *Create* → *Pages* → *Connect to
+Git* → escolher o repositório e definir:
+
+| Campo                  | Valor                                                                  |
+| ---------------------- | ---------------------------------------------------------------------- |
+| Root directory         | `comparador-eletricidade`                                              |
+| Build command          | `npm run vendor && npm run data:build && npm run build`                |
+| Build output directory | `dist`                                                                 |
+
+(Node 20+ é o predefinido no Cloudflare; se necessário defina a variável `NODE_VERSION=22`.)
+Para atualizar as ofertas basta trocar o ZIP em `data-src/` (ou correr `npm run data:update` e
+fazer commit do novo ZIP) – o build regenera o `ofertas.json`.
+
+Não são precisos Functions, KV ou variáveis de ambiente – o site não tem backend.
 
 ## Atualizar as ofertas (dados ERSE)
 
@@ -87,7 +124,9 @@ scripts/
   vendor-pdfjs.mjs                     copia pdf.js
   make-sample-pdf.mjs                  gera os PDFs de exemplo (pdfkit)
   pdf-to-text.mjs                      debug: `node scripts/pdf-to-text.mjs fatura.pdf --parse`
-server.mjs                           servidor estático (gzip) + /api/refresh-data
+  build-dist.mjs                       cria dist/ + zip para Cloudflare Pages (npm run build)
+server.mjs                           servidor estático local (gzip) + /api/refresh-data
+wrangler.toml                        config Cloudflare Pages (output dir = dist)
 test/                                node --test (parser, simulador, UI em jsdom)
 ```
 

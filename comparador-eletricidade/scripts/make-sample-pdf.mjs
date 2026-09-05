@@ -70,6 +70,7 @@ function buildInvoice({ power, days, periods, powerPrice, tarPrice, discountPct 
 
 function write(file, build) {
   return new Promise((res, rej) => {
+    // autoFirstPage + explicit page breaks only; footer text must stay above the bottom margin
     const doc = new PDFDocument({ size: 'A4', margin: 40, info: { Title: 'Fatura de exemplo (dados fictícios)' } });
     const stream = createWriteStream(resolve(OUT, file));
     doc.pipe(stream);
@@ -161,7 +162,7 @@ await write('fatura-exemplo-endesa.pdf', (doc) => {
 
   doc.font('Helvetica-Bold').fontSize(14).fillColor('#0b2a5b').text('TOTAL A PAGAR', 40, 285).text(eur(r2(endesa.invoiceTotal + endesaCredit)), 400, 285, { width: 155, align: 'right' });
   doc.font('Helvetica').fontSize(8).fillColor('#000').text('Débito direto na conta PT50 **** **** **** **** 1234 em 23 set 2026', 40, 305);
-  doc.fontSize(7).fillColor('#777').text(DISCLAIMER, 40, 800);
+  doc.fontSize(7).fillColor('#777').text(DISCLAIMER, 40, 780, { width: 515, lineBreak: false });
 
   // page 2: detail
   doc.addPage();
@@ -180,7 +181,7 @@ await write('fatura-exemplo-endesa.pdf', (doc) => {
   doc.fontSize(7.5).fillColor('#333');
   doc.text('** Os preços apresentados não incluem IVA. Tarifas de Acesso às Redes aprovadas pela ERSE para 2026. O Termo de Energia inclui a componente de acesso às redes (0,0607 €/kWh).', 40, y, { width: 515 }); y += 24;
   doc.text('Consumo médio diário neste período: 5,06 kWh. No período homólogo do ano anterior: 5,40 kWh.', 40, y, { width: 515 });
-  doc.fontSize(7).fillColor('#777').text(DISCLAIMER, 40, 800);
+  doc.fontSize(7).fillColor('#777').text(DISCLAIMER, 40, 780, { width: 515, lineBreak: false });
 });
 
 /* ---------------------------------------------------------------- EDP style, bi-horária, 6,9 kVA */
@@ -197,7 +198,7 @@ await write('fatura-exemplo-edp-bihoraria.pdf', (doc) => {
     .text('CPE: PT0002000987654321ZZ · Potência contratada: 6,9 kVA · Opção horária: Bi-horária (ciclo diário)', 40, 144);
   let y = detailTable(doc, 180, edp, { sectionLabel: 'Eletricidade', noteLabels: false });
   y = totalLine(doc, y + 4, 'TOTAL DA FATURA', eur(edp.invoiceTotal));
-  doc.fontSize(7).fillColor('#777').text(DISCLAIMER, 40, 800);
+  doc.fontSize(7).fillColor('#777').text(DISCLAIMER, 40, 780, { width: 515, lineBreak: false });
 });
 
 console.log('Sample PDFs written to', OUT);

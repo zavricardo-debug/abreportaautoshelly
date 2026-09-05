@@ -6,8 +6,8 @@ let pdfjsPromise = null;
 
 async function loadPdfjs() {
   if (!pdfjsPromise) {
-    pdfjsPromise = import('../vendor/pdfjs/pdf.min.mjs').then((pdfjs) => {
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
+    pdfjsPromise = import('../vendor/pdfjs/pdf.min.js').then((pdfjs) => {
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url).href;
       return pdfjs;
     });
   }

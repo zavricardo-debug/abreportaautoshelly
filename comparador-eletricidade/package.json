@@ -10,6 +10,7 @@
     "data:build": "node scripts/update-erse.mjs --csv-dir ./data-src",
     "data:update": "node scripts/update-erse.mjs",
     "samples": "node scripts/make-sample-pdf.mjs",
+    "build": "node scripts/build-dist.mjs",
     "pdf:text": "node scripts/pdf-to-text.mjs",
     "test": "node --test test/*.test.mjs"
   },

@@ -1,0 +1,5 @@
+# Cloudflare Pages project config (used by `npx wrangler pages deploy` and by
+# Git-connected builds). The site is 100 % static: no Functions, no bindings.
+name = "comparador-eletricidade"
+compatibility_date = "2026-09-01"
+pages_build_output_dir = "dist"
