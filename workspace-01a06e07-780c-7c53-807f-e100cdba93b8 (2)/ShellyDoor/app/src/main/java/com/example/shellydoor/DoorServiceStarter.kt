@@ -12,19 +12,22 @@ import androidx.core.content.ContextCompat
  * Arranca o [DoorService] em foreground de forma segura.
  *
  * NUNCA deve rebentar a app: se a permissão de localização ainda não foi concedida
- * (ou o start for proibido), simplesmente NÃO arranca o serviço — a app continua
- * aberta e o utilizador é que arma a automação depois de dar as permissões.
+ * (ou o start for proibido), simplesmente NÃO arranca o serviço.
  */
 object DoorServiceStarter {
 
     private const val TAG = "DoorServiceStarter"
 
     fun ensureRunning(context: Context) {
-        // Arrancar um foreground service de localização exige a permissão de
-        // localização já concedida (nomeadamente em Android 12+ / 14). Sem ela,
-        // o arranque lançaria uma SecurityException e rebentaria a app.
+        val app = context.applicationContext
+
+        if (!Prefs(app).autoEnabled) {
+            Log.i(TAG, "Automação desligada; não arranco o serviço.")
+            return
+        }
+
         val hasLocation = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACCESS_FINE_LOCATION
+            app, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
         if (!hasLocation) {
@@ -33,11 +36,11 @@ object DoorServiceStarter {
         }
 
         try {
-            val intent = Intent(context, DoorService::class.java)
+            val intent = Intent(app, DoorService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
+                app.startForegroundService(intent)
             } else {
-                context.startService(intent)
+                app.startService(intent)
             }
         } catch (e: Exception) {
             // Nunca deixar a app cair por causa do serviço.

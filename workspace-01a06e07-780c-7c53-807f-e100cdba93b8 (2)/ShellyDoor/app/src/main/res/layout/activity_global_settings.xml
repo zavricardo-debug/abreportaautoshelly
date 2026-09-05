@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -54,10 +58,72 @@
         android:inputType="textPassword"
         android:hint="@string/hint_auth_key_global" />
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_section_approach"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:paddingTop="20dp" />
+
+    <CheckBox
+        android:id="@+id/cbActiveTracking"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/hint_active_tracking" />
+
+    <EditText
+        android:id="@+id/etRearmMargin"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="numberDecimal"
+        android:hint="@string/hint_rearm_margin" />
+
+    <EditText
+        android:id="@+id/etMinAccuracy"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="numberDecimal"
+        android:hint="@string/hint_min_accuracy" />
+
+    <EditText
+        android:id="@+id/etNearInterval"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:hint="@string/hint_near_interval" />
+
+    <EditText
+        android:id="@+id/etFarInterval"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:hint="@string/hint_far_interval" />
+
+    <CheckBox
+        android:id="@+id/cbWifiBlocksArmed"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/hint_wifi_blocks_armed" />
+
+    <Button
+        android:id="@+id/btnRearmNow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/btn_rearm_now"
+        android:layout_marginTop="12dp" />
+
+    <Button
+        android:id="@+id/btnBattery"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/btn_battery" />
+
     <Button
         android:id="@+id/btnSaveGlobal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/btn_save"
         android:layout_marginTop="20dp" />
-</LinearLayout>
+    </LinearLayout>
+</ScrollView>

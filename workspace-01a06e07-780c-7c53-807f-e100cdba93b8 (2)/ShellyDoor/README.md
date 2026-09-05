@@ -9,33 +9,86 @@ App Android (Kotlin) que abre a porta quando te aproximas do prédio, usando o t
 
 ## Como funciona (a lógica de decisão)
 
-A porta só abre **automaticamente** quando TODAS as condições são verdadeiras:
+> **⚠ Mudança importante (correção do "não abre quando estou à frente da porta").**
+> Antes, a decisão dependia de **não** estares ligado ao Wi-Fi de casa no momento
+> da chegada. Só que o telemóvel apanha a rede de casa **ainda na rua**, a 20–40 m
+> da porta — ou seja, o kill-switch disparava exatamente quando devias entrar.
+> Agora a app usa um modelo de **armar / disparar**, explicado a seguir.
 
-1. **GPS** — entras no cerco (geofence) à volta da porta (raio configurável, por
-   defeito 35 m). O sistema só dispara na transição de **ENTRADA**, não continuamente.
-2. **Velocidade** — estás devagar (não a passar de carro/a correr).
-3. **Wi-Fi = kill-switch** — se estás ligado ao teu Wi-Fi de casa, a abertura
-   automática é **bloqueada**. Este é o teu principal "não abrir dentro de casa".
-4. **Delay de troca de rede (grace period)** — ao mudar de rede dentro de casa
-   (5G→2.4G, mudar de router/AP), o SSID fica momentaneamente vazio e a app poderia
-   pensar "saí de casa". Para evitar abertura falsa, a app lembra-se de **quando
-   estivemos pela última vez num Wi-Fi de casa** e, durante essa janela (60 s por
-   defeito), continua a considerar que estamos em casa → **não abre**.
-5. **Cooldown** — não repete aberturas num curto intervalo (por defeito 30 s).
-6. **Pausa** — se colocaste a automação em pausa (para ficares a conversar à entrada
-   sem abrir a porta de cada vez), a automática não dispara enquanto durar a pausa.
+### Armar ao sair, disparar ao chegar
 
-Sempre que a automática é bloqueada (ex.: estás em casa), aparece uma notificação
-com um **botão manual "Abrir porta"**, para acionares à vontade quando é o caso.
+Cada morada tem um estado interno: **armada** ou **não armada**.
+
+| Estado | Quando acontece | A porta abre ao chegar? |
+|---|---|---|
+| **Não armada** | Estás em casa, ou nunca te afastaste | ❌ Não |
+| **Armada** 🟢 | Afastaste-te mais do que `raio + margem de rearme` (por defeito 35 + 60 = 95 m) **e** já não estavas no Wi-Fi de casa | ✅ Sim |
+
+A porta abre **automaticamente** quando:
+
+1. A morada está **armada** (ou seja: saíste mesmo de casa).
+2. **Entras no raio** da porta (por defeito 35 m).
+3. Não vais **demasiado depressa** (por defeito >8 m/s ≈ 29 km/h bloqueia — a pé
+   nunca bloqueia; velocidade desconhecida também não bloqueia).
+4. O **GPS não está absurdamente impreciso** (pior que ±120 m).
+5. Não está em **pausa** e o **cooldown** dessa morada já passou.
+
+Ao abrir, a morada **desarma** — só volta a abrir depois de te afastares outra vez.
+É isto que impede a porta de reabrir enquanto ficas à conversa à entrada, sem
+precisar de bloquear nada durante 10 minutos.
+
+```
+Estou em casa ─────────────────────────► não armada ──► nunca abre
+     │
+     └─ saio, afasto-me >95 m, sem Wi-Fi de casa ──► 🟢 ARMADA
+                                                        │
+                                       volto e entro no raio (35 m)
+                                                        │
+                                    devagar? GPS ok? sem cooldown?
+                                                        │ sim
+                                                        ▼
+                                     Shelly: impulso → porta abre → desarma
+```
+
+### E o Wi-Fi de casa, para que serve agora?
+
+Continua a ser o guarda que impede a morada de **armar** enquanto estás em casa
+(incluindo o *grace period* de 60 s para a troca 5G↔2.4G). O que mudou é que ele
+já **não bloqueia a chegada**: depois de teres saído a sério, chegar à porta abre,
+esteja o telemóvel já ligado ao Wi-Fi de casa ou não.
+
+> Se preferires o comportamento antigo, liga **"Wi-Fi de casa bloqueia mesmo depois
+> de teres saído"** em ⚙ Definições globais (não é recomendado — era a causa do
+> problema).
+
+### Rastreio ativo (a outra metade da correção)
+
+Os **geofences do Android**, sozinhos, são lentos e pouco fiáveis com raios
+pequenos: muitas vezes o evento de entrada só chega minutos depois — ou nunca,
+com o ecrã desligado. Era a segunda razão de "estou à porta e não acontece nada".
+
+Agora o serviço em foreground faz **rastreio ativo de localização**, com ritmo
+adaptativo:
+
+| Situação | Frequência do GPS |
+|---|---|
+| A mais de 400 m de qualquer morada | a cada **45 s** (poupa bateria) |
+| A menos de 400 m de uma morada | a cada **4 s** (deteta a chegada em segundos) |
+
+Os geofences continuam registados como **rede de segurança** (com raio mínimo de
+100 m, que é o que o Android consegue mesmo detetar) e, quando disparam, apenas
+acordam o serviço — quem decide é sempre a distância real.
 
 ## ⏸ Pausa (para não abrir sempre que estás à conversa à porta)
 
 Se ficas a conversar perto da entrada, a porta não deve abrir de cada vez. A app tem
 dois mecanismos:
 
-- **Auto-pausa após abertura** (ligada por defeito): quando a porta abre
-  automaticamente, a automação entra em pausa durante X minutos. Assim, se continuares
-  por perto (a falar com o vizinho, a esperar), não reabre.
+- **Rearme por distância** (é o mecanismo principal, sempre ativo): depois de abrir,
+  a morada **desarma** e só volta a armar quando te afastares >95 m. Ficares à
+  conversa à porta nunca reabre nada.
+- **Auto-pausa após abertura** (agora **desligada** por defeito — o rearme já
+  resolve o problema, e a pausa antiga silenciava também as outras moradas).
 - **Pausa manual** com botão `⏸ Pausar automação` no ecrã principal — para meteres a
   automática em pausa quando quiseres. É cancelável de imediato.
 
@@ -59,6 +112,30 @@ Approach (GPS) ──► Estou em casa? (Wi-Fi agora OU há <60s) ──► SIM 
 > automática está desligada. Quando sais de casa e desligas do Wi-Fi, ao
 > aproximares-te o GPS dispara. Ajusta o **raio** (Definições → "Raio de disparo")
 > para que o cerco apanhe só a zona da porta, não o teu hall.
+
+---
+
+## ✅ Depois de instalar: as 3 coisas que TÊM de estar certas
+
+Se a porta não abrir à chegada, é quase sempre uma destas (não é o código):
+
+1. **Localização = "Permitir sempre"**
+   Definições → Apps → ShellyDoor → Permissões → Localização → **Permitir sempre**
+   (+ "Usar localização precisa"). Só com "enquanto a app está aberta" o Android
+   corta o rastreio assim que bloqueias o ecrã. A app pede-te isto no arranque.
+2. **Bateria sem restrições**
+   ⚙ Definições globais → **🔋 Desativar otimização de bateria**. Em Xiaomi/Huawei/
+   Oppo/Samsung é preciso ainda "Início automático" / "Não otimizar" no menu do
+   fabricante, senão o sistema mata o serviço passado uns minutos.
+3. **Cada morada com o ponto marcado** (🗺 mapa) e o **SSID de casa** preenchido.
+
+O ecrã principal mostra avisos ⚠ quando algo destes falta, e por baixo de cada
+morada mostra **a distância atual e o motivo** da última decisão — é por aí que se
+percebe o que está a acontecer.
+
+### Testar sem sair de casa
+⚙ Definições globais → **🔄 Armar todas as moradas agora**. Isto força o estado
+"armada"; a próxima vez que a app te vir dentro do raio, abre.
 
 ---
 
@@ -219,9 +296,10 @@ O seletor de mapa usa o **Maps SDK for Android**, que precisa de uma chave da Go
 | Problema | Como resolver |
 |---|---|
 | Abre demasiado cedo / a meio da rua | Reduz o **Raio de disparo** (ex.: 25 m → 15 m). |
-| Não abre ao chegar | Aumenta o raio, ou desliga (temporariamente) o kill-switch de Wi-Fi. |
-| Abre dentro do apartamento | Aumenta o raio para que o cerco *não* inclua o teu andar... **ou** mantém o Wi-Fi de casa como bloqueador (é o mais fiável). |
-| Abre quando passo de carro | Reduz **Velocidade máx** (ex.: 1,5–3 m/s). |
+| **Não abre ao chegar** | Vê o diagnóstico no ecrã principal (mostra a distância e o motivo). Confirma que diz **🟢 armada**; se não, é porque a app não percebeu que saíste — reduz a *margem de rearme*. Confirma também a localização em **"Permitir sempre"** e a **bateria sem restrições**. |
+| Só abre às vezes / abre tarde | Otimização de bateria. ⚙ Definições globais → **🔋 Desativar otimização de bateria**. |
+| Abre dentro do apartamento | Não devia acontecer (nunca arma em casa). Confirma que o **SSID de casa** está certo na morada e aumenta a **margem de rearme**. |
+| Abre quando passo de carro | Reduz **Velocidade máx** (ex.: 4–5 m/s). |
 | Abre quando troco de rede em casa (5G/2.4G) | Aumenta o **Delay de troca de rede** (ex.: 60 → 90 s). |
 | Abre e fecha de novo | Aumenta a **Duração do impulso** ou o **Cooldown**. |
 
@@ -256,10 +334,11 @@ ShellyDoor/
 │  ├─ MapsActivity.kt          # seletor do ponto da porta no mapa (+ círculo do raio)
 │  ├─ Door.kt                  # ★ modelo de uma morada (dados + JSON, incl. último Wi-Fi em casa)
 │  ├─ DoorStore.kt             # ★ lista de moradas (persistência JSON)
-│  ├─ DoorService.kt           # serviço em foreground com geofencing ativo
+│  ├─ DoorService.kt           # ★ foreground + rastreio ativo de localização
 │  ├─ GeofenceManager.kt       # registo de UM geofence por morada
 │  ├─ DoorGeofenceReceiver.kt  # identifica a morada e aplica a decisão
-│  ├─ DoorDecisionEngine.kt    # ★ sensibilidade por morada (GPS + Wi-Fi + pausa + cooldown)
+│  ├─ DoorDecisionEngine.kt    # ★ decisão: armar ao sair / disparar ao chegar
+│  ├─ ApproachEvaluator.kt     # ★ ponto único de avaliação (rastreio + geofence)
 │  ├─ WifiHomeChecker.kt       # ★ kill-switch Wi-Fi por morada
 │  ├─ ShellyController.kt      # ★ chama o relé da morada (local ou cloud) com impulso
 │  ├─ Notifier.kt              # notificações + botão manual (com a morada certa)

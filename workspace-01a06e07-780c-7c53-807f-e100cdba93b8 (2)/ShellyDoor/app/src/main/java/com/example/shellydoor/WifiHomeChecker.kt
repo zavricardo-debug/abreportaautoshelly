@@ -2,23 +2,26 @@ package com.example.shellydoor
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
+import android.os.Build
 
 /**
  * Verifica se o telemóvel está ligado ao Wi-Fi de casa de uma [Door] concreta.
- * É o kill-switch anti-abertura: se estamos ligados à rede doméstica daquela
- * morada, consideramos que estamos dentro e NÃO abrimos automaticamente.
  *
- * ### Proteção na troca de rede (grace period) — POR MORADA
- * Ao trocar de rede dentro de casa (ex.: 5G → 2.4G do mesmo router, ou mudar de
- * ponto de acesso), o SSID atual fica momentaneamente vazio durante 1–5 s. Nesse
- * instante a app poderia pensar "saí de casa" e abrir a porta a caminho da entrada.
+ * ### Onde é que isto conta (mudou!)
+ * O Wi-Fi de casa deixou de ser o "kill-switch" no momento da chegada — porque o
+ * telemóvel apanha a rede de casa já na rua e isso impedia a porta de abrir
+ * quando estavas mesmo à frente dela. Agora o Wi-Fi serve para **impedir que a
+ * morada arme** enquanto estás em casa (ver [DoorDecisionEngine]). Depois de
+ * teres saído a sério, a chegada abre a porta esteja o Wi-Fi ligado ou não
+ * (a menos que ligues `wifiBlocksWhenArmed` nas definições).
  *
- * Para o evitar, registamos a última vez que estivemos no Wi-Fi de casa de CADA
- * morada ([Door.lastHomeWifiAt]) e, mesmo sem estarmos ligados agora, se isso
- * aconteceu há menos de `networkGraceSeconds` segundos continuamos a considerar
- * que estamos em casa (bloqueia). Só depois do intervalo expirar é que a automação
- * rearma para aquela morada.
+ * ### Grace period (troca de rede 5G ↔ 2.4G)
+ * Ao trocar de banda/AP o SSID fica momentaneamente vazio. Guardamos a última
+ * vez que estivemos no Wi-Fi de casa de CADA morada ([Door.lastHomeWifiAt]) e,
+ * durante `networkGraceSeconds`, continuamos a considerar que estamos em casa.
  */
 class WifiHomeChecker(
     private val context: Context,
@@ -26,20 +29,44 @@ class WifiHomeChecker(
     private val store: DoorStore
 ) {
 
+    /** Estamos sequer ligados a uma rede Wi-Fi neste momento? */
+    private fun wifiConnected(): Boolean = try {
+        val cm = context.applicationContext
+            .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+        caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+    } catch (e: Exception) {
+        false
+    }
+
+    /**
+     * SSID atual, ou null se não estivermos em Wi-Fi / não for legível.
+     *
+     * Atenção: a partir do Android 10 o `connectionInfo.ssid` devolve
+     * `<unknown ssid>` sem permissão de localização concedida. Nesse caso
+     * devolvemos null (desconhecido) em vez de uma string inútil, para não
+     * comparar lixo com o SSID de casa.
+     */
     @SuppressLint("MissingPermission")
     fun currentSsid(): String? {
+        if (!wifiConnected()) return null
         return try {
-            val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val wifi = context.applicationContext
+                .getSystemService(Context.WIFI_SERVICE) as WifiManager
+            @Suppress("DEPRECATION")
             val info = wifi.connectionInfo ?: return null
-            info.ssid?.trim('"') ?: return null
+            @Suppress("DEPRECATION")
+            val raw = info.ssid?.trim('"')?.trim() ?: return null
+            if (raw.isEmpty() ||
+                raw.equals("<unknown ssid>", ignoreCase = true) ||
+                raw.equals("0x", ignoreCase = true)
+            ) null else raw
         } catch (e: Exception) {
             null
         }
     }
 
-    /** Lê o SSID atual e, para cada morada cujo SSID corresponda, atualiza o
-     *  "última vez em casa" dessa morada. Chamado periodicamente pelo [DoorService].
-     */
+    /** Lê o SSID atual e atualiza o "última vez em casa" das moradas que batem certo. */
     fun recordIfHome() {
         val cur = currentSsid() ?: return
         var changed = false
@@ -53,19 +80,20 @@ class WifiHomeChecker(
         if (changed) store.updateAll(doors)
     }
 
-    /** true = estamos (ou estivemos recentemente) em casa da morada `door` → bloquear. */
+    /** true = estamos (ou estivemos mesmo agora) no Wi-Fi de casa desta morada. */
     fun isAtHome(door: Door): Boolean {
         if (!door.wifiKillEnabled) return false
+        if (door.homeSsid.isBlank()) return false   // sem SSID configurado não bloqueia nada
 
-        // Ligado neste momento ao Wi-Fi de casa desta morada?
         val cur = currentSsid()
         if (cur != null && door.matchesHome(cur)) return true
 
-        // Grace period por morada: estivemos no Wi-Fi de casa há menos de N segundos?
         val graceMs = prefs.networkGraceSeconds * 1000L
-        if (graceMs > 0 && System.currentTimeMillis() - door.lastHomeWifiAt < graceMs) {
-            return true
-        }
-        return false
+        return graceMs > 0 &&
+                door.lastHomeWifiAt > 0L &&
+                System.currentTimeMillis() - door.lastHomeWifiAt < graceMs
     }
+
+    @Suppress("unused")
+    private fun apiAtLeastQ() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 }

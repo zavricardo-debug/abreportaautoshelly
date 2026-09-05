@@ -9,6 +9,8 @@
     <!-- Localização: necessária para o geofencing da porta e para ler o SSID do Wi-Fi -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Sem esta, os geofences e o rastreio param quando a app não está aberta -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <!-- Notificações (botão manual "Abrir porta") -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -19,6 +21,12 @@
 
     <!-- Re-armar os geofences após reiniciar o telemóvel -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Pedir isenção da otimização de bateria (senão o Android mata o rastreio) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- O geofencing precisa do Google Play Services / GPS -->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <application
         android:name=".App"
@@ -65,14 +73,35 @@
         <!-- Recetor de eventos de geofence -->
         <receiver
             android:name=".DoorGeofenceReceiver"
-            android:exported="false" />
+            android:exported="false"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="com.example.shellydoor.GEOFENCE" />
+            </intent-filter>
+        </receiver>
 
-        <!-- Recetor de arranque do sistema -->
+        <!-- Recetor do botão manual "Abrir porta" das notificações.
+             FALTAVA no manifest: sem esta declaração o Android nunca entregava
+             o broadcast e o botão da notificação não fazia absolutamente nada. -->
         <receiver
-            android:name=".BootReceiver"
+            android:name=".NotificationActionReceiver"
             android:exported="false">
             <intent-filter>
+                <action android:name="com.example.shellydoor.OPEN_MANUAL" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Recetor de arranque do sistema -->
+        <!-- BOOT_COMPLETED é entregue pelo sistema: o recetor TEM de ser exported
+             (com exported="false" o Android nunca o acordava depois de reiniciar). -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:directBootAware="true">
+            <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

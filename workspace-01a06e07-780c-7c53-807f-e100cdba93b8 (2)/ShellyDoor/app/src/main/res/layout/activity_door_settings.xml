@@ -128,6 +128,13 @@
             android:hint="@string/hint_pulse" />
 
         <Button
+            android:id="@+id/btnTestShelly"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_test_shelly"
+            android:layout_marginTop="12dp" />
+
+        <Button
             android:id="@+id/btnSaveDoor"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

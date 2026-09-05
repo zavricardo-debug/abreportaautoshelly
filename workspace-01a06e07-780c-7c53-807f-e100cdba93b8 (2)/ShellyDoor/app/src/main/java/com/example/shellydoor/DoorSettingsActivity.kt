@@ -75,11 +75,34 @@ class DoorSettingsActivity : AppCompatActivity() {
             d.cloudDeviceId = findViewById<EditText>(R.id.etDeviceId).text.toString()
             d.cloudAuthKey = findViewById<EditText>(R.id.etAuthKey).text.toString()
             d.relayPulseSeconds = findViewById<EditText>(R.id.etPulse).text.toString().toIntOrNull() ?: 1
+            // Guardar as definições limpa o estado: a morada fica pronta a
+            // disparar na próxima chegada, sem cooldown nem pausa pendentes.
+            d.lastOpenAt = 0L
+            d.pauseUntil = 0L
+            d.lastReason = "Guardada — a aguardar posição"
             store.update(d)
+            // Reiniciar o serviço para aplicar já o novo ponto/raio.
+            stopService(Intent(this, DoorService::class.java))
             DoorServiceStarter.ensureRunning(this)
             toast("Morada guardada ✓")
             finish()
         }
+        findViewById<Button>(R.id.btnTestShelly).setOnClickListener {
+            val d = store.byId(door.id) ?: return@setOnClickListener
+            // Testa com os valores ATUAIS das caixas, sem obrigar a guardar antes.
+            d.controlMode = findViewById<EditText>(R.id.etMode).text.toString().ifBlank { "cloud" }
+            d.channel = findViewById<EditText>(R.id.etChannel).text.toString().toIntOrNull() ?: 0
+            d.shellIp = findViewById<EditText>(R.id.etIp).text.toString()
+            d.cloudHost = findViewById<EditText>(R.id.etCloudHost).text.toString()
+            d.cloudDeviceId = findViewById<EditText>(R.id.etDeviceId).text.toString()
+            d.cloudAuthKey = findViewById<EditText>(R.id.etAuthKey).text.toString()
+            d.relayPulseSeconds = findViewById<EditText>(R.id.etPulse).text.toString().toIntOrNull() ?: 1
+            toast("A testar o Shelly de ${d.name}…")
+            ShellyController(Prefs(this)).openDoor(d) { ok, msg ->
+                runOnUiThread { toast(if (ok) "Shelly OK ✓ — a porta deve ter aberto" else "Falhou: $msg") }
+            }
+        }
+
         findViewById<Button>(R.id.btnDeleteDoor).setOnClickListener {
             store.remove(door.id); DoorServiceStarter.ensureRunning(this)
             toast("Morada removida"); finish()

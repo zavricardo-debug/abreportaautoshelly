@@ -39,6 +39,10 @@ object Notifier {
         return builder.build()
     }
 
+    /** Id de notificação próprio de cada morada (não se sobrepõem entre moradas). */
+    private fun idFor(door: Door, offset: Int) =
+        NOTIF_ID_ALERT + offset + (Math.abs(door.id.hashCode()) % 100) * 10
+
     fun showOpenNotification(context: Context, door: Door, text: String) {
         val nm = context.getSystemService(NotificationManager::class.java)
         val builder = Notification.Builder(context, CHANNEL_ALERT)
@@ -47,7 +51,7 @@ object Notifier {
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setAutoCancel(true)
         addManualAction(context, builder, door.id)
-        nm.notify(NOTIF_ID_ALERT, builder.build())
+        nm.notify(idFor(door, 0), builder.build())
     }
 
     fun updateOpenNotification(context: Context, door: Door, text: String) {
@@ -62,15 +66,19 @@ object Notifier {
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setAutoCancel(false)
         addManualAction(context, builder, door.id)
-        nm.notify(NOTIF_ID_ALERT + 1, builder.build())
+        nm.notify(idFor(door, 1), builder.build())
     }
 
     private fun addManualAction(context: Context, builder: Notification.Builder, doorId: String) {
+        // Request code ÚNICO por morada: com o valor fixo "1" que estava aqui, o
+        // PendingIntent de uma morada reutilizava os extras de outra e o botão
+        // manual abria a porta errada (ou nenhuma).
         val pi = PendingIntent.getBroadcast(
             context,
-            1,
+            doorId.hashCode(),
             Intent(context, NotificationActionReceiver::class.java)
                 .setAction(ACTION_OPEN_MANUAL)
+                .setPackage(context.packageName)
                 .putExtra(EXTRA_DOOR_ID, doorId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -89,11 +97,29 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 return
             }
             Log.i(TAG, "Abertura manual pedida: ${door.name}")
-            val prefs = Prefs(context)
-            Notifier.showOpenNotification(context, door, "A abrir manualmente…")
+            val app = context.applicationContext
+            val prefs = Prefs(app)
+            val store = DoorStore(app)
+            // goAsync(): sem isto o processo do recetor podia ser morto antes de a
+            // chamada HTTP ao Shelly terminar — o botão parecia não fazer nada.
+            val pending = goAsync()
+            Notifier.showOpenNotification(app, door, "A abrir manualmente…")
             ShellyController(prefs).openDoor(door) { ok, msg ->
-                prefs.lastResult = msg
-                Notifier.updateOpenNotification(context, door, if (ok) "Porta aberta ✓" else "Erro: $msg")
+                try {
+                    prefs.lastResult = "${door.name}: $msg"
+                    if (ok) {
+                        // Abriste à mão: desarma, para não reabrir sozinha logo a seguir.
+                        store.byId(door.id)?.let { d ->
+                            d.armed = false
+                            d.lastOpenAt = System.currentTimeMillis()
+                            d.lastReason = "Aberta à mão ✓"
+                            store.update(d)
+                        }
+                    }
+                    Notifier.updateOpenNotification(app, door, if (ok) "Porta aberta ✓" else "Erro: $msg")
+                } finally {
+                    pending.finish()
+                }
             }
         }
     }

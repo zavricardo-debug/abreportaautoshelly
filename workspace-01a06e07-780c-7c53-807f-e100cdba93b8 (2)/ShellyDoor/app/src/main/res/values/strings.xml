@@ -10,6 +10,7 @@
     <string name="btn_pause">⏸ Pausar automação (deixar de abrir por um tempo)</string>
     <string name="btn_settings">⚙ Definições globais</string>
     <string name="btn_save">Guardar</string>
+    <string name="btn_test_shelly">⚡ Testar este Shelly agora</string>
     <string name="btn_delete_door">🗑 Remover esta morada</string>
 
     <string name="hint">Cada morada tem a sua porta e o seu Shelly — configura cada uma de forma independente.</string>
@@ -25,7 +26,7 @@
     <string name="hint_door_name">Nome da morada (ex. "Casa", "Trabalho")</string>
     <string name="hint_door_enabled">Automação desta morada ativa?</string>
     <string name="hint_radius">Raio de disparo (metros) — experimenta 20–40m</string>
-    <string name="hint_speed">Velocidade máx para abrir (m/s) — ex. 3</string>
+    <string name="hint_speed">Velocidade máx para abrir (m/s) — ex. 8 (a pé nunca bloqueia)</string>
     <string name="hint_cooldown">Cooldown (segundos) entre aberturas — ex. 30</string>
     <string name="hint_wifi_kill">Ligado ao Wi-Fi de casa = bloquear abertura</string>
     <string name="hint_home_ssid">SSID de casa (vírgulas se vários) — ex. MeuRouter</string>
@@ -47,4 +48,15 @@
     <string name="map_hint">Toca (segura) num ponto do mapa para marcares a porta. O círculo é o raio de disparo da morada.</string>
     <string name="map_my_location">📍 Ir para a minha posição</string>
     <string name="map_use_this_point">Usar este ponto como porta</string>
+
+    <!-- Aproximação / rastreio -->
+    <string name="settings_section_approach">Aproximação (o que faz a porta abrir à chegada)</string>
+    <string name="hint_active_tracking">Rastreio ativo de localização (recomendado — sem isto pode não abrir à chegada)</string>
+    <string name="hint_rearm_margin">Margem de rearme (metros) — tens de te afastar raio+isto para voltar a abrir. ex. 60</string>
+    <string name="hint_min_accuracy">Precisão mínima do GPS (metros) — só recusa fixes piores que isto. ex. 120</string>
+    <string name="hint_near_interval">Intervalo do GPS perto de casa (segundos) — ex. 4</string>
+    <string name="hint_far_interval">Intervalo do GPS longe de casa (segundos) — ex. 45</string>
+    <string name="hint_wifi_blocks_armed">Wi-Fi de casa bloqueia mesmo depois de teres saído (não recomendado)</string>
+    <string name="btn_rearm_now">🔄 Armar todas as moradas agora (teste)</string>
+    <string name="btn_battery">🔋 Desativar otimização de bateria (importante!)</string>
 </resources>
