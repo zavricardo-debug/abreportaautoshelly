@@ -6,6 +6,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
+export const APP_VERSION = '1.2.0'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
   dataset: null,
@@ -53,6 +54,8 @@ async function init() {
     $('#dataset-pill').textContent = 'erro a carregar ofertas';
     showError(`Não foi possível carregar a lista de ofertas (public/data/ofertas.json): ${e.message}. Corra "npm run data:build".`);
   }
+  const ver = $('#app-version');
+  if (ver) ver.textContent = `v${APP_VERSION}`;
   // power select
   const ps = $('#f-power');
   for (const p of STANDARD_POWERS) { const o = document.createElement('option'); o.value = p; o.textContent = `${fmtNum(p, 2)} kVA`; ps.appendChild(o); }
@@ -137,7 +140,7 @@ async function handleFile(file, password) {
     if (e?.name === 'InvalidPDFException') return showError(`O ficheiro não é um PDF válido ou está corrompido (${e.message}). Volte a descarregar a fatura.`);
     if (e?.code === 'PDFJS_LOAD') return showError(e.message);
     const ua = (navigator.userAgent.match(/(Firefox|Edg|OPR|Chrome|Version)\/[\d.]+/g) || []).join(' ') + (/iPhone|iPad/.test(navigator.userAgent) ? ' iOS' : '');
-    showError(`Erro ao ler o PDF: ${e?.message || e} [${e?.name || 'Error'}; ${ua || navigator.userAgent.slice(0, 60)}]. Pode introduzir os valores manualmente com o botão "Não tenho PDF".`);
+    showError(`Erro ao ler o PDF: ${e?.message || e} [${e?.name || 'Error'}; ${ua || navigator.userAgent.slice(0, 60)}; app v${APP_VERSION}]. Pode introduzir os valores manualmente com o botão "Não tenho PDF".`);
   }
 }
 

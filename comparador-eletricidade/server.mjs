@@ -56,7 +56,7 @@ const server = createServer((req, res) => {
   const ext = extname(file).toLowerCase();
   const headers = {
     'Content-Type': MIME[ext] || 'application/octet-stream',
-    'Cache-Control': pathname.startsWith('/vendor/') ? 'public, max-age=86400' : 'no-cache',
+    'Cache-Control': /^\/vendor\/pdfjs-[^/]+\//.test(pathname) ? 'public, max-age=31536000, immutable' : 'no-cache',
     'X-Content-Type-Options': 'nosniff',
     // pdf.js worker + fonts need these to be relaxed enough; keep it simple.
     'Access-Control-Allow-Origin': '*',

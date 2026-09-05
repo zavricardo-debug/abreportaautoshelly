@@ -19,9 +19,11 @@ const DIST = resolve(ROOT, process.env.OUT_DIR || 'cloudflare-upload');
 const ZIP = resolve(ROOT, 'comparador-eletricidade-cloudflare.zip');
 
 // --- preconditions -----------------------------------------------------------
+const vendorManifest = resolve(ROOT, 'public/vendor/pdfjs.json');
+const vendorDir = existsSync(vendorManifest) ? JSON.parse(readFileSync(vendorManifest, 'utf8')).dir : 'pdfjs-missing';
 const required = [
-  ['public/vendor/pdfjs/pdf.min.js', 'npm run vendor'],
-  ['public/vendor/pdfjs/pdf.worker.min.js', 'npm run vendor'],
+  [`public/vendor/${vendorDir}/pdf.min.js`, 'npm run vendor'],
+  [`public/vendor/${vendorDir}/pdf.worker.min.js`, 'npm run vendor'],
   ['public/data/ofertas.json', 'npm run data:build'],
 ];
 for (const [f, fix] of required) {
@@ -41,9 +43,19 @@ writeFileSync(resolve(DIST, '_headers'), `# Cloudflare Pages headers (https://de
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 
-# pdf.js is versioned by re-deploy; cache aggressively
-/vendor/*
+# pdf.js lives in a versioned folder (vendor/pdfjs-<version>/), so it can be cached forever
+/vendor/pdfjs-*/*
   Cache-Control: public, max-age=31536000, immutable
+
+# app code and HTML: always revalidate so a redeploy is picked up immediately
+/*.js
+  Cache-Control: no-cache
+/lib/*
+  Cache-Control: no-cache
+/*.html
+  Cache-Control: no-cache
+/*.css
+  Cache-Control: no-cache
 
 # the ERSE dataset changes on every data refresh – revalidate
 /data/*
@@ -66,7 +78,7 @@ writeFileSync(resolve(DIST, '404.html'), `<!DOCTYPE html><html lang="pt-PT"><hea
 // robots + a tiny build manifest (handy to check which dataset is live)
 writeFileSync(resolve(DIST, 'robots.txt'), 'User-agent: *\nAllow: /\nDisallow: /data/\n');
 const meta = JSON.parse(readFileSync(resolve(PUBLIC, 'data/ofertas.json'), 'utf8')).meta;
-writeFileSync(resolve(DIST, 'build.json'), JSON.stringify({ builtAt: new Date().toISOString(), dataset: meta }, null, 2));
+writeFileSync(resolve(DIST, 'build.json'), JSON.stringify({ builtAt: new Date().toISOString(), pdfjs: vendorDir, dataset: meta }, null, 2));
 
 // --- report ------------------------------------------------------------------
 let total = 0, count = 0;

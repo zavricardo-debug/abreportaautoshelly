@@ -2,6 +2,9 @@
 // from glyph positions (invoices are tables: we need "label ... qty price total"
 // on the same line, in reading order).
 
+// Updated automatically by scripts/vendor-pdfjs.mjs (npm run vendor)
+const PDFJS_DIR = '../vendor/pdfjs-4.10.38';
+
 let pdfjsPromise = null;
 
 /**
@@ -51,8 +54,8 @@ async function loadPdfjs() {
       throw err;
     }
     polyfillStreams();
-    pdfjsPromise = import('../vendor/pdfjs/pdf.min.js').then((pdfjs) => {
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url).href;
+    pdfjsPromise = import(`${PDFJS_DIR}/pdf.min.js`).then((pdfjs) => {
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(`${PDFJS_DIR}/pdf.worker.min.js`, import.meta.url).href;
       return pdfjs;
     });
   }

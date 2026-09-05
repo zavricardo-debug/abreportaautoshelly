@@ -133,12 +133,18 @@ test/                                node --test (parser, simulador, UI em jsdom
 
 ## Compatibilidade de browsers
 
-Safari (macOS/iOS até à versão 26) não implementa `ReadableStream[Symbol.asyncIterator]`, que o
-pdf.js 5 usa (`for await … of stream`) – o sintoma é *"undefined is not a function (near '...t of
-e...')"*. O `npm run vendor` injeta um polyfill no início de `pdf.min.js` e `pdf.worker.min.js`, e
-`lib/pdf-text.js` lê o texto com um `reader` clássico, por isso o site funciona em Safari 16.4+,
-Chrome/Edge 100+ e Firefox 115+. Browsers mais antigos recebem uma mensagem clara a sugerir a
-introdução manual dos valores.
+O pdf.js está **fixado na versão 4.10.38 (build legacy)**. As versões 5+/6+ usam `for await … of
+readableStream` em `getTextContent()`, que o Safari (macOS/iOS, todas as versões até à 26) não
+suporta – o sintoma é *"Erro ao ler o PDF: undefined is not a function (near '...t of e...')"*
+(mozilla/pdf.js#21557; as correções propostas não foram integradas). Não atualize o `pdfjs-dist`
+para 5.x sem confirmar em Safari; `npm run vendor` recusa versões que não sejam 4.x.
+
+Adicionalmente `npm run vendor` injeta um polyfill de `ReadableStream[Symbol.asyncIterator]` no
+início de `pdf.min.js` e `pdf.worker.min.js`, coloca-os numa pasta versionada
+(`public/vendor/pdfjs-<versão>/`, cacheável para sempre) e atualiza o caminho em
+`lib/pdf-text.js`. O site funciona em Safari 16.4+, Chrome/Edge 100+ e Firefox 115+; browsers
+mais antigos recebem uma mensagem clara a sugerir a introdução manual dos valores. A versão da
+aplicação aparece no rodapé (`APP_VERSION` em `app.js`) e nas mensagens de erro.
 
 ## Limitações conhecidas
 

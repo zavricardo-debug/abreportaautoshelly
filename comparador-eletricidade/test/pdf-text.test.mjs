@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = resolve(__dirname, '../public');
-const vendored = existsSync(resolve(PUBLIC, 'vendor/pdfjs/pdf.min.js'));
+const manifest = resolve(PUBLIC, 'vendor/pdfjs.json');
+const vendored = existsSync(manifest) && existsSync(resolve(PUBLIC, 'vendor', JSON.parse(readFileSync(manifest, 'utf8')).dir, 'pdf.min.js'));
 const toAB = (f) => { const b = readFileSync(f); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
 
 let mod;
@@ -24,6 +25,11 @@ test('browserSupport reports ok in a modern runtime', { skip: !vendored && 'run 
   assert.deepEqual(mod.browserSupport(), { ok: true, missing: [] });
 });
 
+test('vendored pdf.js is the 4.x legacy build (5+ breaks Safari getTextContent)', { skip: !vendored && 'run npm run vendor' }, () => {
+  const { version } = JSON.parse(readFileSync(manifest, 'utf8'));
+  assert.match(version, /^4\./, `pdf.js ${version}`);
+});
+
 test('extracts text with pdf.js even without ReadableStream async iteration (Safari)', { skip: !vendored && 'run npm run vendor' }, async () => {
   const r = await mod.extractPdfText(toAB(resolve(PUBLIC, 'samples/fatura-exemplo-endesa.pdf')));
   assert.equal(r.numPages, 2);
@@ -31,6 +37,7 @@ test('extracts text with pdf.js even without ReadableStream async iteration (Saf
   assert.match(r.text, /Termo de Energia \(Real\) 157 kWh 0,166823 €/);
   assert.match(r.text, /Termo Fixo Acesso às Redes 31 dias 0,171800 €/);
   assert.match(r.text, /Imposto Especial Consumo \(Real\) 157 kWh/);
+  assert.match(r.info.pdfjsVersion, /^4\./);
   // the vendored pdf.js carries the polyfill, so the iterator now exists
   assert.equal(typeof ReadableStream.prototype[Symbol.asyncIterator], 'function');
 });

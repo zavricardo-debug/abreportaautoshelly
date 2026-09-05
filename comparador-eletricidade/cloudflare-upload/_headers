@@ -5,9 +5,19 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 
-# pdf.js is versioned by re-deploy; cache aggressively
-/vendor/*
+# pdf.js lives in a versioned folder (vendor/pdfjs-<version>/), so it can be cached forever
+/vendor/pdfjs-*/*
   Cache-Control: public, max-age=31536000, immutable
+
+# app code and HTML: always revalidate so a redeploy is picked up immediately
+/*.js
+  Cache-Control: no-cache
+/lib/*
+  Cache-Control: no-cache
+/*.html
+  Cache-Control: no-cache
+/*.css
+  Cache-Control: no-cache
 
 # the ERSE dataset changes on every data refresh – revalidate
 /data/*
