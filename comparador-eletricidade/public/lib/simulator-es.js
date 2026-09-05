@@ -8,6 +8,7 @@
 //   Potencia P2 (valle)         kW × €/kW·día × días
 //   Energía punta/llano/valle   kWh × €/kWh          (or a single price for all hours)
 //   Cuota de gestión            €/día or €/mes       (indexed offers only)
+//   Cuotas / descuentos         fixed € read from the user's bill (baseline only)
 //   Financiación Bono Social    días × 0,024688 €/día (regulated, identical for every offer)
 //   Alquiler del contador       días × €/día         (regulated, identical for every offer – no IE)
 //   Impuesto electricidad       5,11269632 % × (potencia + energía + gestión + bono social)
@@ -99,6 +100,9 @@ export function simulateES(profile, prices, rules = RULES_ES_2026) {
   // some suppliers bill regulated extras per kWh in a separate line (e.g. Repsol: SNOEE 0,00266 €/kWh)
   let extra = 0;
   if (prices.extraPerKwh) { extra = r2(prices.extraPerKwh * totalKwh); lines.push({ id: 'extra', group: 'fee', label: prices.extraLabel || 'Otros conceptos regulados', qty: totalKwh, unit: 'kWh', price: prices.extraPerKwh, priceUnit: '€/kWh', amount: extra }); }
+  // fixed amounts read from the user's own bill: discounts of the current tariff (negative) and/or fees (positive) – taxed like energy
+  let other = 0;
+  if (prices.otherAmount) { other = r2(+prices.otherAmount); lines.push({ id: 'other', group: 'fee', label: prices.otherLabel || (other < 0 ? 'Descuentos de la tarifa' : 'Cuotas de la tarifa'), qty: null, unit: '', price: null, priceUnit: '', amount: other }); }
 
   const bonoSocial = r2(bonoPerDay * days);
   const meterRent = r2(rentPerDay * days);
@@ -106,7 +110,7 @@ export function simulateES(profile, prices, rules = RULES_ES_2026) {
   lines.push({ id: 'meter_rent', group: 'regulated', label: 'Alquiler del contador', qty: days, unit: 'días', price: rentPerDay, priceUnit: '€/día', amount: meterRent });
 
   const powerAmount = r2(powerP1 + powerP2);
-  const ieBase = r2(powerAmount + energyAmount + fee + extra + bonoSocial);
+  const ieBase = r2(powerAmount + energyAmount + fee + extra + other + bonoSocial);
   const ie = r2(Math.max(ieBase * ieRate, totalKwh * rules.ieMinPerKwh));
   lines.push({ id: 'ie', group: 'tax', label: 'Impuesto electricidad', qty: ieBase, unit: '€', price: ieRate * 100, priceUnit: '%', amount: ie });
   const ivaBase = r2(ieBase + ie + meterRent);
@@ -117,7 +121,7 @@ export function simulateES(profile, prices, rules = RULES_ES_2026) {
 
   return {
     days, totalKwh, kwh, power: { p1: p1kw, p2: p2kw }, single,
-    lines, powerP1, powerP2, powerAmount, energyAmount, fee, extra, bonoSocial, meterRent, ieBase, ie, ivaBase, iva, total,
+    lines, powerP1, powerP2, powerAmount, energyAmount, fee, extra, other, bonoSocial, meterRent, ieBase, ie, ivaBase, iva, total,
     totalPerYear: r2(total * 365 / days),
     avgEnergyPrice: totalKwh ? energyAmount / totalKwh : null,
     avgPowerPerDay: days ? powerAmount / days : null,
@@ -127,7 +131,7 @@ export function simulateES(profile, prices, rules = RULES_ES_2026) {
 /** Prices of the user's own bill, as read by the parser (baseline). */
 export function baselinePricesES(form) {
   const energy = form.energySingle != null && !form.energyByPeriod ? { single: +form.energySingle } : { punta: +form.energyPrice.punta, llano: +form.energyPrice.llano, valle: +form.energyPrice.valle };
-  return { energy, power: { p1: +form.powerPrice.p1, p2: +form.powerPrice.p2 } };
+  return { energy, power: { p1: +form.powerPrice.p1, p2: +form.powerPrice.p2 }, otherAmount: +form.otherAmount || 0 };
 }
 
 /** Prices of an offer, with or without its welcome promotion. */
@@ -164,12 +168,12 @@ export function simulateAllES(dataset, profile, { includePromo = true, currentSu
 
 /** Line-by-line comparison between two simulations (same concept ids). */
 export function compareLinesES(base, other) {
-  const ids = ['power_p1', 'power_p2', 'energy', 'fee', 'extra', 'bono_social', 'meter_rent', 'ie', 'iva', 'total'];
+  const ids = ['power_p1', 'power_p2', 'energy', 'fee', 'extra', 'other', 'bono_social', 'meter_rent', 'ie', 'iva', 'total'];
   const amount = (s, id) => id === 'energy' ? s.energyAmount : (s.lines.find((l) => l.id === id)?.amount ?? 0);
   return ids.map((id) => {
     const a = amount(base, id), b = amount(other, id);
     return { id, base: a, other: b, diff: r2(b - a) };
-  }).filter((r) => !((r.id === 'fee' || r.id === 'extra') && r.base === 0 && r.other === 0));
+  }).filter((r) => !((r.id === 'fee' || r.id === 'extra' || r.id === 'other') && r.base === 0 && r.other === 0));
 }
 
 /** Deep link to the official CNMC comparator with the consumer's data (BOE-A-2022-16989 QR parameters). */

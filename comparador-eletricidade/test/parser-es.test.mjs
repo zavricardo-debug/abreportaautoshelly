@@ -30,12 +30,11 @@ test('parses the Endesa (Libre Endesa, 2.0TD) bill: every cost line', () => {
   // Potencia P1 (Punta-Llano) 4,600 kW x 0,117686 Eur/kW x 31 días = 16,78 €
   assert.equal(r.powerTerm.p1.kw, 4.6);
   assert.equal(r.powerTerm.p1.days, 31);
-  close(r.powerTerm.p1.price, 16.78 / 4.6 / 31);      // effective €/kW·día (0,117686 on the bill)
-  close(r.powerTerm.p1.price, 0.117686, 2e-5);
+  close(r.powerTerm.p1.price, 0.117686);              // unit price exactly as printed on the bill (reproduces 16,78 €)
   assert.equal(r.powerTerm.p1.amount, 16.78);
   // Pot. P3 4,600 kW x 0,041554 Eur/kW x 31 días = 5,93 €
   assert.equal(r.powerTerm.p2.kw, 4.6);
-  close(r.powerTerm.p2.price, 0.041554, 5e-5);
+  close(r.powerTerm.p2.price, 0.041554);
   assert.equal(r.powerTerm.p2.amount, 5.93);
   assert.equal(r.powerTerm.amount, 22.71);
 
@@ -85,7 +84,7 @@ TOTAL IMPORTE FACTURA 61,75 €`;
   assert.deepEqual(r.period, { start: '2026-07-01', end: '2026-07-31' });
   assert.deepEqual(r.power, { p1: 3.45, p2: 3.45 });
   assert.equal(r.powerTerm.p1.days, 30);
-  close(r.powerTerm.p1.price, 9.69 / 3.45 / 30);      // yearly €/kW converted to €/kW·día via the billed amount
+  close(r.powerTerm.p1.price, 34.187694 / 365);       // yearly €/kW converted to €/kW·día (reproduces 9,69 €)
   assert.equal(r.powerTerm.p2.amount, 0.32);
   assert.equal(r.energy.single, false);
   assert.equal(r.energy.kwh, 270);
@@ -110,4 +109,85 @@ test('reports missing lines instead of guessing', () => {
   assert.ok(r.warnings.some((w) => /potencia \(kW/.test(w)));
   assert.ok(r.warnings.some((w) => /Bono Social/.test(w)));
   assert.ok(r.warnings.some((w) => /periodo/.test(w)));
+});
+
+test('full multi-page bill: informative lines, section subtotals and the printed copy of the detail do not double count', () => {
+  const text = `endesa
+FACTURA DE ELECTRICIDAD
+Periodo de facturación: del 19/07/2026 a 19/08/2026 (31 días)
+RESUMEN DE LA FACTURA
+Potencia 22,71 €
+Energía 46,37 €
+Varios 1,60 €
+Impuestos 19,16 €
+TOTAL IMPORTE FACTURA 89,84 €
+Consumo medio diario 8,94 kWh Coste medio diario 2,90 €
+Consumo del periodo: 277 kWh
+Consumo anual estimado: 3.300 kWh
+Consumo mismo periodo año anterior 301 kWh 52,10 €
+Punta 97 kWh 35 %
+Llano 60 kWh 22 %
+Valle 119 kWh 43 %
+Potencia contratada: punta 4,600 kW valle 4,600 kW
+DETALLE DE LA FACTURA
+P1 (Punta-Llano) 4,600 kW x 0,117686 Eur/kW x 31 días 16,78 €
+Pot. P3 4,600 kW x 0,041554 Eur/kW x 31 días 5,93 €
+Consumo 277,224 kWh x 0,167283 Eur/kWh 46,37 €
+Financiación Bono Social 31 días x 0,024688 Eur/día 0,77 €
+Alquiler del contador ( 31 días x 0,026774 Eur/día ) 0,83 €
+Impuesto electricidad ( 69,85 Eur X 5,1126963 %) 3,57 €
+IVA normal 21 % s/ 74,25 15,59 €
+TOTAL 89,84 €
+COPIA – DETALLE DE LA FACTURA
+P1 (Punta-Llano) 4,600 kW x 0,117686 Eur/kW x 31 días 16,78 €
+Pot. P3 4,600 kW x 0,041554 Eur/kW x 31 días 5,93 €
+Consumo 277,224 kWh x 0,167283 Eur/kWh 46,37 €
+Financiación Bono Social 31 días x 0,024688 Eur/día 0,77 €
+Alquiler del contador ( 31 días x 0,026774 Eur/día ) 0,83 €
+Impuesto electricidad ( 69,85 Eur X 5,1126963 %) 3,57 €
+IVA normal 21 % s/ 74,25 15,59 €
+TOTAL 89,84 €`;
+  const r = parseInvoiceTextES(text);
+  assert.equal(r.days, 31);
+  assert.equal(r.powerTerm.amount, 22.71);
+  close(r.powerTerm.p1.price, 0.117686);
+  assert.equal(r.energy.kwh, 277.224);
+  assert.equal(r.energy.amount, 46.37);
+  assert.deepEqual(r.energy.readings, { punta: 97, llano: 60, valle: 119 });
+  assert.equal(r.bonoSocial.amount, 0.77);
+  assert.equal(r.meterRent.amount, 0.83);
+  assert.equal(r.ie.amount, 3.57);
+  assert.equal(r.iva.amount, 15.59);
+  assert.equal(r.total, 89.84);
+  assert.deepEqual(r.subtotals, { potencia: 22.71, energia: 46.37, varios: 1.6, impuestos: 19.16 });
+  assert.equal(r.duplicatesSkipped, 7);
+  assert.deepEqual(r.items.map((i) => i.id), ['power', 'power', 'energy', 'bonoSocial', 'meterRent', 'ie', 'iva']);
+  assert.ok(r.warnings.every((w) => /repetidas/.test(w)), r.warnings.join(' | '));
+});
+
+test('discounts of the current tariff and optional services are read as separate cost lines', () => {
+  const text = `Naturgy Iberia Factura de electricidad
+Periodo: 01/06/2026 - 30/06/2026
+Potencia contratada: 4,6 kW
+Término de potencia punta 4,6 kW x 0,105 €/kW día x 30 días 14,49 €
+Término de potencia valle 4,6 kW x 0,045 €/kW día x 30 días 6,21 €
+Consumo 300 kWh x 0,150 €/kWh 45,00 €
+Descuento 10% en energía -4,50 €
+Servicio Mantenimiento Servihogar 5,00 €
+Financiación Bono Social 30 días x 0,024688 €/día 0,74 €
+Alquiler de equipos de medida 30 días x 0,026774 €/día 0,80 €
+Impuesto sobre la electricidad 5,11269632 % s/ 61,94 € 3,17 €
+IVA 21 % s/ 70,91 € 14,89 €
+TOTAL IMPORTE FACTURA 85,80 €`;
+  const r = parseInvoiceTextES(text);
+  assert.equal(r.powerTerm.amount, 20.7);
+  assert.equal(r.energy.amount, 45);
+  assert.deepEqual(r.discounts, [{ label: 'Descuento 10% en energía', amount: -4.5 }]);
+  assert.equal(r.discountAmount, -4.5);
+  assert.deepEqual(r.services, [{ label: 'Servicio Mantenimiento Servihogar', amount: 5 }]);
+  assert.equal(r.serviceAmount, 5);
+  assert.equal(r.total, 85.8);
+  assert.ok(r.items.some((i) => i.id === 'discount') && r.items.some((i) => i.id === 'service'));
+  assert.ok(r.warnings.some((w) => /Descuentos de su tarifa/.test(w)));
+  assert.ok(r.warnings.some((w) => /Servicios adicionales/.test(w)));
 });

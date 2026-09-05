@@ -177,3 +177,15 @@ table.invoice thead th { color: var(--muted); font-weight: 600; font-size: .78re
   .period-row .plabel { grid-column: 1 / -1; padding-bottom: 0; }
   .card { padding: 16px; }
 }
+
+/* ES – bill lines check table (step 2) */
+#es-bill-lines-wrap { grid-column: 1 / -1; margin-top: .5rem; }
+table.invoice.compact { font-size: .85rem; }
+table.invoice.compact th, table.invoice.compact td { padding: .3rem .5rem; }
+table.invoice.compact td.num, table.invoice.compact th.num { text-align: right; white-space: nowrap; }
+table.invoice.compact tr.total td { font-weight: 700; border-top: 2px solid var(--border, #d7dbe0); }
+table.invoice.compact tr.muted td { color: var(--muted, #6b7280); font-style: italic; }
+table.invoice.compact td.diff.good { color: var(--good, #15803d); }
+table.invoice.compact td.diff.bad { color: var(--bad, #b91c1c); }
+table.invoice.compact td.diff.zero { color: var(--muted, #6b7280); }
+#values-form-es .actions { display: flex; justify-content: flex-end; margin-top: .75rem; }

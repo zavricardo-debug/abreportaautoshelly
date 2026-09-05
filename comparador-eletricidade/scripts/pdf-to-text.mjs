@@ -25,8 +25,16 @@ for (let p = 1; p <= doc.numPages; p++) {
 }
 const text = pages.join('\n');
 if (process.argv.includes('--parse')) {
-  const { parseInvoiceText } = await import('../public/lib/parser.js');
-  console.log(JSON.stringify(parseInvoiceText(text), null, 2));
+  // same routing as the web app: detect the country of the bill, then run the matching parser
+  const { detectCountry, parseInvoiceTextES } = await import('../public/lib/parser-es.js');
+  const det = detectCountry(text);
+  console.error(`country: ${det.country} (ES ${det.scoreES} / PT ${det.scorePT})`);
+  if (det.country === 'ES') {
+    console.log(JSON.stringify(parseInvoiceTextES(text), null, 2));
+  } else {
+    const { parseInvoiceText } = await import('../public/lib/parser.js');
+    console.log(JSON.stringify(parseInvoiceText(text), null, 2));
+  }
 } else {
   console.log(text);
 }

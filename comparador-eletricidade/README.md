@@ -130,6 +130,18 @@ IVA 21 % sobre todo lo anterior más el alquiler. Si la factura tiene precio ún
 punta/llano/valle para simular tarifas con discriminación horaria se toma de las lecturas de la
 propia factura (o de un perfil típico 30/26/44 % si no aparecen).
 
+Lectura de la factura (`public/lib/parser-es.js`): se leen **todas** las líneas de coste
+(potencia P1/P2, energía por periodo o precio único, descuentos y cuotas de la tarifa, servicios
+adicionales, bono social, alquiler, impuesto eléctrico, IVA, total) y el paso 2 muestra cada línea
+tal como viene en la factura junto al valor recalculado (deben coincidir; si no, el campo
+correspondiente se puede corregir). Las líneas informativas de la primera página («consumo medio
+diario», «mismo periodo del año anterior»…), los subtotales de sección («Potencia 22,71 €») y la
+copia del detalle que algunas facturas repiten no se contabilizan dos veces; los subtotales se usan
+para comprobar las sumas. Los descuentos de la tarifa actual entran en la base imponible (como la
+energía); los servicios adicionales (mantenimiento, seguros…) sólo llevan IVA y quedan fuera de la
+comparación con las tarifas. `npm run pdf:text -- factura.pdf --parse` detecta el país y ejecuta el
+parser correspondiente.
+
 ## Como é feita a comparação (Portugal)
 
 Para cada oferta reconstruímos a fatura completa com o perfil do utilizador (kVA, opção horária,

@@ -104,6 +104,8 @@ export function fillFormES(p, rawText) {
   setVal('#es-rent', p?.meterRent?.price ?? R.meterRentPerDay, p && p.meterRent);
   setVal('#es-ie', (p?.ie?.rate ?? R.ieRate) * 100, p && p.ie);
   setVal('#es-iva', (p?.iva?.rate ?? R.iva) * 100, p && p.iva);
+  setVal('#es-other', p ? r2((p.discountAmount || 0) + (p.feeAmount || 0)) || '' : '', p && ((p.discountAmount || 0) !== 0 || (p.feeAmount || 0) !== 0));
+  setVal('#es-services', p ? (p.serviceAmount || '') : '', p && (p.serviceAmount || 0) !== 0);
   setVal('#es-total', p?.total, p && p.total !== null);
 
   // warnings / found lines
@@ -165,6 +167,8 @@ export function readFormES() {
     rentPerDay: num('#es-rent') ?? rules().meterRentPerDay,
     ieRate: (num('#es-ie') ?? rules().ieRate * 100) / 100,
     ivaRate: (num('#es-iva') ?? rules().iva * 100) / 100,
+    otherAmount: num('#es-other') || 0,
+    servicesAmount: num('#es-services') || 0,
     invoiceTotal: num('#es-total'),
     supplierCode: $('#es-supplier').value || null,
     postalCode: ($('#es-cp').value || '').trim(),
@@ -172,7 +176,9 @@ export function readFormES() {
   };
 }
 const profileOf = (f) => ({ days: f.days, power: f.power, kwh: f.kwh, meterRentPerDay: f.rentPerDay, bonoSocialPerDay: f.bonoPerDay, ieRate: f.ieRate, ivaRate: f.ivaRate });
-const basePricesOf = (f) => ({ energy: f.single ? { single: f.energySingle } : { ...f.energyPrice }, power: { ...f.powerPrice } });
+const basePricesOf = (f) => ({ energy: f.single ? { single: f.energySingle } : { ...f.energyPrice }, power: { ...f.powerPrice }, otherAmount: f.otherAmount || 0, otherLabel: f.otherAmount < 0 ? 'Descuentos de su tarifa' : 'Cuotas de su tarifa' });
+/** Optional services (maintenance, insurance…) are outside the electricity tariff: IVA only, no impuesto eléctrico. */
+const servicesWithIva = (f) => r2((f.servicesAmount || 0) * (1 + (f.ivaRate ?? rules().iva)));
 
 function updateDerivedES() {
   const f = readFormES();
@@ -190,17 +196,52 @@ function updateDerivedES() {
   }
   // reconstruction check
   const sim = simulateES(profileOf(f), basePricesOf(f), rules());
+  const services = servicesWithIva(f);
+  const reconstructed = r2(sim.total + services);
   const box = $('#es-check');
-  const parts = `Potencia ${fmtEur(sim.powerAmount)} + Energía ${fmtEur(sim.energyAmount)} + Bono social ${fmtEur(sim.bonoSocial)} + Alquiler ${fmtEur(sim.meterRent)} + Impuesto electricidad ${fmtEur(sim.ie)} + IVA ${fmtEur(sim.iva)}`;
+  const parts = `Potencia ${fmtEur(sim.powerAmount)} + Energía ${fmtEur(sim.energyAmount)}${sim.other ? ` ${sim.other < 0 ? '−' : '+'} Descuentos/cuotas ${fmtEur(Math.abs(sim.other))}` : ''} + Bono social ${fmtEur(sim.bonoSocial)} + Alquiler ${fmtEur(sim.meterRent)} + Impuesto electricidad ${fmtEur(sim.ie)} + IVA ${fmtEur(sim.iva)}${services ? ` + Servicios adicionales ${fmtEur(services)} (IVA incl.)` : ''}`;
   if (f.invoiceTotal) {
-    const d = r2(sim.total - f.invoiceTotal);
+    const d = r2(reconstructed - f.invoiceTotal);
     box.className = `alert ${Math.abs(d) <= 0.05 ? 'ok' : 'warn'}`;
-    box.innerHTML = `<b>Comprobación:</b> con estos valores la factura se reconstruye en <b>${fmtEur(sim.total)}</b> (${parts}). Total de su factura: <b>${fmtEur(f.invoiceTotal)}</b>` +
-      (Math.abs(d) <= 0.05 ? ' ✓ coincide.' : ` – diferencia de ${signed(d)}. Puede deberse a descuentos, servicios adicionales, regularizaciones u otros conceptos que no entran en la comparación.`);
+    box.innerHTML = `<b>Comprobación:</b> con estos valores la factura se reconstruye en <b>${fmtEur(reconstructed)}</b> (${parts}). Total de su factura: <b>${fmtEur(f.invoiceTotal)}</b>` +
+      (Math.abs(d) <= 0.05 ? ' ✓ coincide: todos los conceptos de la factura están identificados.' : ` – diferencia de ${signed(d)}. Puede deberse a descuentos, servicios adicionales, regularizaciones u otros conceptos que no entran en la comparación; revise la tabla de abajo.`);
   } else {
     box.className = 'alert info';
-    box.innerHTML = `<b>Factura reconstruida con estos valores:</b> ${fmtEur(sim.total)} (${parts}).`;
+    box.innerHTML = `<b>Factura reconstruida con estos valores:</b> ${fmtEur(reconstructed)} (${parts}).`;
   }
+  renderBillLines(f, sim, services);
+}
+
+/** Step 2 table: every cost line of the uploaded bill (as read) next to the same line recomputed from the form values. */
+function renderBillLines(f, sim, services) {
+  const tb = $('#es-bill-lines tbody');
+  if (!tb) return;
+  const p = ES.parsed;
+  const read = (v) => (v === null || v === undefined) ? '<span class="muted">—</span>' : fmtEur(v);
+  const diffCell = (a, b) => {
+    if (a === null || a === undefined || b === null || b === undefined) return '<td class="num diff"></td>';
+    const d = r2(a - b);
+    return `<td class="num diff ${Math.abs(d) <= 0.005 ? 'zero' : Math.abs(d) <= 0.02 ? 'zero' : 'bad'}">${Math.abs(d) <= 0.005 ? '=' : signed(d)}</td>`;
+  };
+  const row = (label, qty, price, readAmount, simAmount, cls = '') =>
+    `<tr class="${cls}"><td>${label}</td><td>${qty}</td><td>${price}</td><td class="num">${read(readAmount)}</td><td class="num">${simAmount === null || simAmount === undefined ? '' : fmtEur(simAmount)}</td>${diffCell(simAmount, readAmount)}</tr>`;
+  const rows = [];
+  rows.push(row('Potencia P1 (punta-llano)', `${fmtNum(f.power.p1, 3)} kW × ${f.days} días`, `${fmtNum(f.powerPrice.p1, 6)} €/kW·día`, p?.powerTerm?.p1?.amount ?? null, sim.powerP1));
+  rows.push(row('Potencia P2 / P3 (valle)', `${fmtNum(f.power.p2, 3)} kW × ${f.days} días`, `${fmtNum(f.powerPrice.p2, 6)} €/kW·día`, p?.powerTerm?.p2?.amount ?? null, sim.powerP2));
+  if (f.single) {
+    rows.push(row('Energía (precio único)', `${fmtNum(sim.totalKwh, 3)} kWh`, `${fmtNum(f.energySingle, 6)} €/kWh`, p?.energy?.amount ?? null, sim.energyAmount));
+  } else {
+    for (const k of PERIODS_ES) rows.push(row(`Energía ${PERIOD_LABELS_ES[k].toLowerCase()}`, `${fmtNum(f.kwh[k], 3)} kWh`, `${fmtNum(f.energyPrice[k], 6)} €/kWh`, p?.energy?.byPeriod?.[k]?.amount ?? null, sim.lines.find((l) => l.id === `energy_${k}`)?.amount ?? 0));
+  }
+  if (f.otherAmount) rows.push(row(f.otherAmount < 0 ? 'Descuentos de su tarifa' : 'Cuotas de su tarifa', '', '', p ? r2((p.discountAmount || 0) + (p.feeAmount || 0)) : null, sim.other));
+  rows.push(row('Financiación Bono Social', `${f.days} días`, `${fmtNum(f.bonoPerDay, 6)} €/día`, p?.bonoSocial?.amount ?? null, sim.bonoSocial));
+  rows.push(row('Alquiler del contador', `${f.days} días`, `${fmtNum(f.rentPerDay, 6)} €/día`, p?.meterRent?.amount ?? null, sim.meterRent));
+  if (f.servicesAmount) rows.push(row('Servicios adicionales (fuera de la tarifa eléctrica)', '', 'sin impuesto eléctrico', p?.serviceAmount || null, r2(f.servicesAmount), 'muted'));
+  rows.push(row('Impuesto electricidad', `s/ ${fmtEur(sim.ieBase)}`, `${fmtNum(f.ieRate * 100, 7)} %`, p?.ie?.amount ?? null, sim.ie));
+  const servicesIva = r2(services - (f.servicesAmount || 0));
+  rows.push(row(`IVA ${Math.round(f.ivaRate * 100)} %`, `s/ ${fmtEur(r2(sim.ivaBase + (f.servicesAmount || 0)))}`, `${Math.round(f.ivaRate * 100)} %`, p?.iva?.amount ?? null, r2(sim.iva + servicesIva)));
+  rows.push(row('TOTAL', '', '', f.invoiceTotal ?? p?.total ?? null, r2(sim.total + services), 'total'));
+  tb.innerHTML = rows.join('');
 }
 
 /* ------------------------------------------------------------------ compare */
@@ -256,7 +297,7 @@ function filteredResultsES() {
   return r;
 }
 
-const regulatedOf = (s) => r2(s.bonoSocial + s.meterRent + (s.fee || 0) + (s.extra || 0));
+const regulatedOf = (s) => r2(s.bonoSocial + s.meterRent + (s.fee || 0) + (s.extra || 0) + (s.other || 0));
 
 function renderResultsES() {
   const f = ES.form, base = ES.baseline;
@@ -268,8 +309,9 @@ function renderResultsES() {
   const best = rows[0];
   const cheaper = rows.filter((x) => x.sim.total < base.total - 0.005).length;
   const sg = $('#es-summary-grid'); sg.innerHTML = '';
-  sg.appendChild(sumCard('Su factura (reconstruida)', fmtEur(base.total), `${fmtEur(base.totalPerYear, 0)}/año · energía media ${fmtNum(base.avgEnergyPrice, 4)} €/kWh · potencia ${fmtNum(base.avgPowerPerDay, 4)} €/día` + (f.invoiceTotal ? ` · factura real: ${fmtEur(f.invoiceTotal)}` : ''), ''));
-  sg.appendChild(sumCard('Desglose de su factura', `${fmtEur(base.powerAmount + base.energyAmount)} <small>sin imp.</small>`, `potencia ${fmtEur(base.powerAmount)} · energía ${fmtEur(base.energyAmount)} · regulados ${fmtEur(regulatedOf(base))} · impuestos ${fmtEur(base.ie + base.iva)}`, ''));
+  const services = servicesWithIva(f);
+  sg.appendChild(sumCard('Su factura (reconstruida)', fmtEur(base.total), `${fmtEur(base.totalPerYear, 0)}/año · energía media ${fmtNum(base.avgEnergyPrice, 4)} €/kWh · potencia ${fmtNum(base.avgPowerPerDay, 4)} €/día` + (f.invoiceTotal ? ` · factura real: ${fmtEur(f.invoiceTotal)}` : '') + (services ? ` (incluye ${fmtEur(services)} de servicios adicionales, fuera de la comparación)` : ''), ''));
+  sg.appendChild(sumCard('Desglose de su factura', `${fmtEur(base.powerAmount + base.energyAmount)} <small>sin imp.</small>`, `potencia ${fmtEur(base.powerAmount)} · energía ${fmtEur(base.energyAmount)}${base.other ? ` · ${base.other < 0 ? 'descuentos' : 'cuotas'} ${fmtEur(base.other)}` : ''} · regulados ${fmtEur(r2(base.bonoSocial + base.meterRent))} · impuestos ${fmtEur(base.ie + base.iva)}`, ''));
   if (best) {
     const saving = base.total - best.sim.total;
     sg.appendChild(sumCard('Mejor tarifa', esc(best.offer.supplier), esc(best.offer.name) + (best.offer.promoText ? ' · con promoción' : ''), ''));
@@ -344,7 +386,7 @@ function sumCard(k, v, s, cls) {
 function openDetailES(x) {
   const o = x.offer, s = x.sim, base = ES.baseline, isBase = s === base;
   $('#modal-title').textContent = `${o.supplier} – ${o.name}`;
-  const qty = (l) => l.unit === 'kW' ? `${fmtNum(l.qty, 3)} kW × ${l.days} días` : l.unit === 'kWh' ? `${fmtNum(l.qty, 3)} kWh` : l.unit === 'días' ? `${l.days ?? l.qty} días` : l.unit === '€' ? `s/ ${fmtEur(l.qty)}` : '';
+  const qty = (l) => l.unit === 'kW' ? `${fmtNum(l.qty, 3)} kW × ${l.days} días` : l.unit === 'kWh' ? `${fmtNum(l.qty, 3)} kWh` : l.unit === 'días' ? `${l.days ?? l.qty} días` : l.unit === '€' ? `s/ ${fmtEur(l.qty)}` : l.id === 'other' ? '<span class="muted">importe fijo de su factura</span>' : '';
   const price = (l) => l.priceUnit === '%' ? `${fmtNum(l.price, l.id === 'ie' ? 7 : 0)} %` : l.price != null ? `${fmtNum(l.price, 6)} ${l.priceUnit}` : '';
   const baseAmount = (l) => {
     if (isBase) return null;
@@ -360,6 +402,13 @@ function openDetailES(x) {
       (isBase ? '' : `<td class="diff ${d === null ? '' : d < -0.005 ? 'good' : d > 0.005 ? 'bad' : ''}">${d === null ? '' : d === 0 ? '=' : signed(d)}</td>`) + '</tr>';
   };
   const lines = [...s.lines];
+  // concepts that only exist on the user's bill (discounts / fees of the current tariff): show them with 0 for the offer
+  if (!isBase) {
+    for (const bl of base.lines.filter((l) => (l.id === 'other' || l.id === 'fee' || l.id === 'extra') && !lines.some((x) => x.id === l.id))) {
+      const idx = lines.findIndex((l) => l.id === 'bono_social');
+      lines.splice(idx < 0 ? lines.length : idx, 0, { ...bl, amount: 0, qty: null, price: null, priceUnit: '', unit: '' , label: `${bl.label} (sólo en su factura)` });
+    }
+  }
   // energy subtotal row when the offer has 3 periods (the bill may have a single price, so per-period deltas make no sense)
   const lastEnergy = lines.length - 1 - [...lines].reverse().findIndex((l) => l.group === 'energy');
   if (!isBase && lines.filter((l) => l.group === 'energy').length > 1) lines.splice(lastEnergy + 1, 0, { id: 'energy_total', group: 'energy_total', label: 'Energía (total)', amount: s.energyAmount, unit: 'kWh', qty: s.totalKwh, price: null });

@@ -107,3 +107,17 @@ test('dataset ofertas-es.json is consistent and the market beats the bill', { sk
   const noPromo = simulateAllES(ds, bill.profile, { includePromo: false }).find((r) => r.offer.id === promo.offer.id);
   assert.equal(noPromo.sim.total, promo.simAfter.total);
 });
+
+test('fixed discounts/fees of the current tariff enter the taxable base like energy', () => {
+  const profile = { days: 30, power: { p1: 4.6, p2: 4.6 }, kwh: { punta: 90, llano: 78, valle: 132 } };
+  const s = simulateES(profile, { energy: { single: 0.15 }, power: { p1: 0.105, p2: 0.045 }, otherAmount: -4.5 });
+  assert.equal(s.other, -4.5);
+  assert.ok(s.lines.some((l) => l.id === 'other' && l.amount === -4.5));
+  assert.equal(s.ieBase, 61.94);           // 14,49 + 6,21 + 45,00 − 4,50 + 0,74
+  assert.equal(s.ie, 3.17);
+  assert.equal(s.ivaBase, 65.91);          // + alquiler 0,80
+  assert.equal(s.total, 79.75);
+  const rows = compareLinesES(s, simulateES(profile, { energy: { single: 0.15 }, power: { p1: 0.105, p2: 0.045 } }));
+  const other = rows.find((r) => r.id === 'other');
+  assert.deepEqual(other, { id: 'other', base: -4.5, other: 0, diff: 4.5 });
+});

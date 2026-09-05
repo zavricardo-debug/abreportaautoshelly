@@ -316,14 +316,26 @@
           <label>IVA / IGIC / IPSI (%)
             <input type="number" name="iva" id="es-iva" step="0.01" min="0" max="25">
           </label>
+          <label>Descuentos / cuotas de su tarifa (€, sin imp.; negativo = descuento)
+            <input type="number" name="other" id="es-other" step="0.01" placeholder="0,00">
+          </label>
+          <label>Servicios adicionales (€, sin imp.; sólo IVA)
+            <input type="number" name="services" id="es-services" step="0.01" min="0" placeholder="0,00">
+          </label>
           <label>TOTAL de la factura (€, con impuestos) – opcional
             <input type="number" name="total" id="es-total" step="0.01" min="0">
           </label>
-          <label>&nbsp;
-            <button type="submit" class="btn primary">Comparar con el mercado →</button>
-          </label>
         </div>
         <div class="alert info" id="es-check" style="grid-column:1/-1"></div>
+        <div class="table-wrap" id="es-bill-lines-wrap">
+          <table class="invoice compact" id="es-bill-lines">
+            <thead><tr><th>Línea de su factura</th><th>Cantidad</th><th>Precio (sin imp.)</th><th class="num">Importe leído</th><th class="num">Reconstruido</th><th class="num">Dif.</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="actions" style="grid-column:1/-1">
+          <button type="submit" class="btn primary">Comparar todos los conceptos con el mercado →</button>
+        </div>
       </fieldset>
     </form>
 
@@ -372,7 +384,7 @@
             <th>Comercializadora / Tarifa</th>
             <th class="num">Potencia<br><small>P1 + P2</small></th>
             <th class="num">Energía<br><small>kWh × €/kWh</small></th>
-            <th class="num">Otros conceptos<br><small>bono social · alquiler · cuotas</small></th>
+            <th class="num">Otros conceptos<br><small>bono social · alquiler · cuotas · dtos.</small></th>
             <th class="num">Impuesto<br><small>electricidad</small></th>
             <th class="num">IVA</th>
             <th class="num">TOTAL<br><small id="es-th-days">con impuestos</small></th>
@@ -389,7 +401,8 @@
     <div class="alert info">
       <b>Cómo comparamos:</b> aplicamos su potencia, su consumo y sus días facturados a los precios de cada tarifa y reconstruimos la factura completa con las mismas reglas que su comercializadora:
       potencia (kW × €/kW·día × días), energía (kWh × €/kWh), financiación del bono social (0,024688 €/día) y alquiler del contador (idénticos en todas las tarifas), impuesto de electricidad (5,11269632 % sobre potencia + energía + bono social) e IVA 21 % sobre todo lo anterior.
-      Debajo de cada importe se muestra la diferencia con la misma línea de su factura.
+      Debajo de cada importe se muestra la diferencia con la misma línea de su factura; el botón «Detalle» abre la comparación línea a línea (cantidad, precio unitario e importe de su factura frente a la tarifa).
+      Los descuentos y cuotas de su tarifa actual se incluyen en su factura; los servicios adicionales (mantenimiento, seguros…) no forman parte de la tarifa eléctrica y quedan fuera de la comparación.
       Los precios proceden de las webs de las comercializadoras y de comparadores públicos (fecha indicada en cada tarifa) y <b>pueden cambiar</b>: el comparador oficial es el de la
       <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">CNMC</a> (botón de arriba, ya con sus datos).
     </div>
@@ -439,6 +452,6 @@
   <span id="app-version" title="Versão da aplicação"></span>
 </footer>
 
-<script type="module" src="app.js?v=1.3.0"></script>
+<script type="module" src="app.js?v=1.3.1"></script>
 </body>
 </html>

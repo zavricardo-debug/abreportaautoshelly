@@ -180,6 +180,16 @@ function detectSupplierES(text) {
 const r2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
 const sum = (arr) => arr.reduce((a, b) => a + (b || 0), 0);
 
+// Informative consumption lines of the first page ("Consumo medio diario 8,94 kWh", "Consumo mismo periodo
+// año anterior 301 kWh 52,10 €", "Consumo anual estimado 3.300 kWh"…) are NOT cost lines.
+const INFO_RE = /\bmedi[oa]\b|\banual\b|estimad|anterior|histor|acumulad|previst|habitual|equivalente|ultimos? \d+|mismo periodo|\bcoste medio|por dia\b|comparativ|\bgrafic/;
+// Discounts (part of the current tariff – reduce the taxable base), management fees (indexed tariffs) and
+// optional services (maintenance, insurance… – outside the energy tariff, IVA only).
+const DISCOUNT_RE = /descuento|\bdto\b|bonificaci|promoci|regalo|ahorro aplicado/;
+const FEE_RE = /\bcuota\b|gesti[oó]n|comercializaci[oó]n/;
+const SERVICE_RE = /servicio|mantenimiento|protecci|seguro|asistencia|urgencias|reparaci|ok ?luz|funciona|hogar|averias|\bplan\b/;
+const SUBTOTAL_RE = /^(potencia|energia|varios|impuestos|otros|servicios|descuentos)\s*:?\s*(-?[\d.]+,\d{2})\s*(?:€|eur)$/;
+
 /**
  * @param {string} text raw text extracted from the PDF (lines separated by \n)
  */
@@ -188,12 +198,26 @@ export function parseInvoiceTextES(text) {
   const warnings = [];
   const items = [];
   const powerLines = [], energyLines = [], bonoLines = [], rentLines = [], ieLines = [], ivaLines = [], totalCands = [], readings = {};
+  const discountLines = [], feeLines = [], serviceLines = [], subtotals = {};
   let contracted = null, contractName = null, regulated = /pvpc|precio voluntario para el pequen|comercializador(a)? de referencia/.test(norm(text));
+
+  // The same cost line printed twice (copy of the invoice, "detalle" repeated on another page) must count once.
+  const seenLines = new Set();
+  let duplicatesSkipped = 0;
+  const take = (id, line, n) => {
+    if (seenLines.has(n)) { duplicatesSkipped++; return false; }
+    seenLines.add(n); items.push({ id, line }); return true;
+  };
 
   for (const line of rawLines) {
     const n = norm(line);
     const toks = tokensOf(line);
     const hasUnit = (u) => toks.some((t) => t.unit === u);
+    const isInfo = INFO_RE.test(n);
+
+    // section subtotals of the bill ("Potencia 22,71 €", "Energía 46,37 €", "Impuestos 19,16 €") – used only to cross-check
+    const st = SUBTOTAL_RE.exec(n);
+    if (st) { if (subtotals[st[1]] === undefined) subtotals[st[1]] = ptNumber(st[2]); continue; }
 
     if (/potencias? contratadas?/.test(n) && hasUnit('kw')) {
       const kws = toks.filter((t) => t.unit === 'kw').map((t) => t.value);
@@ -219,15 +243,23 @@ export function parseInvoiceTextES(text) {
     }
     if (/excedent|compensaci|reactiva|vertid/.test(n)) { if (/excedent|compensaci/.test(n)) warnings.push('La factura incluye compensación de excedentes (autoconsumo); no se tiene en cuenta en la comparación.'); continue; }
 
-    if (hasUnit('kw') && hasUnit('eur/kw') && !/kwh/.test(n.replace(/eur\/kw\b/g, ''))) { powerLines.push(parsePowerLine(n, toks)); items.push({ id: 'power', line }); continue; }
-    if (hasUnit('kwh') && (hasUnit('eur/kwh') || /^(consumo|energia|termino de energia|termino variable)\b/.test(n)) && !/^total/.test(n)) {
+    if (hasUnit('kw') && hasUnit('eur/kw') && !/kwh/.test(n.replace(/eur\/kw\b/g, '')) && !DISCOUNT_RE.test(n)) { if (take('power', line, n)) powerLines.push(parsePowerLine(n, toks)); continue; }
+    if (hasUnit('kwh') && !isInfo && !DISCOUNT_RE.test(n) && (hasUnit('eur/kwh') || /^(consumo|energia|termino de energia|termino variable)\b/.test(n)) && !/^total/.test(n)) {
       const e = parseEnergyLine(n, toks);
-      if (e.kwh !== null && e.price !== null) { energyLines.push(e); items.push({ id: 'energy', line }); continue; }
+      if (e.kwh !== null && e.price !== null && e.amount !== null) { if (take('energy', line, n)) energyLines.push(e); continue; }
     }
-    if (/bono social/.test(n) && !/descuento|dto\.?|deducci/.test(n) && (hasUnit('eur') || hasUnit('eur/dia'))) { bonoLines.push(parsePerDayLine(toks)); items.push({ id: 'bonoSocial', line }); continue; }
-    if (/alquiler/.test(n) && hasUnit('eur')) { rentLines.push(parsePerDayLine(toks)); items.push({ id: 'meterRent', line }); continue; }
-    if (/impuesto( especial)?( sobre)?( la)? electricidad|impuesto electrico|\biee\b/.test(n) && hasUnit('eur')) { ieLines.push(parseTaxLine(toks)); items.push({ id: 'ie', line }); continue; }
-    if (/\b(iva|igic|ipsi)\b/.test(n) && hasUnit('pct') && hasUnit('eur') && !/sin iva|precios? (con|sin)/.test(n)) { ivaLines.push({ ...parseTaxLine(toks), tax: /igic/.test(n) ? 'IGIC' : /ipsi/.test(n) ? 'IPSI' : 'IVA' }); items.push({ id: 'iva', line }); continue; }
+    if (/bono social/.test(n) && !/descuento|dto\.?|deducci/.test(n) && (hasUnit('eur') || hasUnit('eur/dia'))) { if (take('bonoSocial', line, n)) bonoLines.push(parsePerDayLine(toks)); continue; }
+    if (/alquiler/.test(n) && hasUnit('eur')) { if (take('meterRent', line, n)) rentLines.push(parsePerDayLine(toks)); continue; }
+    if (/impuesto( especial)?( sobre)?( la)? electricidad|impuesto electrico|\biee\b/.test(n) && hasUnit('eur')) { if (take('ie', line, n)) ieLines.push(parseTaxLine(toks)); continue; }
+    if (/\b(iva|igic|ipsi)\b/.test(n) && hasUnit('pct') && hasUnit('eur') && !/sin iva|precios? (con|sin)/.test(n)) { if (take('iva', line, n)) ivaLines.push({ ...parseTaxLine(toks), tax: /igic/.test(n) ? 'IGIC' : /ipsi/.test(n) ? 'IPSI' : 'IVA' }); continue; }
+    // other cost lines of the bill: discounts, management fees, optional services
+    if (hasUnit('eur') && !isInfo && !/^total|impuesto|iva\b|peaje|cargos?\b|coste de|destino/.test(n)) {
+      const amount = lastEur(toks).value;
+      const label = line.replace(/\s*[-−]?\s*[\d.]+,\d{2}\s*(€|eur)\s*$/i, '').replace(/[\s:(]+$/, '').trim();
+      if (DISCOUNT_RE.test(n)) { if (take('discount', line, n)) discountLines.push({ label, amount: -Math.abs(amount) }); continue; }
+      if (FEE_RE.test(n) && !SERVICE_RE.test(n)) { if (take('fee', line, n)) feeLines.push({ label, amount }); continue; }
+      if (SERVICE_RE.test(n)) { if (take('service', line, n)) serviceLines.push({ label, amount }); continue; }
+    }
   }
 
   // ---- aggregate ------------------------------------------------------------
@@ -236,8 +268,14 @@ export function parseInvoiceTextES(text) {
     if (!ls.length) return null;
     const days = sum(ls.map((l) => l.days)), amount = sum(ls.map((l) => l.amount));
     const kw = ls.find((l) => l.kw !== null)?.kw ?? null;
-    const price = kw && days ? amount / kw / days : ls[0].price;
-    return { kw, price: price ?? ls[0].price, days: days || null, amount: r2(amount), lines: ls.length };
+    const printed = ls[0].price ?? null;
+    const effective = kw && days ? amount / kw / days : null;
+    // one line: keep the unit price printed on the bill when it reproduces the billed amount (otherwise the unit was
+    // misread – e.g. €/kW·mes – and the effective price is safer); several lines (price change mid-period): weighted average
+    let price = printed ?? effective;
+    if (ls.length > 1) price = effective ?? printed;
+    else if (printed != null && effective != null && Math.abs(r2(kw * printed * days) - r2(amount)) > 0.011) price = effective;
+    return { kw, price, days: days || null, amount: r2(amount), lines: ls.length };
   };
   let p1 = aggPower('p1'), p2 = aggPower('p2');
   if (p1 && !p2 && powerLines.length >= 2) { /* two p1 lines? keep */ }
@@ -270,6 +308,19 @@ export function parseInvoiceTextES(text) {
   if (!single) for (const k of ['punta', 'llano', 'valle']) if (byPeriod[k]) consumption[k] = byPeriod[k].kwh;
   const supplier = detectSupplierES(text);
   if (regulated && !supplier.supplierCode) supplier.supplierCode = 'PVPC';
+  const discountAmount = r2(sum(discountLines.map((l) => l.amount)));
+  const feeAmount = r2(sum(feeLines.map((l) => l.amount)));
+  const serviceAmount = r2(sum(serviceLines.map((l) => l.amount)));
+
+  // cross-check against the section subtotals printed on the bill
+  const powerAmount = r2((p1?.amount || 0) + (p2?.amount || 0));
+  const off = (a, b) => a !== undefined && b !== null && Math.abs(a - b) > 0.02;
+  if (off(subtotals.potencia, powerAmount) && powerLines.length) warnings.push(`El subtotal "Potencia" de la factura (${fmt(subtotals.potencia)} €) no coincide con la suma de las líneas de potencia leídas (${fmt(powerAmount)} €); revise los valores.`);
+  if (off(subtotals.energia, r2(energyAmount + (subtotals.descuentos === undefined ? discountAmount : 0))) && off(subtotals.energia, energyAmount) && energyLines.length) warnings.push(`El subtotal "Energía" de la factura (${fmt(subtotals.energia)} €) no coincide con la suma de las líneas de energía leídas (${fmt(energyAmount)} €); revise los valores.`);
+  if (off(subtotals.impuestos, r2((ie?.amount || 0) + (iva?.amount || 0))) && ie && iva) warnings.push(`El subtotal "Impuestos" de la factura (${fmt(subtotals.impuestos)} €) no coincide con impuesto eléctrico + IVA leídos (${fmt(r2(ie.amount + iva.amount))} €).`);
+  if (duplicatesSkipped) warnings.push(`Se han ignorado ${duplicatesSkipped} líneas repetidas (la factura incluye una copia del detalle).`);
+  if (discountLines.length) warnings.push(`Descuentos de su tarifa actual encontrados: ${discountLines.map((l) => `${l.label} (${fmt(l.amount)} €)`).join('; ')}. Se incluyen en la reconstrucción de su factura.`);
+  if (serviceLines.length) warnings.push(`Servicios adicionales encontrados: ${serviceLines.map((l) => `${l.label} (${fmt(l.amount)} €)`).join('; ')}. No forman parte de la tarifa eléctrica: se tienen en cuenta en la comprobación del total pero no en la comparación.`);
 
   if (!energyLines.length) warnings.push('No se ha encontrado la línea de consumo de energía (kWh × €/kWh); revise los valores manualmente.');
   if (!powerLines.length) warnings.push('No se ha encontrado el término de potencia (kW × €/kW × días).');
@@ -284,9 +335,12 @@ export function parseInvoiceTextES(text) {
     country: 'ES',
     supplier: supplier.supplier, supplierCode: supplier.supplierCode, contractName, regulated,
     period, days, power,
-    powerTerm: { p1, p2, amount: r2((p1?.amount || 0) + (p2?.amount || 0)) },
+    powerTerm: { p1, p2, amount: powerAmount },
     energy: { kwh: energyKwh || null, single, byPeriod, amount: energyAmount || null, price: single ? byPeriod.single.price : null, readings: readingsSum ? readings : null, consumption },
     bonoSocial, meterRent, ie, iva, total,
+    discounts: discountLines, fees: feeLines, services: serviceLines, discountAmount, feeAmount, serviceAmount,
+    subtotals, duplicatesSkipped,
     items, warnings,
   };
 }
+const fmt = (v) => (v === null || v === undefined) ? '—' : v.toFixed(2).replace('.', ',');

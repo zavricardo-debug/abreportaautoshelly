@@ -177,6 +177,19 @@ test('Spanish bill: auto-detected, every cost line pre-filled, bill rebuilt to 8
   assert.match(d.querySelector('#es-check').textContent, /coincide/);
   assert.match(d.querySelector('#es-o-energy-total').textContent, /46,37/);
   assert.ok(d.querySelectorAll('#values-form-es input.auto').length >= 10, 'auto-filled fields highlighted');
+  // step 2 table: every cost line of the bill (as read) next to the recomputed value – all equal
+  const billLines = [...d.querySelectorAll('#es-bill-lines tbody tr')];
+  const lineText = (r) => [...r.children].map((c) => c.textContent.trim());
+  const expectLines = { 'Potencia P1 (punta-llano)': '16,78', 'Potencia P2 / P3 (valle)': '5,93', 'Energía (precio único)': '46,37', 'Financiación Bono Social': '0,77', 'Alquiler del contador': '0,83', 'Impuesto electricidad': '3,57', 'IVA 21 %': '15,59', 'TOTAL': '89,84' };
+  for (const [label, amount] of Object.entries(expectLines)) {
+    const r = billLines.find((x) => lineText(x)[0] === label);
+    assert.ok(r, `bill line ${label}`);
+    const cells = lineText(r);
+    assert.match(cells[3], new RegExp(amount), `${label} read amount`);
+    assert.match(cells[4], new RegExp(amount), `${label} recomputed amount`);
+    assert.equal(cells[5], '=', `${label} matches`);
+  }
+  assert.equal(billLines.length, 8, 'no discount/services rows for this bill');
 
   d.querySelector('#values-form-es').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   assert.ok(!d.querySelector('#step-results-es').classList.contains('hidden'));
