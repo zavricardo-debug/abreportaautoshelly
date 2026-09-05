@@ -60,4 +60,117 @@
     <string name="hint_wifi_blocks_armed">Wi-Fi de casa bloqueia mesmo depois de teres saído (não recomendado)</string>
     <string name="btn_rearm_now">🔄 Armar todas as moradas agora (teste)</string>
     <string name="btn_battery">🔋 Desativar otimização de bateria (importante!)</string>
+
+    <!-- ===== Definições globais: labels + legendas visíveis ===== -->
+    <string name="settings_global_intro">Aplicam-se a todas as moradas. Cada valor tem por baixo o que faz e para que lado o mexer.</string>
+
+    <string name="settings_section_repeat">Repetição e pausas</string>
+    <string name="settings_section_wifi">Wi-Fi de casa</string>
+    <string name="settings_section_cloud">Shelly Cloud</string>
+    <string name="settings_section_tools">Ferramentas</string>
+
+    <string name="label_active_tracking">Rastreio ativo de localização</string>
+    <string name="desc_active_tracking">Deixa ligado. É isto que deteta a chegada em segundos. Desligado, fica só a depender dos geofences do Android, que são lentos e falham com raios pequenos.</string>
+
+    <string name="label_rearm_margin">Margem de rearme (metros)</string>
+    <string name="desc_rearm_margin">Distância a que tens de te afastar = raio da morada + esta margem. Com raio 30 e margem 25, armas aos 55 m.
+• Menor (15): arma numa ida curta; dar a volta ao quarteirão pode rearmar.
+• Maior (100): só arma numa saída a sério.
+Por defeito: 25</string>
+
+    <string name="label_away_confirm">Tempo longe para armar (segundos)</string>
+    <string name="desc_away_confirm">Tempo SEGUIDO que tens de estar longe para a morada armar. É isto que impede a porta de abrir atrás de ti quando SAIS de casa (ao sair ainda estás perto, por isso não arma). O contador volta a zero se te aproximares.
+• 0: arma assim que estás longe.
+• Maior (300): só arma depois de 5 min fora.
+Por defeito: 60</string>
+
+    <string name="label_speed">Velocidade máxima (m/s)</string>
+    <string name="desc_speed">Acima desta velocidade não abre (assume que vais de carro). Em metros por segundo: a pé ≈ 1,4 · a correr ≈ 3 · carro na cidade ≈ 14. Se o telemóvel não souber a velocidade, não bloqueia.
+• Menor (3): pode bloquear-te se chegares depressa ou de bicicleta.
+Por defeito: 8</string>
+
+    <string name="label_min_accuracy">Precisão mínima do GPS (metros)</string>
+    <string name="desc_min_accuracy">Ignora posições piores do que isto. Generoso de propósito: entre prédios o telemóvel dá ±40–80 m e mesmo assim estás à porta.
+• Menor (20): muito exigente, pode nunca abrir numa rua estreita.
+Por defeito: 120</string>
+
+    <string name="label_near_interval">Intervalo do GPS perto de casa (segundos)</string>
+    <string name="desc_near_interval">De quanto em quanto tempo verifica a posição a menos de 400 m de uma morada.
+• Menor (3): deteta a chegada mais depressa, gasta mais bateria.
+Por defeito: 4</string>
+
+    <string name="label_far_interval">Intervalo do GPS longe de casa (segundos)</string>
+    <string name="desc_far_interval">O mesmo, mas quando estás longe de todas as moradas. É o modo de poupança.
+• Maior (120): poupa bateria, demora mais a dar conta de que saíste.
+Por defeito: 45</string>
+
+    <string name="label_cooldown">Cooldown entre aberturas (segundos)</string>
+    <string name="desc_cooldown">Tempo mínimo antes de a MESMA morada poder abrir outra vez. Evita impulsos duplicados. É contado por morada: abrir uma não trava as outras.
+Por defeito: 30</string>
+
+    <string name="label_pause_min">Duração da pausa (minutos)</string>
+    <string name="desc_pause_min">Quanto tempo dura a pausa do botão ⏸. Só trava a abertura automática — o botão manual funciona sempre.
+Por defeito: 10</string>
+
+    <string name="label_auto_pause">Auto-pausa depois de cada abertura</string>
+    <string name="desc_auto_pause">Normalmente não é preciso: a morada desarma sozinha ao abrir, por isso não reabre enquanto ficas à conversa. Por defeito: desligado.</string>
+
+    <string name="label_wifi_blocks_armed">Wi-Fi de casa bloqueia mesmo depois de saíres</string>
+    <string name="desc_wifi_blocks_armed">Deixa DESLIGADO. Ligado, o telemóvel apanha o Wi-Fi de casa ainda na rua e a porta recusa-se a abrir exatamente quando chegas — era este o problema original.</string>
+
+    <string name="label_net_grace">Delay de troca de rede (segundos)</string>
+    <string name="desc_net_grace">Depois de perder o Wi-Fi de casa, continua a considerar-te em casa durante estes segundos (evita confusão ao trocar 5G/2.4G). Já NÃO afeta o armar — só conta se ligares a opção acima.
+Por defeito: 20</string>
+
+    <string name="label_auth_key_global">Auth key da conta</string>
+    <string name="desc_auth_key_global">Chave do Shelly Cloud partilhada por todas as moradas. É usada quando o campo "Auth key" de uma morada está vazio.</string>
+
+    <string name="desc_rearm_now">Marca todas as moradas como armadas já, sem teres de te afastar. Serve para testar: carrega aqui, guarda, e vai até à porta.</string>
+    <string name="desc_battery">Impede o Android de matar o serviço. Sem isto a app funciona uns minutos e depois cala-se.</string>
+
+    <!-- ===== Definições da morada: labels + legendas visíveis ===== -->
+    <string name="settings_door_title">Definições desta morada</string>
+    <string name="settings_door_intro">Cada morada tem a sua porta, o seu raio, o seu Wi-Fi e o seu Shelly.</string>
+
+    <string name="label_door_name">Nome da morada</string>
+    <string name="label_door_enabled">Automação desta morada ativa</string>
+    <string name="desc_door_enabled">Desligado, esta porta nunca abre sozinha (o botão manual continua a funcionar).</string>
+
+    <string name="desc_point_intro">Onde fica a porta do prédio. Marca o ponto de uma destas três formas:</string>
+    <string name="desc_map_best">O mapa é o mais preciso: escolhes o ponto exato da entrada, em vez de depender do GPS no momento.</string>
+
+    <string name="label_coords">Coordenadas da porta</string>
+    <string name="label_radius">Raio de disparo (metros)</string>
+    <string name="desc_radius">A que distância da porta a app dispara.
+• Mínimo realista: 20–35 m. O GPS não faz melhor — com 10 m podes estar à porta e o telemóvel achar que estás a 25 m, e nunca abre.
+• Não precisa de excluir o teu andar: o estado "armada" é que trata disso.
+Por defeito: 30</string>
+
+    <string name="label_wifi_kill">Usar o Wi-Fi de casa para saber que estás em casa</string>
+    <string name="desc_wifi_kill">Serve para a app perceber que estás em casa. Não impede a abertura à chegada (isso é a opção "Wi-Fi bloqueia mesmo depois de saíres", nas definições globais).</string>
+
+    <string name="label_home_ssid">SSID de casa</string>
+    <string name="desc_home_ssid">O nome da tua rede Wi-Fi, tal e qual (maiúsculas incluídas). Vários separados por vírgula, ex.: MinhaRede, MinhaRede_5G. Em branco = não é usado.</string>
+
+    <string name="label_mode">Modo de ligação</string>
+    <string name="desc_mode">"cloud" = funciona de qualquer lado (é o normal). "local" = só quando estás na mesma rede Wi-Fi do Shelly.</string>
+
+    <string name="label_channel">Canal do relé</string>
+    <string name="desc_channel">Normalmente 0. Só muda se o teu Shelly tiver mais do que uma saída.</string>
+
+    <string name="label_pulse">Duração do impulso (segundos)</string>
+    <string name="desc_pulse">Quanto tempo o relé fica fechado — o mesmo que carregar no botão da porta. Se o trinco não chega a abrir, sobe para 2.
+Por defeito: 1</string>
+
+    <string name="label_ip">IP do Shelly</string>
+    <string name="desc_ip">Só usado no modo "local".</string>
+
+    <string name="label_cloud_host">Servidor do Shelly Cloud</string>
+    <string name="label_device_id">ID do dispositivo</string>
+    <string name="desc_device_id">Identifica qual o Shelly a acionar. É diferente em cada morada.</string>
+
+    <string name="label_auth_key">Auth key desta morada</string>
+    <string name="desc_auth_key">Deixa em branco para usar a chave global. Preenche só se este Shelly estiver noutra conta.</string>
+
+    <string name="desc_test_shelly">Aciona o relé já, sem esperar pelo GPS. Serve para confirmar que a ligação e as chaves estão certas.</string>
 </resources>

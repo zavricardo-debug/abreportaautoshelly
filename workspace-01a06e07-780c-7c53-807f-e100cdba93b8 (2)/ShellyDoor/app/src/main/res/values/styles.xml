@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Estilos dos ecrãs de definições.
+
+    A ideia: cada definição tem um LABEL (o que é) e uma CAPTION (o que faz o
+    número, e para que lado o mexer). Assim a explicação continua visível
+    mesmo com a caixa preenchida — ao contrário do `hint`, que desaparece.
+-->
+<resources>
+
+    <!-- Título do ecrã -->
+    <style name="SettingsTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:paddingBottom">4dp</item>
+    </style>
+
+    <!-- Parágrafo introdutório do ecrã -->
+    <style name="SettingsIntro">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:paddingBottom">8dp</item>
+    </style>
+
+    <!-- Cabeçalho de secção -->
+    <style name="SettingsSection">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/primary</item>
+        <item name="android:paddingTop">24dp</item>
+        <item name="android:paddingBottom">6dp</item>
+    </style>
+
+    <!-- Nome da definição, por cima da caixa -->
+    <style name="SettingsLabel">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:paddingTop">14dp</item>
+    </style>
+
+    <!-- Legenda: explica o efeito de subir/descer o valor -->
+    <style name="SettingsCaption">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">12.5sp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:lineSpacingExtra">2dp</item>
+        <item name="android:paddingBottom">4dp</item>
+    </style>
+
+    <!-- Caixa de texto de uma definição -->
+    <style name="SettingsField">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textColorHint">@color/text_hint</item>
+    </style>
+</resources>

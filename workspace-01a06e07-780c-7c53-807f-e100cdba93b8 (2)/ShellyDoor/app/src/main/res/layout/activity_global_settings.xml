@@ -1,137 +1,258 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Definições globais.
+
+    NOTA: cada campo tem um LABEL (título) e uma LEGENDA (explicação) em
+    TextViews próprios, acima da caixa. Antes a explicação estava só no
+    `android:hint` da EditText — e o hint só aparece com a caixa VAZIA.
+    Como todos os campos são pré-preenchidos com o valor atual, o utilizador
+    via apenas números soltos (8.0, 25.0, 60…) sem saber o que eram.
+-->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background">
 
     <LinearLayout
-    android:orientation="vertical"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:padding="24dp">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/settings_global_title"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:paddingBottom="12dp" />
-
-    <EditText
-        android:id="@+id/etSpeed"
+        android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:inputType="numberDecimal"
-        android:hint="@string/hint_speed" />
+        android:padding="24dp">
 
-    <EditText
-        android:id="@+id/etCooldown"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="number"
-        android:hint="@string/hint_cooldown" />
+        <TextView
+            style="@style/SettingsTitle"
+            android:text="@string/settings_global_title" />
 
-    <EditText
-        android:id="@+id/etPauseMin"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="number"
-        android:hint="@string/hint_pause_min" />
+        <TextView
+            style="@style/SettingsIntro"
+            android:text="@string/settings_global_intro" />
 
-    <CheckBox
-        android:id="@+id/cbAutoPause"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/hint_auto_pause" />
+        <!-- ============ SECÇÃO: Aproximação (o que faz abrir) ============ -->
 
-    <EditText
-        android:id="@+id/etNetGrace"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="number"
-        android:hint="@string/hint_net_grace" />
+        <TextView
+            style="@style/SettingsSection"
+            android:text="@string/settings_section_approach" />
 
-    <EditText
-        android:id="@+id/etAuthKeyGlobal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="textPassword"
-        android:hint="@string/hint_auth_key_global" />
+        <CheckBox
+            android:id="@+id/cbActiveTracking"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/label_active_tracking" />
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/settings_section_approach"
-        android:textStyle="bold"
-        android:textSize="16sp"
-        android:paddingTop="20dp" />
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_active_tracking" />
 
-    <CheckBox
-        android:id="@+id/cbActiveTracking"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/hint_active_tracking" />
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_rearm_margin" />
 
-    <EditText
-        android:id="@+id/etRearmMargin"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="numberDecimal"
-        android:hint="@string/hint_rearm_margin" />
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_rearm_margin" />
 
-    <EditText
-        android:id="@+id/etAwayConfirm"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="number"
-        android:hint="@string/hint_away_confirm" />
+        <EditText
+            android:id="@+id/etRearmMargin"
+            style="@style/SettingsField"
+            android:inputType="numberDecimal"
+            android:hint="@string/hint_rearm_margin" />
 
-    <EditText
-        android:id="@+id/etMinAccuracy"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="numberDecimal"
-        android:hint="@string/hint_min_accuracy" />
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_away_confirm" />
 
-    <EditText
-        android:id="@+id/etNearInterval"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="number"
-        android:hint="@string/hint_near_interval" />
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_away_confirm" />
 
-    <EditText
-        android:id="@+id/etFarInterval"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="number"
-        android:hint="@string/hint_far_interval" />
+        <EditText
+            android:id="@+id/etAwayConfirm"
+            style="@style/SettingsField"
+            android:inputType="number"
+            android:hint="@string/hint_away_confirm" />
 
-    <CheckBox
-        android:id="@+id/cbWifiBlocksArmed"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/hint_wifi_blocks_armed" />
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_speed" />
 
-    <Button
-        android:id="@+id/btnRearmNow"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/btn_rearm_now"
-        android:layout_marginTop="12dp" />
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_speed" />
 
-    <Button
-        android:id="@+id/btnBattery"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/btn_battery" />
+        <EditText
+            android:id="@+id/etSpeed"
+            style="@style/SettingsField"
+            android:inputType="numberDecimal"
+            android:hint="@string/hint_speed" />
 
-    <Button
-        android:id="@+id/btnSaveGlobal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/btn_save"
-        android:layout_marginTop="20dp" />
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_min_accuracy" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_min_accuracy" />
+
+        <EditText
+            android:id="@+id/etMinAccuracy"
+            style="@style/SettingsField"
+            android:inputType="numberDecimal"
+            android:hint="@string/hint_min_accuracy" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_near_interval" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_near_interval" />
+
+        <EditText
+            android:id="@+id/etNearInterval"
+            style="@style/SettingsField"
+            android:inputType="number"
+            android:hint="@string/hint_near_interval" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_far_interval" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_far_interval" />
+
+        <EditText
+            android:id="@+id/etFarInterval"
+            style="@style/SettingsField"
+            android:inputType="number"
+            android:hint="@string/hint_far_interval" />
+
+        <!-- ============ SECÇÃO: Repetição ============ -->
+
+        <TextView
+            style="@style/SettingsSection"
+            android:text="@string/settings_section_repeat" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_cooldown" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_cooldown" />
+
+        <EditText
+            android:id="@+id/etCooldown"
+            style="@style/SettingsField"
+            android:inputType="number"
+            android:hint="@string/hint_cooldown" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_pause_min" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_pause_min" />
+
+        <EditText
+            android:id="@+id/etPauseMin"
+            style="@style/SettingsField"
+            android:inputType="number"
+            android:hint="@string/hint_pause_min" />
+
+        <CheckBox
+            android:id="@+id/cbAutoPause"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/label_auto_pause" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_auto_pause" />
+
+        <!-- ============ SECÇÃO: Wi-Fi de casa ============ -->
+
+        <TextView
+            style="@style/SettingsSection"
+            android:text="@string/settings_section_wifi" />
+
+        <CheckBox
+            android:id="@+id/cbWifiBlocksArmed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/label_wifi_blocks_armed" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_wifi_blocks_armed" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_net_grace" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_net_grace" />
+
+        <EditText
+            android:id="@+id/etNetGrace"
+            style="@style/SettingsField"
+            android:inputType="number"
+            android:hint="@string/hint_net_grace" />
+
+        <!-- ============ SECÇÃO: Shelly Cloud ============ -->
+
+        <TextView
+            style="@style/SettingsSection"
+            android:text="@string/settings_section_cloud" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_auth_key_global" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_auth_key_global" />
+
+        <EditText
+            android:id="@+id/etAuthKeyGlobal"
+            style="@style/SettingsField"
+            android:inputType="textPassword"
+            android:hint="@string/hint_auth_key_global" />
+
+        <!-- ============ SECÇÃO: Ferramentas ============ -->
+
+        <TextView
+            style="@style/SettingsSection"
+            android:text="@string/settings_section_tools" />
+
+        <Button
+            android:id="@+id/btnRearmNow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_rearm_now" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_rearm_now" />
+
+        <Button
+            android:id="@+id/btnBattery"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_battery" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_battery" />
+
+        <Button
+            android:id="@+id/btnSaveGlobal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_save"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="16dp" />
     </LinearLayout>
 </ScrollView>

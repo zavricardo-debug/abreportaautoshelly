@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Definições de UMA morada.
+
+    Tal como no ecrã global, cada campo tem label + legenda visíveis por cima
+    da caixa (o `hint` sozinho não serve, porque desaparece assim que o campo
+    tem valor — e aqui vêm todos preenchidos).
+-->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -10,25 +17,43 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
+        <TextView
+            style="@style/SettingsTitle"
+            android:text="@string/settings_door_title" />
+
+        <TextView
+            style="@style/SettingsIntro"
+            android:text="@string/settings_door_intro" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_door_name" />
+
         <EditText
             android:id="@+id/etName"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            style="@style/SettingsField"
             android:hint="@string/hint_door_name" />
 
         <Switch
             android:id="@+id/swEnabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/hint_door_enabled" />
+            android:paddingTop="12dp"
+            android:text="@string/label_door_enabled" />
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_section_point"
-            android:textStyle="bold"
-            android:textSize="16sp"
-            android:paddingTop="16dp" />
+            style="@style/SettingsCaption"
+            android:text="@string/desc_door_enabled" />
+
+        <!-- ============ Ponto da porta ============ -->
+
+        <TextView
+            style="@style/SettingsSection"
+            android:text="@string/settings_section_point" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_point_intro" />
 
         <Button
             android:id="@+id/btnGpsPoint"
@@ -42,98 +67,175 @@
             android:layout_height="wrap_content"
             android:text="@string/btn_map" />
 
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_map_best" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_coords" />
+
         <EditText
             android:id="@+id/etLat"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            style="@style/SettingsField"
             android:inputType="numberDecimal|numberSigned"
             android:hint="@string/hint_lat" />
 
         <EditText
             android:id="@+id/etLng"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            style="@style/SettingsField"
             android:inputType="numberDecimal|numberSigned"
             android:hint="@string/hint_lng" />
 
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_radius" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_radius" />
+
         <EditText
             android:id="@+id/etRadius"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            style="@style/SettingsField"
             android:inputType="numberDecimal"
             android:hint="@string/hint_radius" />
 
+        <!-- ============ Wi-Fi de casa ============ -->
+
+        <TextView
+            style="@style/SettingsSection"
+            android:text="@string/settings_section_wifi" />
+
         <CheckBox
             android:id="@+id/cbWifiKill"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/hint_wifi_kill" />
+            android:text="@string/label_wifi_kill" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_wifi_kill" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_home_ssid" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_home_ssid" />
 
         <EditText
             android:id="@+id/etHomeSsid"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            style="@style/SettingsField"
             android:hint="@string/hint_home_ssid" />
 
+        <!-- ============ Shelly desta morada ============ -->
+
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_section_shelly"
-            android:textStyle="bold"
-            android:textSize="16sp"
-            android:paddingTop="20dp" />
+            style="@style/SettingsSection"
+            android:text="@string/settings_section_shelly" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_mode" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_mode" />
 
         <EditText
             android:id="@+id/etMode"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            style="@style/SettingsField"
             android:hint="@string/hint_mode" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_channel" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_channel" />
 
         <EditText
             android:id="@+id/etChannel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            style="@style/SettingsField"
             android:inputType="number"
             android:hint="@string/hint_channel" />
 
-        <EditText
-            android:id="@+id/etIp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/hint_ip" />
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_pulse" />
 
-        <EditText
-            android:id="@+id/etCloudHost"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/hint_cloud_host" />
-
-        <EditText
-            android:id="@+id/etDeviceId"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/hint_device_id" />
-
-        <EditText
-            android:id="@+id/etAuthKey"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="textPassword"
-            android:hint="@string/hint_auth_key" />
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_pulse" />
 
         <EditText
             android:id="@+id/etPulse"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            style="@style/SettingsField"
             android:inputType="number"
             android:hint="@string/hint_pulse" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_ip" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_ip" />
+
+        <EditText
+            android:id="@+id/etIp"
+            style="@style/SettingsField"
+            android:hint="@string/hint_ip" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_cloud_host" />
+
+        <EditText
+            android:id="@+id/etCloudHost"
+            style="@style/SettingsField"
+            android:hint="@string/hint_cloud_host" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_device_id" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_device_id" />
+
+        <EditText
+            android:id="@+id/etDeviceId"
+            style="@style/SettingsField"
+            android:hint="@string/hint_device_id" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_auth_key" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_auth_key" />
+
+        <EditText
+            android:id="@+id/etAuthKey"
+            style="@style/SettingsField"
+            android:inputType="textPassword"
+            android:hint="@string/hint_auth_key" />
 
         <Button
             android:id="@+id/btnTestShelly"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/btn_test_shelly"
-            android:layout_marginTop="12dp" />
+            android:layout_marginTop="16dp" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_test_shelly" />
 
         <Button
             android:id="@+id/btnSaveDoor"
@@ -147,6 +249,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/btn_delete_door"
+            android:layout_marginBottom="16dp"
             android:textColor="@color/danger" />
     </LinearLayout>
 </ScrollView>
