@@ -71,6 +71,20 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
                 return silent(door, "Longe (%.0f m) — armada".format(distanceM))
             }
 
+            // Ligado ao Wi-Fi de casa => estás em casa, ponto final. O GPS pode
+            // dizer que estás longe (em prédios o erro chega a dar dezenas de
+            // metros), mas o Wi-Fi não engana: o alcance é curto. Enquanto
+            // estiveres ligado, NÃO deixamos armar — assim a porta nunca pode
+            // disparar por o GPS ter delirado enquanto estás no sofá.
+            //
+            // Repara que isto trava o ARMAR, não o abrir. Bloquear a abertura
+            // seria muito pior: ao chegar a casa o telemóvel apanha o Wi-Fi
+            // ainda na rua e a porta deixava de abrir, que é o bug original.
+            if (wifi.isAtHome(door)) {
+                door.awaySinceAt = 0L
+                return silent(door, "Longe (%.0f m) mas no Wi-Fi de casa — não arma".format(distanceM))
+            }
+
             // Primeira leitura longe: começa a contar.
             if (door.awaySinceAt == 0L) {
                 door.awaySinceAt = now
@@ -220,12 +234,14 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
 
         // 5) ARMADA — a condição que costuma faltar
         val awayFor = if (door.awaySinceAt > 0L) (now - door.awaySinceAt) / 1000 else 0L
+        val atHomeNow = wifi.isAtHome(door)
         c.add(
             Condition(
                 "Armada (já saíste)",
                 if (door.armed) Condition.State.OK else Condition.State.BLOCKED,
                 when {
                     door.armed -> "sim"
+                    atHomeNow -> "não · estás no Wi-Fi de casa"
                     door.awaySinceAt > 0L -> "não · longe há ${awayFor}s de ${prefs.awayConfirmSeconds}s"
                     distanceM > rearmAt -> "não · a contar a partir de agora"
                     else -> "não · estás a %.0f m (é preciso passar dos %.0f m)".format(distanceM, rearmAt)
@@ -302,9 +318,12 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
                 Condition(
                     "Wi-Fi de casa",
                     Condition.State.NOT_APPLICABLE,
-                    if (atHome) "ligado (não bloqueia)" else "fora de casa",
-                    "não bloqueia",
-                    ""
+                    if (atHome) "ligado — impede armar (estás em casa)" else "fora de casa",
+                    "não bloqueia a abertura",
+                    if (atHome)
+                        "Enquanto estiveres no Wi-Fi de casa a morada não arma, " +
+                            "por isso a porta não pode disparar. A abrir, não bloqueia nada."
+                    else ""
                 )
             } else {
                 Condition(
