@@ -27,6 +27,7 @@ class GlobalSettingsActivity : AppCompatActivity() {
         val etGrace = findViewById<EditText>(R.id.etNetGrace)
         val etAuthKeyGlobal = findViewById<EditText>(R.id.etAuthKeyGlobal)
         val etRearm = findViewById<EditText>(R.id.etRearmMargin)
+        val etAway = findViewById<EditText>(R.id.etAwayConfirm)
         val etMinAcc = findViewById<EditText>(R.id.etMinAccuracy)
         val etNearInt = findViewById<EditText>(R.id.etNearInterval)
         val etFarInt = findViewById<EditText>(R.id.etFarInterval)
@@ -40,6 +41,7 @@ class GlobalSettingsActivity : AppCompatActivity() {
         etGrace.setText(prefs.networkGraceSeconds.toString())
         etAuthKeyGlobal.setText(prefs.cloudAuthKeyGlobal)
         etRearm.setText(prefs.rearmMarginM.toString())
+        etAway.setText(prefs.awayConfirmSeconds.toString())
         etMinAcc.setText(prefs.minAccuracyM.toString())
         etNearInt.setText(prefs.nearIntervalSec.toString())
         etFarInt.setText(prefs.farIntervalSec.toString())
@@ -71,6 +73,7 @@ class GlobalSettingsActivity : AppCompatActivity() {
             prefs.networkGraceSeconds = etGrace.text.toString().toIntOrNull() ?: 60
             prefs.cloudAuthKeyGlobal = etAuthKeyGlobal.text.toString().trim()
             prefs.rearmMarginM = etRearm.text.toString().toFloatOrNull() ?: prefs.rearmMarginM
+            prefs.awayConfirmSeconds = (etAway.text.toString().toIntOrNull() ?: 60).coerceIn(0, 3600)
             prefs.minAccuracyM = etMinAcc.text.toString().toFloatOrNull() ?: prefs.minAccuracyM
             prefs.nearIntervalSec = (etNearInt.text.toString().toIntOrNull() ?: 4).coerceIn(1, 60)
             prefs.farIntervalSec = (etFarInt.text.toString().toIntOrNull() ?: 45).coerceIn(5, 600)

@@ -22,12 +22,19 @@ Cada morada tem um estado interno: **armada** ou **não armada**.
 | Estado | Quando acontece | A porta abre ao chegar? |
 |---|---|---|
 | **Não armada** | Estás em casa, ou nunca te afastaste | ❌ Não |
-| **Armada** 🟢 | Afastaste-te mais do que `raio + margem de rearme` (por defeito 35 + 60 = 95 m) **e** já não estavas no Wi-Fi de casa | ✅ Sim |
+| **Armada** 🟢 | Estiveste mais longe que `raio + margem` (30 + 25 = **55 m**) durante **60 s seguidos** | ✅ Sim |
+
+> **Porque é que armar exige TEMPO e não o Wi-Fi?**
+> Ao sair de casa passas obrigatoriamente pela porta — se a morada armasse
+> assim que o telemóvel perde o Wi-Fi, a porta abria-se atrás de ti. Como
+> armar exige estar **longe de forma continuada**, na saída ainda estás perto,
+> o contador está a zero e nada dispara. Perder o Wi-Fi também não prova nada
+> (pode ser só o router a falhar) — o que prova que saíste é a **distância**.
 
 A porta abre **automaticamente** quando:
 
 1. A morada está **armada** (ou seja: saíste mesmo de casa).
-2. **Entras no raio** da porta (por defeito 35 m).
+2. **Entras no raio** da porta (por defeito 30 m).
 3. Não vais **demasiado depressa** (por defeito >8 m/s ≈ 29 km/h bloqueia — a pé
    nunca bloqueia; velocidade desconhecida também não bloqueia).
 4. O **GPS não está absurdamente impreciso** (pior que ±120 m).
@@ -38,11 +45,11 @@ Ao abrir, a morada **desarma** — só volta a abrir depois de te afastares outr
 precisar de bloquear nada durante 10 minutos.
 
 ```
-Estou em casa ─────────────────────────► não armada ──► nunca abre
+Estou em casa / a sair pela porta ─────► não armada ──► nunca abre
      │
-     └─ saio, afasto-me >95 m, sem Wi-Fi de casa ──► 🟢 ARMADA
+     └─ saio e fico >55 m durante 60 s seguidos ──► 🟢 ARMADA
                                                         │
-                                       volto e entro no raio (35 m)
+                                       volto e entro no raio (30 m)
                                                         │
                                     devagar? GPS ok? sem cooldown?
                                                         │ sim

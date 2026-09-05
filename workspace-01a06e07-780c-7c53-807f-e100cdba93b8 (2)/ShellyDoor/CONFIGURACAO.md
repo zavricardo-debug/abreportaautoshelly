@@ -43,21 +43,14 @@ How long the ⏸ pause lasts. Only affects **automatic** opening — the manual
 Pauses automation for the minutes above after every automatic opening. Left off
 because the arm/disarm cycle already prevents re-opening while you linger.
 
-### 5. `Delay de troca de rede (segundos)` — default **60** ⚠️
+### 5. `Delay de troca de rede (segundos)` — default **20**
 
-**This one is directly involved in the problem you hit.** After the phone leaves
-your home Wi-Fi, the app keeps treating you as "still at home" for this many
-seconds. It exists so that switching 5 GHz ↔ 2.4 GHz indoors (where the SSID
-goes blank for a few seconds) doesn't look like you left.
+Grace window after the phone leaves home Wi-Fi, so switching 5 GHz ↔ 2.4 GHz
+indoors isn't mistaken for leaving.
 
-The side effect: **during these 60 seconds the address cannot arm.** If you walk
-away and come back in under a minute, it never arms and the door never opens.
-
-| Value | Effect |
-|---|---|
-| **0** | Arms the instant you drop off home Wi-Fi. Best for **testing**. |
-| 60 (default) | Safe against band switching, but a short walk won't arm it. |
-| 90+ | Extra safe indoors, slower to arm. |
+> **No longer affects arming.** Arming is now purely distance + time
+> (see *Tempo longe para armar*). This value only matters if you switch on
+> *"Wi-Fi de casa bloqueia mesmo depois de teres saído"*.
 
 ### 6. `Auth key da conta` — no default
 
@@ -74,23 +67,36 @@ Keep this **on**. It's the active GPS tracking that actually detects arrival.
 Turning it off leaves only Android's geofences, which are slow and unreliable at
 small radii — that was one of the original reasons the door didn't open.
 
-### 8. `Margem de rearme (metros)` — default **60** ⚠️
+### 8. `Margem de rearme (metros)` — default **25** ⚠️
 
 **The most important number, and the one behind your symptom.** How much further
 than the radius you must travel before the address arms.
 
 > **Arming distance = radius + this margin.**
-> With your 10 m radius: 10 + 60 = **you must get 70 m away**.
-
-The screen message *"precisas de te afastar >70 m"* is telling you exactly this:
-you are inside the radius but never went far enough (or far enough for long
-enough) to arm.
+> With the default 30 m radius: 30 + 25 = **55 m away**.
 
 | Value | Effect |
 |---|---|
-| Lower (20) | Arms after a short walk. Convenient, but circling the block may re-arm it and re-open the door. |
-| **60 (default)** | Requires a genuine departure. |
-| Higher (150) | Only arms on a real trip out. |
+| Lower (15) | Arms after a short walk. Circling the block may re-arm it. |
+| **25 (default)** | Reachable on a normal errand. |
+| Higher (100) | Only arms on a real trip out. |
+
+### 8b. `Tempo longe para armar (segundos)` — default **60** ⭐ NEW
+
+How long you must stay **continuously** beyond that distance before the address
+arms. Together with the margin, this is what separates *"I went out"* from
+*"I'm walking past the door on my way to the street"*.
+
+**This is what stops the door opening behind you as you leave.** On the way out
+you're still close to the door, so the counter hasn't even started — the address
+is not armed and nothing fires. The counter resets to zero the moment you come
+back within range.
+
+| Value | Effect |
+|---|---|
+| 0 | Arms as soon as you're far enough, no waiting. |
+| **60 (default)** | A brief errand (bins, car) won't arm it; a real outing will. |
+| 300 | Only arms after you've been properly away for 5 minutes. |
 
 ### 9. `Precisão mínima do GPS (metros)` — default **120**
 
@@ -134,7 +140,7 @@ few minutes and then goes quiet.
 | 📌 `Definir porta aqui` | — | Saves your **current** GPS position as the door. Only accurate if you're standing at the door with good signal. |
 | 🗺 `Marcar porta no mapa` | — | **Most accurate.** Long-press the exact entrance on the map. |
 | `Latitude` / `Longitude` | — | The door's coordinates. Paste from Google Maps if you prefer. |
-| `Raio de disparo (metros)` | **35** | How close you must be to trigger. See warning below. |
+| `Raio de disparo (metros)` | **30** | How close you must be to trigger. See warning below. |
 | `Ligado ao Wi-Fi de casa = bloquear` | ON | Enables the Wi-Fi rule that stops the door arming while you're home. |
 | `SSID de casa` | empty | Your home network name(s), comma-separated. **Must match exactly.** If blank, the Wi-Fi rule does nothing. |
 | `Modo` | `cloud` | `cloud` (works anywhere) or `local` (same network only). |
@@ -155,18 +161,18 @@ few minutes and then goes quiet.
 
 ---
 
-## 🔧 Recommended settings to make your next test work
+## 🔧 Settings for your next test
 
-Your symptom — *always says you need to move away* — means the address never
-armed. Two settings are almost certainly why: the **70 m** arming distance and
-the **60 s** Wi-Fi grace period. Try this:
+The new defaults already fix the arming problem (55 m instead of 70 m, and Wi-Fi
+no longer blocks arming). **Set the radius back to 30 m** — 10 m is below what
+GPS can resolve, so the trigger would never fire even once armed.
 
-| Setting | Change to | Why |
+| Setting | Value | Why |
 |---|---|---|
-| `Raio de disparo` | **30** | 10 m is below GPS accuracy. |
-| `Margem de rearme` | **25** | Arms after ~55 m instead of 70 m. |
-| `Delay de troca de rede` | **0** | Arms immediately on leaving Wi-Fi, instead of 60 s later. |
-| `Intervalo do GPS perto` | **3** | Reacts faster on approach. |
+| `Raio de disparo` | **30** | 10 m is below GPS accuracy |
+| `Margem de rearme` | 25 (default) | Arms at ~55 m |
+| `Tempo longe para armar` | 60 (default) | Blocks opening on the way out |
+| `Intervalo do GPS perto` | 3–4 | Reacts faster on approach |
 
 **Fastest way to test the relay + trigger, without walking anywhere:**
 

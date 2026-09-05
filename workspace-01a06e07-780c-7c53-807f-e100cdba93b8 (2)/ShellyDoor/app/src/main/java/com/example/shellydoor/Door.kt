@@ -21,7 +21,7 @@ data class Door(
     var enabled: Boolean = true,       // automação desta porta ativa?
     var lat: Double = 0.0,
     var lng: Double = 0.0,
-    var radiusM: Float = 35f,
+    var radiusM: Float = 30f,
     var wifiKillEnabled: Boolean = true,
     var homeSsid: String = "",          // SSID(s) separados por vírgula
     var controlMode: String = "cloud",  // "local" | "cloud"
@@ -37,6 +37,16 @@ data class Door(
     /** true = já te afastaste desta morada, logo a chegada pode disparar. */
     var armed: Boolean = false,
     var lastArmedAt: Long = 0L,
+    /**
+     * Instante em que te vimos pela primeira vez CONTINUAMENTE longe (além de
+     * raio+margem). A morada só arma depois de estares longe durante
+     * `awayConfirmSeconds`. Volta a 0 assim que te aproximas.
+     *
+     * É isto que garante que **sair de casa nunca abre a porta**: ao passares
+     * pela porta a caminho da rua ainda estás perto, o contador está a zero e a
+     * morada não está armada.
+     */
+    var awaySinceAt: Long = 0L,
     /** Última abertura DESTA morada (cooldown por morada, não global). */
     var lastOpenAt: Long = 0L,
     /** Pausa própria desta morada (auto-pausa depois de abrir). */
@@ -67,6 +77,7 @@ data class Door(
         put("channel", channel); put("pulse", relayPulseSeconds)
         put("lastHomeWifiAt", lastHomeWifiAt)
         put("armed", armed); put("lastArmedAt", lastArmedAt)
+        put("awaySinceAt", awaySinceAt)
         put("lastOpenAt", lastOpenAt); put("pauseUntil", pauseUntil)
         put("lastDistanceM", lastDistanceM.toDouble()); put("lastSeenAt", lastSeenAt)
         put("lastReason", lastReason)
@@ -79,7 +90,7 @@ data class Door(
             enabled = o.optBoolean("enabled", true),
             lat = o.optDouble("lat", 0.0),
             lng = o.optDouble("lng", 0.0),
-            radiusM = o.optDouble("radiusM", 35.0).toFloat(),
+            radiusM = o.optDouble("radiusM", 30.0).toFloat(),
             wifiKillEnabled = o.optBoolean("wifiKill", true),
             homeSsid = o.optString("homeSsid", ""),
             controlMode = o.optString("mode", "cloud"),
@@ -92,6 +103,7 @@ data class Door(
             lastHomeWifiAt = o.optLong("lastHomeWifiAt", 0L),
             armed = o.optBoolean("armed", false),
             lastArmedAt = o.optLong("lastArmedAt", 0L),
+            awaySinceAt = o.optLong("awaySinceAt", 0L),
             lastOpenAt = o.optLong("lastOpenAt", 0L),
             pauseUntil = o.optLong("pauseUntil", 0L),
             lastDistanceM = o.optDouble("lastDistanceM", -1.0).toFloat(),

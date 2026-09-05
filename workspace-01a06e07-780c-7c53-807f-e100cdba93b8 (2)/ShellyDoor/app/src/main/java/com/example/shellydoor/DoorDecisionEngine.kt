@@ -56,21 +56,41 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
         val rearmAt = radius + prefs.rearmMarginM
 
         // ---------------------------------------------------------------
-        // 1) LONGE: é aqui que a morada ARMA. Sair de casa arma a automação.
+        // 1) LONGE: é aqui que a morada ARMA.
+        //
+        // Armar exige estar longe DE FORMA CONTINUADA (`awayConfirmSeconds`),
+        // e NÃO depende do Wi-Fi. Duas razões:
+        //  - Ao sair de casa passas pela porta: nessa altura ainda estás perto,
+        //    o contador está a zero e a morada não está armada → não abre.
+        //  - Perder o Wi-Fi não é sinal de nada (pode ser só o router a falhar
+        //    ou a mudares de banda). O que prova que saíste é a DISTÂNCIA.
         // ---------------------------------------------------------------
         if (distanceM > rearmAt) {
-            if (!door.armed) {
-                // Enquanto ainda não armou, o Wi-Fi de casa manda: se o telemóvel
-                // ainda "vê" a rede de casa, não é uma saída a sério.
-                if (wifi.isAtHome(door)) {
-                    return silent(door, "Longe (%.0f m) mas ainda no Wi-Fi de casa".format(distanceM))
-                }
-                door.armed = true
-                door.lastArmedAt = now
-                return silent(door, "Armada ✓ (saíste — a %.0f m)".format(distanceM))
+            if (door.armed) {
+                door.awaySinceAt = 0L
+                return silent(door, "Longe (%.0f m) — armada".format(distanceM))
             }
-            return silent(door, "Longe (%.0f m) — armada".format(distanceM))
+
+            // Primeira leitura longe: começa a contar.
+            if (door.awaySinceAt == 0L) {
+                door.awaySinceAt = now
+                return silent(door, "Longe (%.0f m) — a confirmar saída…".format(distanceM))
+            }
+
+            val awayFor = (now - door.awaySinceAt) / 1000
+            val need = prefs.awayConfirmSeconds
+            if (awayFor < need) {
+                return silent(door, "Longe (%.0f m) há ${awayFor}s de ${need}s".format(distanceM))
+            }
+
+            door.armed = true
+            door.lastArmedAt = now
+            door.awaySinceAt = 0L
+            return silent(door, "Armada ✓ (saíste — a %.0f m)".format(distanceM))
         }
+
+        // Aproximaste-te outra vez: a contagem de "longe" recomeça do zero.
+        door.awaySinceAt = 0L
 
         // Zona intermédia (entre o raio e o ponto de rearme): não faz nada,
         // apenas mantém o estado. Serve de histerese e evita o liga-desliga.
@@ -85,7 +105,8 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
         if (!door.armed) {
             // Nunca saíste (estás em casa / continuas por aqui). Não abre — e é
             // isto que impede a porta de abrir enquanto estás no apartamento.
-            return silent(door, "Perto (%.0f m) mas não armada — precisas de te afastar >%.0f m".format(distanceM, rearmAt))
+            return silent(door, "Perto (%.0f m) · não armada (afasta-te >%.0f m durante %ds)"
+                .format(distanceM, rearmAt, prefs.awayConfirmSeconds))
         }
 
         // Precisão do GPS. Regra DELIBERADAMENTE permissiva: só recusamos quando
@@ -129,6 +150,7 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
     fun markOpened(door: Door) {
         val now = System.currentTimeMillis()
         door.armed = false
+        door.awaySinceAt = 0L
         door.lastOpenAt = now
         door.lastReason = "Aberta ✓"
         if (prefs.autoPauseAfterOpen) {

@@ -55,8 +55,20 @@ class Prefs(context: Context) {
      * Isto é o que impede reaberturas enquanto andas à volta do prédio.
      */
     var rearmMarginM: Float
-        get() = sp.getFloat(KEY_REARM_MARGIN, 60f)
+        get() = sp.getFloat(KEY_REARM_MARGIN, 25f)
         set(v) = sp.edit().putFloat(KEY_REARM_MARGIN, v).apply()
+
+    /**
+     * Segundos que tens de estar CONTINUAMENTE longe (além de raio+margem)
+     * para a morada armar.
+     *
+     * É isto — e não o Wi-Fi — que distingue "saí de casa" de "estou a passar
+     * pela porta a caminho da rua". Ao sair, ainda estás perto da porta, por
+     * isso a morada não arma e a porta não abre atrás de ti.
+     */
+    var awayConfirmSeconds: Int
+        get() = sp.getInt(KEY_AWAY_CONFIRM, 60)
+        set(v) = sp.edit().putInt(KEY_AWAY_CONFIRM, v).apply()
 
     /**
      * Precisão mínima aceitável do GPS (metros). Só recusamos fixes PIORES do que
@@ -91,10 +103,12 @@ class Prefs(context: Context) {
     /** Janela (segundos) em que, mesmo sem estares ligado ao Wi-Fi de casa,
      *  continuamos a considerar que estás em casa. Evita abrir na troca 5G/2.4G.
      *  O valor é GLOBAL; o timestamp "última vez em casa" é POR MORADA (Door).
-     *  NOTA: só conta enquanto a morada NÃO está armada — depois de te teres
-     *  afastado, o Wi-Fi já não impede a abertura à chegada. */
+     *
+     *  NOTA: já NÃO impede a morada de armar (isso agora é só distância+tempo,
+     *  ver [awayConfirmSeconds]). Só é usado quando ligas explicitamente o
+     *  [wifiBlocksWhenArmed]. */
     var networkGraceSeconds: Int
-        get() = sp.getInt(KEY_NET_GRACE, 60)
+        get() = sp.getInt(KEY_NET_GRACE, 20)
         set(v) = sp.edit().putInt(KEY_NET_GRACE, v).apply()
 
     /**
@@ -153,6 +167,7 @@ class Prefs(context: Context) {
         private const val KEY_AUTO_PAUSE = "autoPauseAfterOpen"
         private const val KEY_PAUSE_UNTIL = "pauseUntil"
         private const val KEY_REARM_MARGIN = "rearmMarginM"
+        private const val KEY_AWAY_CONFIRM = "awayConfirmSeconds"
         private const val KEY_MIN_ACC = "minAccuracyM"
         private const val KEY_ACTIVE_TRACK = "activeTracking"
         private const val KEY_FAR_INT = "farIntervalSec"

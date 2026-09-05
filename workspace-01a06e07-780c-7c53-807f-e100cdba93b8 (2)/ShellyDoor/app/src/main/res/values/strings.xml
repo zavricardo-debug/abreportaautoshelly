@@ -25,14 +25,14 @@
 
     <string name="hint_door_name">Nome da morada (ex. "Casa", "Trabalho")</string>
     <string name="hint_door_enabled">Automação desta morada ativa?</string>
-    <string name="hint_radius">Raio de disparo (metros) — experimenta 20–40m</string>
+    <string name="hint_radius">Raio de disparo (metros) — mín. realista 20–40m (o GPS não faz melhor)</string>
     <string name="hint_speed">Velocidade máx para abrir (m/s) — ex. 8 (a pé nunca bloqueia)</string>
     <string name="hint_cooldown">Cooldown (segundos) entre aberturas — ex. 30</string>
     <string name="hint_wifi_kill">Ligado ao Wi-Fi de casa = bloquear abertura</string>
     <string name="hint_home_ssid">SSID de casa (vírgulas se vários) — ex. MeuRouter</string>
     <string name="hint_pause_min">Duração da pausa (minutos) — ex. 10</string>
     <string name="hint_auto_pause">Auto-pausa após cada abertura (evita reabrir enquanto conversas)</string>
-    <string name="hint_net_grace">Delay de troca de rede (segundos) — evita abrir ao mudar 5G/2.4G em casa. ex. 60</string>
+    <string name="hint_net_grace">Delay de troca de rede (segundos) — só usado se ligares o bloqueio por Wi-Fi. ex. 20</string>
     <string name="hint_auth_key_global">Auth key da conta (partilhado pelas moradas) — usado se a morada não tiver o seu</string>
     <string name="hint_mode">Modo: local ou cloud</string>
     <string name="hint_channel">Canal do relé (0 ou 1)</string>
@@ -52,7 +52,8 @@
     <!-- Aproximação / rastreio -->
     <string name="settings_section_approach">Aproximação (o que faz a porta abrir à chegada)</string>
     <string name="hint_active_tracking">Rastreio ativo de localização (recomendado — sem isto pode não abrir à chegada)</string>
-    <string name="hint_rearm_margin">Margem de rearme (metros) — tens de te afastar raio+isto para voltar a abrir. ex. 60</string>
+    <string name="hint_rearm_margin">Margem de rearme (metros) — tens de te afastar raio+isto para voltar a abrir. ex. 25</string>
+    <string name="hint_away_confirm">Tempo longe para armar (segundos) — evita abrir quando SAIS de casa. ex. 60</string>
     <string name="hint_min_accuracy">Precisão mínima do GPS (metros) — só recusa fixes piores que isto. ex. 120</string>
     <string name="hint_near_interval">Intervalo do GPS perto de casa (segundos) — ex. 4</string>
     <string name="hint_far_interval">Intervalo do GPS longe de casa (segundos) — ex. 45</string>
