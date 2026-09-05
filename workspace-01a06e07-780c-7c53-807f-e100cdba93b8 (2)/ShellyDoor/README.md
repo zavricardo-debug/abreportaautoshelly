@@ -192,11 +192,32 @@ Como o pulso é feito pelo próprio parametro `timer`, **não** é preciso envia
 
 ## 2. Compilar e instalar
 
+### Opção A — descarregar o APK já compilado (mais rápido, sem instalar nada)
+
+O repositório tem um workflow de GitHub Actions (`.github/workflows/android-build.yml`)
+que compila a app a cada push e publica o APK.
+
+1. Vai a **Actions → Build APK** no GitHub e abre a execução mais recente
+   (✓ verde) desta branch.
+2. Em baixo, na secção **Artifacts**, descarrega **`ShellyDoor-debug-apk`**.
+3. Descompacta o `.zip` e passa o `app-debug.apk` para o telemóvel.
+4. Abre-o no telemóvel e aceita **"instalar de fontes desconhecidas"**.
+
+> Usa a versão **debug**: já vem assinada com a chave de debug e instala
+> diretamente. A `release` é gerada sem assinatura, por isso o Android recusa-a
+> a menos que a assines primeiro.
+
+### Opção B — compilar no Android Studio
+
 1. Abre a pasta `ShellyDoor/` no **Android Studio**.
 2. Deixa o Gradle sincronizar (descarrega as dependências).
 3. Liga o telemóvel (com **Debug USB**) e corre com ▶ Run, ou gera um APK:
    `Build → Build APK(s)`.
 4. Instala o `app-debug.apk` no teu telemóvel.
+
+> Se atualizares por cima de uma instalação antiga, as moradas e definições
+> são mantidas. Depois de instalar, confirma as permissões da secção
+> **"as 3 coisas que TÊM de estar certas"** acima.
 
 ---
 
