@@ -234,11 +234,34 @@ class MainActivity : AppCompatActivity() {
             box.addView(diag)
         }
 
+        // Resumo do diagnóstico: quantas condições faltam e quais.
+        Diagnostics.fromJsonOrNull(door.lastDiagnostics)?.let { diag ->
+            val blocking = diag.blocking()
+            box.addView(TextView(this).apply {
+                text = if (blocking.isEmpty()) "✅ tudo pronto — abre à chegada"
+                else "❌ falta: " + blocking.joinToString(", ") { it.name }
+                textSize = 12.5f
+                setTextColor(
+                    ContextCompat.getColor(
+                        this@MainActivity,
+                        if (blocking.isEmpty()) R.color.success else R.color.danger
+                    )
+                )
+            })
+        }
+
         val btnRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         btnRow.addView(makeBtn("🔓 Abrir") { openDoor(door) })
         btnRow.addView(makeBtn("✏ Editar") { openEditor(door.id) })
         btnRow.addView(makeBtn("🗑 Apagar") { confirmDelete(door) })
         box.addView(btnRow)
+
+        box.addView(makeBtn("🔎 Porque é que não abre?") { openDiagnostics(door.id) }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        })
 
         return box
     }
@@ -255,6 +278,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun makeBtn(text: String, click: () -> Unit): Button =
         Button(this).apply { this.text = text; setOnClickListener { click() } }
+
+    private fun openDiagnostics(doorId: String) {
+        startActivity(
+            Intent(this, DoorDiagnosticsActivity::class.java)
+                .putExtra(DoorDiagnosticsActivity.EXTRA_DOOR_ID, doorId)
+        )
+    }
 
     private fun openEditor(doorId: String) {
         startActivity(

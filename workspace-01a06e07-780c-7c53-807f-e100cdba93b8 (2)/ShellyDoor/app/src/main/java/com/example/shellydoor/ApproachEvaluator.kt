@@ -48,6 +48,11 @@ object ApproachEvaluator {
             val accuracy = if (location.hasAccuracy()) location.accuracy else -1f
             val speed = if (location.hasSpeed()) location.speed else -1f
 
+            // Retrato completo ANTES de decidir: mostra todas as condições, as
+            // cumpridas e as que faltam, para o ecrã de diagnóstico.
+            door.lastDiagnostics =
+                engine.diagnose(door, distance, accuracy, speed, source).toJson().toString()
+
             when (val outcome = engine.evaluate(door, distance, accuracy, speed)) {
                 is DoorDecisionEngine.Outcome.AllowOpen -> {
                     Log.i(TAG, "[$source] ABRIR ${door.name} (a %.0f m)".format(distance))

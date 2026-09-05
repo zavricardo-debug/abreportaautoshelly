@@ -65,6 +65,12 @@
             android:label="Morada" />
 
         <activity
+            android:name=".DoorDiagnosticsActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:label="Porque é que não abre?" />
+
+        <activity
             android:name=".MapsActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity"

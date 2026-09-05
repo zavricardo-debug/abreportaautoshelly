@@ -146,6 +146,197 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
         return Outcome.AllowOpen
     }
 
+
+    /**
+     * Avalia TODAS as condições (não pára na primeira que falha) e devolve o
+     * retrato completo, para o ecrã de diagnóstico.
+     *
+     * Não muta a morada nem abre nada — é só leitura. A decisão real continua
+     * a ser tomada por [evaluate].
+     */
+    fun diagnose(
+        door: Door,
+        distanceM: Float,
+        accuracyM: Float,
+        speedMs: Float,
+        source: String = "gps"
+    ): Diagnostics {
+        val now = System.currentTimeMillis()
+        val c = ArrayList<Condition>()
+        val radius = door.radiusM
+        val rearmAt = radius + prefs.rearmMarginM
+
+        // 1) Automação ligada
+        c.add(
+            Condition(
+                "Automação ligada",
+                if (prefs.autoEnabled) Condition.State.OK else Condition.State.BLOCKED,
+                if (prefs.autoEnabled) "ligada" else "desligada",
+                "ligada",
+                "Liga no botão do ecrã principal."
+            )
+        )
+
+        // 2) Morada ativa
+        c.add(
+            Condition(
+                "Morada ativa",
+                if (door.enabled) Condition.State.OK else Condition.State.BLOCKED,
+                if (door.enabled) "sim" else "não",
+                "sim",
+                "Ativa o interruptor no topo das definições desta morada."
+            )
+        )
+
+        // 3) Ponto definido
+        c.add(
+            Condition(
+                "Ponto da porta",
+                if (door.hasPoint()) Condition.State.OK else Condition.State.BLOCKED,
+                if (door.hasPoint()) "definido" else "em falta",
+                "definido",
+                "Marca a porta no mapa nas definições desta morada."
+            )
+        )
+
+        if (!door.hasPoint()) {
+            return Diagnostics(now, c, "Falta marcar o ponto da porta", false, -1f, accuracyM, speedMs, source)
+        }
+
+        // 4) Sinal de GPS
+        c.add(
+            Condition(
+                "Sinal de GPS",
+                when {
+                    accuracyM <= 0f -> Condition.State.UNKNOWN
+                    accuracyM > prefs.minAccuracyM -> Condition.State.BLOCKED
+                    else -> Condition.State.OK
+                },
+                if (accuracyM > 0f) "±%.0f m".format(accuracyM) else "desconhecido",
+                "melhor que ±%.0f m".format(prefs.minAccuracyM),
+                "Ao ar livre o sinal melhora. Se acontecer sempre, sobe a precisão mínima."
+            )
+        )
+
+        // 5) ARMADA — a condição que costuma faltar
+        val awayFor = if (door.awaySinceAt > 0L) (now - door.awaySinceAt) / 1000 else 0L
+        c.add(
+            Condition(
+                "Armada (já saíste)",
+                if (door.armed) Condition.State.OK else Condition.State.BLOCKED,
+                when {
+                    door.armed -> "sim"
+                    door.awaySinceAt > 0L -> "não · longe há ${awayFor}s de ${prefs.awayConfirmSeconds}s"
+                    distanceM > rearmAt -> "não · a contar a partir de agora"
+                    else -> "não · estás a %.0f m (é preciso passar dos %.0f m)".format(distanceM, rearmAt)
+                },
+                "afasta-te >%.0f m durante %ds".format(rearmAt, prefs.awayConfirmSeconds),
+                "Só arma depois de te afastares mesmo. Para testar aqui, usa \"Armar esta morada agora\"."
+            )
+        )
+
+        // 6) Distância
+        c.add(
+            Condition(
+                "Distância à porta",
+                if (distanceM <= radius) Condition.State.OK else Condition.State.BLOCKED,
+                "a %.0f m".format(distanceM),
+                "≤ %.0f m".format(radius),
+                "Aproxima-te da porta, ou aumenta o raio desta morada."
+            )
+        )
+
+        // 7) Velocidade
+        c.add(
+            Condition(
+                "Velocidade",
+                when {
+                    speedMs < 0f -> Condition.State.UNKNOWN
+                    speedMs > prefs.maxSpeedMs -> Condition.State.BLOCKED
+                    else -> Condition.State.OK
+                },
+                if (speedMs >= 0f) "%.1f m/s".format(speedMs) else "desconhecida (não bloqueia)",
+                "≤ %.1f m/s".format(prefs.maxSpeedMs),
+                "Estás a ir depressa demais — a app pensa que vais de carro."
+            )
+        )
+
+        // 8) Pausa
+        val pausedGlobal = prefs.isPaused()
+        val pausedDoor = door.isPaused()
+        c.add(
+            Condition(
+                "Sem pausa",
+                if (pausedGlobal || pausedDoor) Condition.State.BLOCKED else Condition.State.OK,
+                when {
+                    pausedGlobal -> "em pausa global (${prefs.pauseRemainingMillis() / 1000}s)"
+                    pausedDoor -> "morada em pausa (${(door.pauseUntil - now) / 1000}s)"
+                    else -> "sem pausa"
+                },
+                "sem pausa",
+                "Cancela a pausa no ecrã principal."
+            )
+        )
+
+        // 9) Cooldown
+        val since = if (door.lastOpenAt > 0L) (now - door.lastOpenAt) / 1000 else -1L
+        val inCooldown = door.lastOpenAt > 0L && (now - door.lastOpenAt) < prefs.cooldownMs
+        c.add(
+            Condition(
+                "Cooldown",
+                if (inCooldown) Condition.State.BLOCKED else Condition.State.OK,
+                if (since >= 0) "última abertura há ${since}s" else "nunca abriu",
+                "> ${prefs.cooldownMs / 1000}s desde a última",
+                "Espera um pouco antes de tentar outra vez."
+            )
+        )
+
+        // 10) Wi-Fi (só é condição se estiver ligada a opção)
+        val atHome = wifi.isAtHome(door)
+        c.add(
+            if (!prefs.wifiBlocksWhenArmed) {
+                Condition(
+                    "Wi-Fi de casa",
+                    Condition.State.NOT_APPLICABLE,
+                    if (atHome) "ligado (não bloqueia)" else "fora de casa",
+                    "não bloqueia",
+                    ""
+                )
+            } else {
+                Condition(
+                    "Wi-Fi de casa",
+                    if (atHome) Condition.State.BLOCKED else Condition.State.OK,
+                    if (atHome) "ligado ao Wi-Fi de casa" else "fora de casa",
+                    "fora do Wi-Fi de casa",
+                    "Desliga a opção \"Wi-Fi bloqueia mesmo depois de saíres\" nas definições globais."
+                )
+            }
+        )
+
+        val blocking = c.filter { it.state == Condition.State.BLOCKED }
+        val verdict = when {
+            blocking.isEmpty() -> "Tudo pronto — a porta abre à chegada ✓"
+            blocking.size == 1 -> "Falta 1 condição: ${blocking[0].name}"
+            else -> "Faltam ${blocking.size} condições: ${blocking.joinToString(", ") { it.name }}"
+        }
+
+        return Diagnostics(
+            at = now, conditions = c, verdict = verdict,
+            wouldOpen = blocking.isEmpty(),
+            distanceM = distanceM, accuracyM = accuracyM, speedMs = speedMs, source = source
+        )
+    }
+
+    /** Devolve a morada ao estado armado (para testar no local). */
+    fun forceArm(door: Door) {
+        door.armed = true
+        door.lastArmedAt = System.currentTimeMillis()
+        door.awaySinceAt = 0L
+        door.lastOpenAt = 0L
+        door.pauseUntil = 0L
+        door.lastReason = "Armada à mão ✓"
+    }
+
     /** Marca a morada como aberta: desarma, grava timestamps e a pausa opcional. */
     fun markOpened(door: Door) {
         val now = System.currentTimeMillis()

@@ -55,7 +55,9 @@ data class Door(
     var lastDistanceM: Float = -1f,
     var lastSeenAt: Long = 0L,
     /** Último motivo de bloqueio/última mensagem desta morada (diagnóstico). */
-    var lastReason: String = ""
+    var lastReason: String = "",
+    /** Retrato completo da última avaliação (JSON de [Diagnostics]). */
+    var lastDiagnostics: String = ""
 ) {
     fun hasPoint(): Boolean = lat != 0.0 && lng != 0.0
 
@@ -81,6 +83,7 @@ data class Door(
         put("lastOpenAt", lastOpenAt); put("pauseUntil", pauseUntil)
         put("lastDistanceM", lastDistanceM.toDouble()); put("lastSeenAt", lastSeenAt)
         put("lastReason", lastReason)
+        put("lastDiagnostics", lastDiagnostics)
     }
 
     companion object {
@@ -108,7 +111,8 @@ data class Door(
             pauseUntil = o.optLong("pauseUntil", 0L),
             lastDistanceM = o.optDouble("lastDistanceM", -1.0).toFloat(),
             lastSeenAt = o.optLong("lastSeenAt", 0L),
-            lastReason = o.optString("lastReason", "")
+            lastReason = o.optString("lastReason", ""),
+            lastDiagnostics = o.optString("lastDiagnostics", "")
         )
     }
 }
