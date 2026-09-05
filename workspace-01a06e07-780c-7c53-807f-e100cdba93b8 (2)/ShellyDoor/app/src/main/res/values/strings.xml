@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ShellyDoor</string>
+    <string name="app_title">ShellyDoor — Abertura automática</string>
+
+    <string name="status_idle">Adiciona uma morada (morada → porta do prédio + Shelly).</string>
+
+    <string name="btn_add_door">➕ Adicionar morada</string>
+    <string name="btn_toggle_auto">▶ Ligar / Desligar automação (all)</string>
+    <string name="btn_pause">⏸ Pausar automação (deixar de abrir por um tempo)</string>
+    <string name="btn_settings">⚙ Definições globais</string>
+    <string name="btn_save">Guardar</string>
+    <string name="btn_delete_door">🗑 Remover esta morada</string>
+
+    <string name="hint">Cada morada tem a sua porta e o seu Shelly — configura cada uma de forma independente.</string>
+
+    <!-- Definições da morada -->
+    <string name="settings_section_point">Ponto da porta (GPS / mapa / manual)</string>
+    <string name="settings_section_shelly">Shelly desta morada</string>
+    <string name="settings_global_title">Definições globais (todas as moradas)</string>
+
+    <string name="btn_set_door">📌 Definir porta aqui (usar posição atual)</string>
+    <string name="btn_map">🗺 Marcar porta no mapa</string>
+
+    <string name="hint_door_name">Nome da morada (ex. "Casa", "Trabalho")</string>
+    <string name="hint_door_enabled">Automação desta morada ativa?</string>
+    <string name="hint_radius">Raio de disparo (metros) — experimenta 20–40m</string>
+    <string name="hint_speed">Velocidade máx para abrir (m/s) — ex. 3</string>
+    <string name="hint_cooldown">Cooldown (segundos) entre aberturas — ex. 30</string>
+    <string name="hint_wifi_kill">Ligado ao Wi-Fi de casa = bloquear abertura</string>
+    <string name="hint_home_ssid">SSID de casa (vírgulas se vários) — ex. MeuRouter</string>
+    <string name="hint_pause_min">Duração da pausa (minutos) — ex. 10</string>
+    <string name="hint_auto_pause">Auto-pausa após cada abertura (evita reabrir enquanto conversas)</string>
+    <string name="hint_net_grace">Delay de troca de rede (segundos) — evita abrir ao mudar 5G/2.4G em casa. ex. 60</string>
+    <string name="hint_auth_key_global">Auth key da conta (partilhado pelas moradas) — usado se a morada não tiver o seu</string>
+    <string name="hint_mode">Modo: local ou cloud</string>
+    <string name="hint_channel">Canal do relé (0 ou 1)</string>
+    <string name="hint_ip">IP do Shelly (modo local) — ex. 192.168.1.100</string>
+    <string name="hint_cloud_host">Host do Shelly Cloud — ex. https://shelly-37-eu.shelly.cloud</string>
+    <string name="hint_device_id">ID do dispositivo (cloud)</string>
+    <string name="hint_auth_key">Auth key do dispositivo (cloud)</string>
+    <string name="hint_pulse">Duração do impulso (segundos) — ex. 1</string>
+    <string name="hint_lat">Latitude da porta (ex. 38.722300) — vê no Google Maps, ou usa o mapa</string>
+    <string name="hint_lng">Longitude da porta (ex. -9.139300)</string>
+
+    <!-- Seletor de mapa -->
+    <string name="map_hint">Toca (segura) num ponto do mapa para marcares a porta. O círculo é o raio de disparo da morada.</string>
+    <string name="map_my_location">📍 Ir para a minha posição</string>
+    <string name="map_use_this_point">Usar este ponto como porta</string>
+</resources>

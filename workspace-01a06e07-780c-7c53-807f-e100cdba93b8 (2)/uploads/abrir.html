@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Check-in</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #16233d 0%, #0b1220 60%);
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    color: #e7edf7;
+  }
+  .card {
+    width: 100%; max-width: 380px;
+    background: linear-gradient(180deg, #131e33 0%, #0f1828 100%);
+    border: 1px solid #22314e;
+    border-radius: 24px;
+    padding: 28px 24px 20px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.45);
+    text-align: center;
+  }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  h1 { font-size: 18px; font-weight: 700; letter-spacing: .3px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 5px 10px; border-radius: 999px;
+    background: #1b2942; color: #9fb0cc; border: 1px solid #263752;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+  .chip.on  { color: #4ade80; border-color: #1d4630; background: #10241a; }
+  .chip.on .dot { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+  .chip.off { color: #f87171; border-color: #4c1d24; background: #2a1216; }
+  .chip.off .dot { background: #f87171; }
+
+  .voltar {
+    display: inline-flex; align-items: center; gap: 7px;
+    color: #9fb0cc; text-decoration: none;
+    font-size: 13px; font-weight: 600;
+    background: #0d1626; border: 1px solid #1e2c47;
+    padding: 8px 14px; border-radius: 10px;
+    margin-bottom: 14px;
+    transition: background .15s ease, color .15s ease;
+  }
+  .voltar:hover { background: #10203a; color: #e7edf7; }
+  .voltar svg { width: 15px; height: 15px; }
+
+  .status { text-align: left; background: #0d1626; border: 1px solid #1e2c47; border-radius: 14px; padding: 6px 14px; margin-bottom: 24px; }
+  .row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #1a2740; font-size: 14px; }
+  .row:last-child { border-bottom: none; }
+  .row span { color: #8ea2c4; }
+  .row strong { font-weight: 600; }
+  .on-text  { color: #4ade80; }
+  .off-text { color: #93a5c4; }
+
+  .big {
+    width: 168px; height: 168px; border-radius: 50%;
+    border: none; cursor: pointer;
+    background: radial-gradient(circle at 30% 25%, #2dd4bf 0%, #0e9488 70%);
+    color: #04211d; font-weight: 800;
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    box-shadow: 0 14px 34px rgba(13,148,136,.35), inset 0 2px 6px rgba(255,255,255,.35);
+    transition: transform .08s ease, box-shadow .08s ease, opacity .15s ease;
+    margin-bottom: 22px;
+  }
+  .big:active { transform: scale(.95); box-shadow: 0 6px 18px rgba(13,148,136,.3); }
+  .big svg { width: 44px; height: 44px; }
+  .big .t1 { font-size: 19px; letter-spacing: 1.5px; }
+  .big .t2 { font-size: 11px; font-weight: 600; opacity: .75; letter-spacing: .5px; }
+
+  button:disabled { opacity: .45; cursor: wait; pointer-events: none; }
+
+  #msg { min-height: 22px; margin: 4px 0 4px; font-size: 14px; color: #9fb0cc; }
+  #msg.ok  { color: #4ade80; }
+  #msg.err { color: #f87171; }
+
+  footer { font-size: 11px; color: #5c6f92; letter-spacing: .5px; }
+  .lang { display: flex; gap: 6px; justify-content: center; margin-bottom: 14px; }
+  .lang button { font-family: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .8px; color: #9fb0cc; background: transparent; border: 1px solid #263752; border-radius: 999px; padding: 6px 11px; cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
+  .lang button:hover { color: #e7edf7; border-color: #3b5079; }
+  .lang button.on { background: #2dd4bf; border-color: #2dd4bf; color: #04211d; }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="lang" id="langSwitch">
+      <button type="button" data-lang="en">EN</button>
+      <button type="button" data-lang="es">ES</button>
+      <button type="button" data-lang="fr">FR</button>
+    </div>
+  <a id="voltarBtn" class="voltar" href="checkin.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
+    </svg><span data-i18n="k-back-to-check-in">
+    Back to check-in
+  </span></a>
+  <header>
+    <div id="chip" class="chip"><span class="dot"></span><span id="chipTxt" data-i18n="k-checking">checking…</span></div>
+  </header>
+
+  <div class="status">
+    <div class="row"><span data-i18n="k-relay">Relay</span><strong id="relayState">—</strong></div>
+    <div class="row"><span data-i18n="k-temperature">Temperature</span><strong id="tempState">—</strong></div>
+    <div class="row"><span data-i18n="k-wi-fi">Wi‑Fi</span><strong id="wifiState">—</strong></div>
+  </div>
+
+  <button id="pulseBtn" class="big" type="button" title="Turns on for 1 second">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+      <path d="M12 3v8"/><path d="M6.3 6.5a8 8 0 1 0 11.4 0"/>
+    </svg>
+    <span class="t1" data-i18n="k-pulse">PULSE</span>
+    <span class="t2" id="pulseLabel" data-i18n="k-on-for-1-second">on for 1 second</span>
+  </button>
+
+  <p id="msg"></p>
+  <footer data-i18n="k-channel-0">channel <span id="chLbl">0</span> · <span id="idLbl"></span></footer>
+</main>
+
+<script>
+
+(function () {
+  var ok = false;
+  try { ok = sessionStorage.getItem("studio-door") === "1"; } catch (e) {}
+  if (!ok) {
+    location.replace("checkin.html");
+    throw new Error("locked");
+  }
+})();
+/* ====== CONFIGURAÇÃO — altera aqui se necessário ====== */
+const CONFIG = {
+  servidor:      "https://shelly-37-eu.shelly.cloud",
+  idDispositivo: "441793a5621c",
+  authKey:       "ZjJmMGF1aWQE3BBDBB3C3994FEF570BD05536F0B61870FB50B101EC413C1AD36FD450AB5E5381162F50DF2E1458",
+  canal:         0,   // 0 ou 1
+  pulsoSegundos: 1,   // duração do pulso (segundos)
+  voltarUrl:     "checkin.html"  // link do botão "Voltar" (vazio = esconde o botão)
+};
+/* ====================================================== */
+
+const I18N = {
+  en: {
+    "k-back-to-check-in": "Back to check-in",
+    "k-checking": "checking…",
+    "k-relay": "Relay",
+    "k-temperature": "Temperature",
+    "k-wi-fi": "Wi‑Fi",
+    "k-pulse": "PULSE",
+    "k-on-for-1-second": "on for 1 second",
+    "k-channel-0": "channel <span id=\"chLbl\">0</span> · <span id=\"idLbl\"></span>",
+    "_title": "Check-in",
+    "_pulseLabel": "on for {n} second",
+    "_btntip": "Turns on for 1 second",
+    "_noconn": "no connection",
+    "_online": "online",
+    "_offline": "offline",
+    "_sending": "Sending command…",
+    "_pulseok": "✓ Pulse sent ({n} s)",
+    "_error": "Error: ",
+    "_timeout": "timeout — try again"
+  },
+  es: {
+    "k-back-to-check-in": "Volver al check-in",
+    "k-checking": "verificando…",
+    "k-relay": "Relé",
+    "k-temperature": "Temperatura",
+    "k-wi-fi": "Wi‑Fi",
+    "k-pulse": "PULSAR",
+    "k-on-for-1-second": "enciende 1 segundo",
+    "k-channel-0": "canal <span id=\"chLbl\">0</span> · <span id=\"idLbl\"></span>",
+    "_title": "Check-in",
+    "_pulseLabel": "enciende {n} segundo",
+    "_btntip": "Enciende durante 1 segundo",
+    "_noconn": "sin conexión",
+    "_online": "en línea",
+    "_offline": "desconectado",
+    "_sending": "Enviando comando…",
+    "_pulseok": "✓ Pulso enviado ({n} s)",
+    "_error": "Error: ",
+    "_timeout": "tiempo agotado — inténtalo de nuevo"
+  },
+  fr: {
+    "k-back-to-check-in": "Retour au check-in",
+    "k-checking": "vérification…",
+    "k-relay": "Relais",
+    "k-temperature": "Température",
+    "k-wi-fi": "Wi‑Fi",
+    "k-pulse": "APPUYER",
+    "k-on-for-1-second": "active 1 seconde",
+    "k-channel-0": "canal <span id=\"chLbl\">0</span> · <span id=\"idLbl\"></span>",
+    "_title": "Check-in",
+    "_pulseLabel": "active {n} seconde",
+    "_btntip": "S'active pendant 1 seconde",
+    "_noconn": "sans connexion",
+    "_online": "en ligne",
+    "_offline": "hors ligne",
+    "_sending": "Envoi de la commande…",
+    "_pulseok": "✓ Signal envoyé ({n} s)",
+    "_error": "Erreur : ",
+    "_timeout": "délai dépassé — réessayez"
+  }
+};
+
+let LANG = "en";
+function T(k) {
+  const D = I18N[LANG] || I18N.en;
+  return D[k] !== undefined ? D[k] : (I18N.en[k] || k);
+}
+
+const $ = id => document.getElementById(id);
+
+if (CONFIG.voltarUrl) $("voltarBtn").href = CONFIG.voltarUrl;
+else $("voltarBtn").style.display = "none";
+
+const botoes = [$("pulseBtn")];
+let msgTimer = null;
+let emCurso = false;
+let offTimer = null;
+
+function preencherRodape() {
+  const ch = $("chLbl");
+  const id = $("idLbl");
+  if (ch) ch.textContent = CONFIG.canal;
+  if (id) id.textContent = CONFIG.idDispositivo.slice(0, 8).toUpperCase();
+}
+
+function rotulosDinamicos() {
+  const lbl = $("pulseLabel");
+  if (lbl) lbl.textContent = T("_pulseLabel").replace("{n}", CONFIG.pulsoSegundos);
+  const btn = $("pulseBtn");
+  if (btn) btn.title = T("_btntip");
+  preencherRodape();
+}
+
+function setLang(l, save) {
+  LANG = l;
+  const D = I18N[l] || I18N.en;
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const v = D[el.getAttribute("data-i18n")];
+    if (v !== undefined) el.innerHTML = v;
+  });
+  document.documentElement.lang = l;
+  if (D._title) document.title = D._title;
+  document.querySelectorAll("#langSwitch button").forEach(b => b.classList.toggle("on", b.dataset.lang === l));
+  rotulosDinamicos();
+  if (save) { try { localStorage.setItem("studio-lang", l); } catch (e) {} }
+}
+
+document.querySelectorAll("#langSwitch button").forEach(b =>
+  b.addEventListener("click", () => setLang(b.dataset.lang, true)));
+
+(function () {
+  let saved = null;
+  try { saved = localStorage.getItem("studio-lang"); } catch (e) {}
+  setLang(saved && I18N[saved] ? saved : "en", false);
+})();
+
+async function shellyPOST(caminho, params) {
+  const body = new URLSearchParams(params);
+  body.set("id", CONFIG.idDispositivo);
+  body.set("auth_key", CONFIG.authKey);
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const res = await fetch(CONFIG.servidor + caminho, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      signal: ctrl.signal
+    });
+    const data = await res.json();
+    if (!data.isok) throw new Error(data.message || data.data?.message || JSON.stringify(data));
+    return data;
+  } catch (e) {
+    if (e && e.name === "AbortError") throw new Error(T("_timeout"));
+    throw e;
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+function enviarComando(turn, timer) {
+  const params = { channel: CONFIG.canal, turn };
+  if (timer) params.timer = timer;
+  return shellyPOST("/device/relay/control", params);
+}
+
+function msg(texto, tipo) {
+  clearTimeout(msgTimer);
+  const el = $("msg");
+  el.textContent = texto;
+  el.className = tipo || "";
+  if (tipo !== "err") msgTimer = setTimeout(() => { el.textContent = ""; el.className = ""; }, 4000);
+}
+
+function libertarBotao() {
+  emCurso = false;
+  botoes.forEach(b => { if (b) b.disabled = false; });
+}
+
+async function atualizarEstado() {
+  try {
+    const st = await shellyPOST("/device/status", {});
+    const d = st.data;
+    const chip = $("chip");
+    if (!d.online) {
+      chip.className = "chip off"; $("chipTxt").textContent = T("_offline");
+      $("relayState").textContent = "—"; $("relayState").className = "";
+      $("tempState").textContent = "—"; $("wifiState").textContent = "—";
+      return;
+    }
+    chip.className = "chip on"; $("chipTxt").textContent = T("_online");
+    const sw = d.device_status["switch:" + CONFIG.canal] || d.device_status["relay:" + CONFIG.canal] || (d.device_status.relays && d.device_status.relays[CONFIG.canal]);
+    if (sw) {
+      const ligado = !!(sw.output || sw.ison);
+      $("relayState").textContent = ligado ? "ON" : "OFF";
+      $("relayState").className = ligado ? "on-text" : "off-text";
+      const tc = sw.temperature && (sw.temperature.tC != null ? sw.temperature.tC : sw.temperature);
+      if (typeof tc === "number") $("tempState").textContent = tc.toFixed(1) + " °C";
+    }
+    const wifi = d.device_status.wifi;
+    if (wifi) $("wifiState").textContent = (wifi.ssid || "Wi-Fi") + (wifi.rssi != null ? " (" + wifi.rssi + " dBm)" : "");
+  } catch (e) {
+    $("chip").className = "chip off"; $("chipTxt").textContent = T("_noconn");
+  }
+}
+
+async function acao(turn, timer) {
+  if (emCurso) return;
+  emCurso = true;
+  botoes.forEach(b => b.disabled = true);
+  const watchdog = setTimeout(libertarBotao, 15000);
+  try {
+    msg(T("_sending"));
+    if (timer) {
+      await enviarComando("on", timer);
+      clearTimeout(offTimer);
+      offTimer = setTimeout(() => {
+        enviarComando("off").catch(() => {});
+        setTimeout(atualizarEstado, 250);
+      }, Math.max(1, Number(timer) || 1) * 1000);
+      msg(T("_pulseok").replace("{n}", timer), "ok");
+    } else {
+      await enviarComando(turn);
+      msg(turn === "on" ? "✓ ON" : "✓ OFF", "ok");
+    }
+    setTimeout(atualizarEstado, 300);
+  } catch (e) {
+    msg("✕ " + T("_error") + (e && e.message ? e.message : e), "err");
+  } finally {
+    clearTimeout(watchdog);
+    libertarBotao();
+  }
+}
+
+$("pulseBtn").addEventListener("click", () => acao("on", CONFIG.pulsoSegundos));
+
+atualizarEstado();
+setInterval(() => { if (!document.hidden) atualizarEstado(); }, 10000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) atualizarEstado(); });
+
+const acaoURL = new URLSearchParams(location.search).get("acao");
+if (acaoURL === "pulsar") acao("on", CONFIG.pulsoSegundos);
+else if (acaoURL === "ligar") acao("on");
+else if (acaoURL === "desligar") acao("off");
+</script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a35e90e9db454610',t:'MTc4ODU0MTM5MA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

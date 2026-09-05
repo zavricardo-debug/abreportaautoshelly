@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Rede / Shelly -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- Localização: necessária para o geofencing da porta e para ler o SSID do Wi-Fi -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- Notificações (botão manual "Abrir porta") -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Serviço em foreground (para geofencing fiável em background) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Re-armar os geofences após reiniciar o telemóvel -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:name=".App"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.ShellyDoor">
+
+        <!-- Google Maps API key. Edita app/src/main/res/values/api_keys.xml -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="@string/google_maps_api_key" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".GlobalSettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:label="Definições globais" />
+
+        <activity
+            android:name=".DoorSettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:label="Morada" />
+
+        <activity
+            android:name=".MapsActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:label="Marcar no mapa" />
+
+        <!-- Recetor de eventos de geofence -->
+        <receiver
+            android:name=".DoorGeofenceReceiver"
+            android:exported="false" />
+
+        <!-- Recetor de arranque do sistema -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Serviço em foreground -->
+        <service
+            android:name=".DoorService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+    </application>
+</manifest>
