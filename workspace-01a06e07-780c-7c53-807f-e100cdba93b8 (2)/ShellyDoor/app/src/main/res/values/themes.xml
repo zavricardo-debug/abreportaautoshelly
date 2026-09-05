@@ -1,6 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.ShellyDoor" parent="Theme.Material3.DayNight">
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+        Tema CLARO fixo (fundo branco).
+
+        Antes era `Theme.Material3.DayNight`, que seguia o modo escuro do
+        telemóvel: com o tema escuro ligado, o fundo ficava preto e os textos
+        cinzentos do ecrã principal (#666/#888) ficavam praticamente ilegíveis.
+        Agora a app é sempre branca, independentemente da definição do sistema
+        (ver também `AppCompatDelegate.MODE_NIGHT_NO` em App.kt).
+    -->
+    <!-- Mantém a ActionBar: os ecrãs de definições dependem dela para o título
+         e para a seta "voltar" (android:parentActivityName no manifest). -->
+    <style name="Theme.ShellyDoor" parent="Theme.Material3.Light">
+        <!-- Marca -->
         <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorAccent">@color/primary</item>
+
+        <!-- Superfícies brancas -->
+        <item name="android:colorBackground">@color/background</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnBackground">@color/text_primary</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorSurfaceVariant">@color/background</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorError">@color/danger</item>
+
+        <!-- Texto -->
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_hint</item>
+
+        <!-- Barra de estado clara, com ícones escuros (legíveis sobre branco) -->
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
+        <item name="android:windowBackground">@color/background</item>
     </style>
 </resources>

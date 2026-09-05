@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        window.setBackgroundDrawableResource(R.color.background)
         prefs = Prefs(this)
         store = DoorStore(this)
         tvStatus = findViewById(R.id.tvStatus)
@@ -205,6 +206,12 @@ class MainActivity : AppCompatActivity() {
             text = "🏠 ${door.name}" + (if (door.enabled) "" else "  (desativada)") +
                     (if (door.enabled && door.armed) "  🟢 armada" else "")
             textSize = 18f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            setTextColor(
+                ContextCompat.getColor(
+                    this@MainActivity,
+                    if (door.enabled && door.armed) R.color.success else R.color.text_primary
+                )
+            )
         }
         box.addView(name)
 
@@ -212,7 +219,7 @@ class MainActivity : AppCompatActivity() {
             text = if (door.hasPoint())
                 "ponto: (%.5f, %.5f) · raio %.0fm".format(door.lat, door.lng, door.radiusM)
             else "⚠ sem ponto definido"
-            textSize = 13f; setTextColor(0xFF666666.toInt())
+            textSize = 13f; setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
         }
         box.addView(coords)
 
@@ -222,7 +229,7 @@ class MainActivity : AppCompatActivity() {
             val diag = TextView(this).apply {
                 val dist = if (door.lastDistanceM >= 0f) "a %.0f m · ".format(door.lastDistanceM) else ""
                 text = "$dist${door.lastReason}"
-                textSize = 12f; setTextColor(0xFF888888.toInt())
+                textSize = 12f; setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
             }
             box.addView(diag)
         }

@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Cor de marca (azul) -->
     <color name="primary">#1565C0</color>
+    <color name="primary_dark">#0D47A1</color>
+    <color name="on_primary">#FFFFFFFF</color>
+
+    <!-- Tema claro: fundo branco em toda a app -->
+    <color name="background">#FFFFFFFF</color>
+    <color name="surface">#FFFFFFFF</color>
+
+    <!-- Texto sobre fundo branco -->
+    <color name="text_primary">#FF111111</color>
+    <color name="text_secondary">#FF5F6368</color>
+    <color name="text_hint">#FF80868B</color>
+
+    <!-- Estados -->
+    <color name="danger">#FFB00020</color>
+    <color name="success">#FF1B8A3A</color>
+    <color name="divider">#FFE0E0E0</color>
 </resources>
