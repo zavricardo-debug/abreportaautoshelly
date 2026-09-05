@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparador de Faturas de Eletricidade · Portugal</title>
+<meta name="description" content="Carregue a sua fatura de eletricidade em PDF e compare o que paga com todas as ofertas do mercado português (EDP, Endesa, Iberdrola, Galp, Goldenergy, Repsol…) usando os dados oficiais da ERSE.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f766e'/%3E%3Cpath d='M36 8 16 36h14l-2 20 20-28H34z' fill='%23fde68a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <span class="logo">⚡</span>
+      <span>
+        <strong>Comparador de Eletricidade</strong>
+        <small>A sua fatura vs. todas as ofertas do mercado (dados ERSE)</small>
+      </span>
+    </a>
+    <nav class="topnav">
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#privacidade">Privacidade</a>
+      <span class="pill" id="dataset-pill" title="Data de publicação da lista de ofertas da ERSE">a carregar ofertas…</span>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ====================== STEP 1 : upload ====================== -->
+  <section class="card" id="step-upload">
+    <div class="step-head">
+      <span class="step-num">1</span>
+      <div>
+        <h1>Carregue a sua fatura de eletricidade (PDF)</h1>
+        <p class="muted">Lemos automaticamente o <b>Termo de Energia</b>, <b>Termo de Potência</b>, <b>Termo Fixo Acesso às Redes</b>, <b>Contribuição Audiovisual</b>, <b>Taxa de Exploração DGEG</b> e <b>Imposto Especial de Consumo</b>. Funciona com faturas da Endesa, EDP, Iberdrola, Galp, Goldenergy, Repsol, SU Eletricidade e outras.</p>
+      </div>
+    </div>
+
+    <label class="dropzone" id="dropzone" for="file-input">
+      <input type="file" id="file-input" accept="application/pdf,.pdf" hidden>
+      <div class="dz-inner">
+        <div class="dz-icon">📄</div>
+        <div><b>Arraste o PDF para aqui</b> ou clique para escolher</div>
+        <div class="muted small">O ficheiro nunca sai do seu computador – toda a leitura é feita no browser.</div>
+        <div class="dz-actions">
+          <button type="button" class="btn ghost small" id="btn-sample">Experimentar com uma fatura de exemplo</button>
+          <button type="button" class="btn ghost small" id="btn-manual">Não tenho PDF – introduzir valores à mão</button>
+        </div>
+      </div>
+    </label>
+
+    <div class="progress hidden" id="progress"><div class="bar"></div><span class="ptext">A ler o PDF…</span></div>
+    <div class="alert error hidden" id="upload-error"></div>
+  </section>
+
+  <!-- ====================== STEP 2 : extracted values ====================== -->
+  <section class="card hidden" id="step-values">
+    <div class="step-head">
+      <span class="step-num">2</span>
+      <div>
+        <h2>Valores lidos da fatura <span class="tag" id="supplier-tag"></span></h2>
+        <p class="muted">Confirme (ou corrija) os valores. Todos os preços são <b>sem IVA</b>, tal como aparecem na fatura.</p>
+      </div>
+    </div>
+
+    <div id="parse-warnings"></div>
+
+    <form id="values-form" class="grid-form" autocomplete="off">
+      <fieldset>
+        <legend>Contrato e período</legend>
+        <label>Potência contratada (kVA)
+          <select name="power" id="f-power"></select>
+        </label>
+        <label>Opção horária
+          <select name="option" id="f-option">
+            <option value="1">Simples</option>
+            <option value="2">Bi-horária</option>
+            <option value="3">Tri-horária</option>
+          </select>
+        </label>
+        <label>Dias faturados
+          <input type="number" name="days" id="f-days" min="1" max="400" step="1" required>
+        </label>
+        <label>Período
+          <input type="text" name="period" id="f-period" placeholder="ex.: 01 jun 2020 a 01 jul 2020" readonly>
+        </label>
+        <label class="check"><input type="checkbox" name="largeFamily" id="f-largefamily"> Família numerosa (IVA 6% até 300 kWh)</label>
+        <label class="check"><input type="checkbox" name="socialTariff" id="f-social"> Tarifa social (isento de IEC)</label>
+      </fieldset>
+
+      <fieldset id="fs-energy">
+        <legend>Termo de Energia (Real)</legend>
+        <div class="period-rows" id="energy-rows"></div>
+        <div class="line-total"><span>Valor faturado na fatura (s/ IVA)</span><output id="o-energy-total">—</output></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Termo de Potência + Termo Fixo Acesso às Redes</legend>
+        <div class="row3">
+          <label>Termo de Potência (€/dia)
+            <input type="number" name="powerPrice" id="f-powerprice" step="0.000001" min="0" required>
+          </label>
+          <label>Termo Fixo Acesso às Redes (€/dia)
+            <input type="number" name="tarPrice" id="f-tarprice" step="0.000001" min="0">
+          </label>
+          <label>Total €/dia (comparável ao mercado)
+            <output id="o-powerday">—</output>
+          </label>
+        </div>
+        <p class="hint">Na Endesa estas duas linhas aparecem separadas (a segunda com IVA a 6% até 3,45 kVA). As ofertas da ERSE indicam o preço <b>total</b> por dia, por isso somamos as duas.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Taxas e impostos (lidos da fatura)</legend>
+        <div class="row3">
+          <label>Contribuição Audiovisual (€)
+            <input type="number" name="cav" id="f-cav" step="0.01" min="0">
+          </label>
+          <label>Taxa Exploração DGEG (€)
+            <input type="number" name="dgeg" id="f-dgeg" step="0.01" min="0">
+          </label>
+          <label>Imposto Especial Consumo (€)
+            <input type="number" name="iec" id="f-iec" step="0.01" min="0">
+          </label>
+        </div>
+        <div class="row3">
+          <label>Total da fatura de luz (c/ IVA) – opcional
+            <input type="number" name="invoiceTotal" id="f-invoicetotal" step="0.01" min="0">
+          </label>
+          <label>Fornecedor atual
+            <select name="supplier" id="f-supplier"><option value="">— desconhecido —</option></select>
+          </label>
+          <label>&nbsp;
+            <button type="submit" class="btn primary">Comparar com o mercado →</button>
+          </label>
+        </div>
+      </fieldset>
+    </form>
+
+    <details class="rawtext">
+      <summary>Ver texto extraído do PDF (para diagnóstico)</summary>
+      <pre id="raw-text"></pre>
+    </details>
+  </section>
+
+  <!-- ====================== STEP 3 : results ====================== -->
+  <section class="card hidden" id="step-results">
+    <div class="step-head">
+      <span class="step-num">3</span>
+      <div>
+        <h2>Comparação com as ofertas do mercado</h2>
+        <p class="muted" id="results-sub"></p>
+      </div>
+    </div>
+
+    <div class="summary-grid" id="summary-grid"></div>
+
+    <div class="filters">
+      <label><input type="checkbox" id="flt-dom" checked> Só ofertas para clientes domésticos</label>
+      <label><input type="checkbox" id="flt-noindexed"> Excluir indexadas (preço variável OMIE)</label>
+      <label><input type="checkbox" id="flt-norestricted"> Excluir condicionadas (parcerias, ACP, Plano Amigo…)</label>
+      <label><input type="checkbox" id="flt-noservices" checked> Excluir com serviços adicionais obrigatórios</label>
+      <label><input type="checkbox" id="flt-nodual" checked> Excluir ofertas duais (luz + gás)</label>
+      <label><input type="checkbox" id="flt-newclient" checked> Sou novo cliente noutros comercializadores (inclui ofertas e descontos de boas-vindas)</label>
+      <label><input type="checkbox" id="flt-noexpired" checked> Ocultar ofertas já terminadas</label>
+      <label><input type="checkbox" id="flt-best" checked> Só a melhor oferta de cada fornecedor</label>
+      <label>Fornecedor
+        <select id="flt-supplier"><option value="">Todos</option></select>
+      </label>
+      <label>Ordenar por
+        <select id="flt-sort">
+          <option value="total">Fatura estimada (c/ IVA)</option>
+          <option value="energy">Preço energia (€/kWh)</option>
+          <option value="power">Preço potência (€/dia)</option>
+          <option value="supplier">Fornecedor</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="table-wrap">
+      <table class="results" id="results-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Fornecedor / Oferta</th>
+            <th class="num">Energia<br><small>€/kWh s/IVA</small></th>
+            <th class="num">Potência<br><small>€/dia s/IVA</small></th>
+            <th class="num">Fatura estimada<br><small id="th-days">c/ IVA</small></th>
+            <th class="num">Diferença<br><small>vs. a sua fatura</small></th>
+            <th class="num">Por ano</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="muted small" id="results-count"></p>
+
+    <div class="alert info">
+      <b>Como comparamos:</b> aplicamos o seu consumo, potência e dias faturados aos preços de cada oferta e recalculamos a fatura completa
+      (energia, potência, acesso às redes, IEC 0,001 €/kWh, DGEG 0,07 €/mês, CAV 2,85 €/mês e IVA a 6%/23% conforme a lei em vigor).
+      Os preços são os comunicados pelos comercializadores à <a href="https://simuladorprecos.erse.pt/" target="_blank" rel="noopener">simulador da ERSE</a>; confirme sempre a ficha contratual antes de mudar.
+    </div>
+  </section>
+
+  <!-- ====================== detail modal ====================== -->
+  <dialog id="detail-modal" class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title"></h3>
+      <button type="button" class="btn ghost small" id="modal-close">Fechar ✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </dialog>
+
+  <!-- ====================== info ====================== -->
+  <section class="card" id="como-funciona">
+    <h2>Como funciona</h2>
+    <ol class="steps">
+      <li><b>Carrega o PDF</b> da tua fatura. O texto é extraído no browser (pdf.js) e reconhecemos as linhas <i>Termo de Energia (Real)</i>, <i>Termo de Potência</i>, <i>Termo Fixo Acesso às Redes</i>, <i>Contribuição Audiovisual</i>, <i>Taxa Exploração DGEG</i> e <i>Imposto Especial Consumo (Real)</i>, além do período, dias, kVA e opção horária.</li>
+      <li><b>Confirmas os valores</b> (podes corrigir qualquer campo).</li>
+      <li><b>Simulamos a mesma fatura</b> em cada uma das ~800 ofertas de eletricidade em Portugal continental publicadas pela ERSE (EDP Comercial, Endesa, Iberdrola, Galp, Goldenergy, Repsol, Plenitude, MEO Energia, Coopérnico, SU Eletricidade/tarifa regulada, etc.) e mostramos a poupança estimada.</li>
+    </ol>
+    <h3>Regras fiscais aplicadas (2026)</h3>
+    <ul class="small">
+      <li>IVA 6% nos primeiros 200 kWh por 30 dias (300 kWh famílias numerosas) para potências ≤ 6,9 kVA; restante a 23% (Lei n.º 38/2024).</li>
+      <li>IVA 6% no termo fixo da tarifa de acesso às redes para potências ≤ 3,45 kVA; restante da potência a 23% (DL 60/2019).</li>
+      <li>IEC 0,001 €/kWh (+23%), Taxa DGEG 0,07 €/mês (+23%), CAV 2,85 €/mês (+6%).</li>
+      <li>Ofertas indexadas: a ERSE publica o preço médio do mês; o valor real varia com o OMIE.</li>
+    </ul>
+    <p class="small muted">Atualizar as ofertas: <code>npm run data:update</code> descarrega o CSV mais recente do simulador da ERSE e regenera <code>public/data/ofertas.json</code>.</p>
+  </section>
+
+  <section class="card" id="privacidade">
+    <h2>Privacidade</h2>
+    <p>A fatura é processada <b>exclusivamente no seu browser</b>. Nenhum ficheiro, texto ou valor é enviado para qualquer servidor. Pode confirmar desligando a internet depois de a página carregar – tudo continua a funcionar.</p>
+  </section>
+</main>
+
+<footer class="wrap footer muted small">
+  Dados de ofertas: ERSE – Entidade Reguladora dos Serviços Energéticos (<span id="dataset-date"></span>). Esta ferramenta é independente e não representa nenhum comercializador. Os valores são estimativas; confirme sempre com a ficha padronizada da oferta.
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

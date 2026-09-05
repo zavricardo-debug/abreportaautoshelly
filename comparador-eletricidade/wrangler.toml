@@ -2,4 +2,4 @@
 # Git-connected builds). The site is 100 % static: no Functions, no bindings.
 name = "comparador-eletricidade"
 compatibility_date = "2026-09-01"
-pages_build_output_dir = "dist"
+pages_build_output_dir = "cloudflare-upload"

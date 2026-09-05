@@ -1,9 +1,7 @@
 node_modules/
 *.log
 .DS_Store
-# generated: npm run vendor / npm run data:build / npm run build
+# generated: npm run vendor / npm run data:build (rebuilt by npm run build)
 public/vendor/
 public/data/ofertas.json
 dist/
-*.zip
-!data-src/*.zip

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Assembles a self-contained static bundle for Cloudflare Pages (or any static
-// host) in ./dist and zips it to ./comparador-eletricidade-cloudflare.zip.
+// host) in ./cloudflare-upload and zips it to ./comparador-eletricidade-cloudflare.zip.
 //
-//   npm run build            -> dist/ + zip
+//   npm run build            -> cloudflare-upload/ + zip
 //
 // The bundle contains exactly what the browser needs (index.html, app.js, css,
 // lib/, vendor/pdfjs, data/ofertas.json, samples/) plus Cloudflare's _headers
@@ -15,7 +15,7 @@ import { execFileSync } from 'node:child_process';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const PUBLIC = resolve(ROOT, 'public');
-const DIST = resolve(ROOT, 'dist');
+const DIST = resolve(ROOT, process.env.OUT_DIR || 'cloudflare-upload');
 const ZIP = resolve(ROOT, 'comparador-eletricidade-cloudflare.zip');
 
 // --- preconditions -----------------------------------------------------------
@@ -77,7 +77,7 @@ const walk = (dir) => {
   }
 };
 walk(DIST);
-console.log(`dist/: ${count} files, ${(total / 1024 / 1024).toFixed(2)} MB (uncompressed)`);
+console.log(`${relative(ROOT, DIST)}/: ${count} files, ${(total / 1024 / 1024).toFixed(2)} MB (uncompressed)`);
 for (const f of ['index.html', 'app.js', 'styles.css', 'lib', 'vendor', 'data', 'samples', '_headers', '_redirects', '404.html']) {
   console.log('  ' + (existsSync(resolve(DIST, f)) ? '✓' : '✗'), f);
 }
@@ -88,5 +88,5 @@ try {
   execFileSync('zip', ['-qr', '-X', ZIP, '.'], { cwd: DIST, stdio: 'inherit' });
   console.log(`zip: ${relative(ROOT, ZIP)} (${(statSync(ZIP).size / 1024 / 1024).toFixed(2)} MB)`);
 } catch (e) {
-  console.warn('zip not available – upload the dist/ folder directly. (' + e.message + ')');
+  console.warn(`zip not available – upload the ${relative(ROOT, DIST)}/ folder directly. (${e.message})`);
 }

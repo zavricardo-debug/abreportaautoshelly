@@ -32,7 +32,8 @@ npm test             # testes do parser, do simulador e da interface (jsdom)
 ```
 
 `public/` é 100 % estático – pode ser publicado em qualquer alojamento (Cloudflare Pages, GitHub
-Pages, Netlify, nginx…) sem o `server.mjs`.
+Pages, Netlify, nginx…) sem o `server.mjs`. A pasta `cloudflare-upload/` e o `.zip` estão
+commitados no repositório, prontos a enviar.
 
 ## Deploy no Cloudflare Pages
 
@@ -40,20 +41,20 @@ Pages, Netlify, nginx…) sem o `server.mjs`.
 npm install && npm run vendor && npm run data:build && npm run build
 ```
 
-`npm run build` cria a pasta **`dist/`** (e o ficheiro `comparador-eletricidade-cloudflare.zip`)
+`npm run build` cria a pasta **`cloudflare-upload/`** (e o ficheiro `comparador-eletricidade-cloudflare.zip`)
 com tudo o que o browser precisa: `index.html`, `app.js`, `styles.css`, `lib/`, `vendor/pdfjs/`,
 `data/ofertas.json`, `samples/`, mais `_headers`, `_redirects`, `404.html`, `robots.txt` e
 `build.json` (indica a data do dataset ERSE em produção).
 
 **Opção A – upload direto (sem Git):** Cloudflare Dashboard → *Workers & Pages* → *Create* →
-*Pages* → *Upload assets* → dar nome ao projeto → arrastar a **pasta `dist/`** (ou o `.zip`) →
+*Pages* → *Upload assets* → dar nome ao projeto → arrastar a **pasta `cloudflare-upload/`** (ou o `.zip`) →
 *Deploy site*. Cada atualização = repetir o upload (*Create new deployment*).
 
 **Opção B – CLI (wrangler):**
 
 ```bash
 npx wrangler login
-npx wrangler pages deploy dist --project-name comparador-eletricidade
+npx wrangler pages deploy cloudflare-upload --project-name comparador-eletricidade
 ```
 
 **Opção C – ligado ao GitHub (build automático a cada push):** *Create* → *Pages* → *Connect to
@@ -63,7 +64,7 @@ Git* → escolher o repositório e definir:
 | ---------------------- | ---------------------------------------------------------------------- |
 | Root directory         | `comparador-eletricidade`                                              |
 | Build command          | `npm run vendor && npm run data:build && npm run build`                |
-| Build output directory | `dist`                                                                 |
+| Build output directory | `cloudflare-upload`                                                    |
 
 (Node 20+ é o predefinido no Cloudflare; se necessário defina a variável `NODE_VERSION=22`.)
 Para atualizar as ofertas basta trocar o ZIP em `data-src/` (ou correr `npm run data:update` e
@@ -124,9 +125,9 @@ scripts/
   vendor-pdfjs.mjs                     copia pdf.js
   make-sample-pdf.mjs                  gera os PDFs de exemplo (pdfkit)
   pdf-to-text.mjs                      debug: `node scripts/pdf-to-text.mjs fatura.pdf --parse`
-  build-dist.mjs                       cria dist/ + zip para Cloudflare Pages (npm run build)
+  build-dist.mjs                       cria cloudflare-upload/ + zip para Cloudflare Pages (npm run build)
 server.mjs                           servidor estático local (gzip) + /api/refresh-data
-wrangler.toml                        config Cloudflare Pages (output dir = dist)
+wrangler.toml                        config Cloudflare Pages (output dir = cloudflare-upload)
 test/                                node --test (parser, simulador, UI em jsdom)
 ```
 
