@@ -138,3 +138,121 @@ test('sample PDF button: parsed values pre-fill the form and comparison runs', {
   const first = d.querySelector('#summary-grid .sum');
   assert.match(first.textContent, /40,87/); // simulated baseline equals the invoice total
 });
+
+/* ------------------------------------------------------------------ Spanish flow */
+test('Spanish bill: auto-detected, every cost line pre-filled, bill rebuilt to 89,84 € and compared concept by concept', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  assert.match(d.querySelector('#dataset-pill-es').textContent, /\d+ tarifas ES/);
+
+  const text = readFileSync(resolve(__dirname, 'fixtures/endesa-es-2026.txt'), 'utf8');
+  const parsed = window.__test_text(text); // same path as handleFile() after pdf.js
+  assert.equal(parsed.country, 'ES');
+  assert.equal(d.body.dataset.country, 'ES');
+  assert.ok(!d.querySelector('#step-values-es').classList.contains('hidden'));
+  assert.ok(d.querySelector('#step-values').classList.contains('hidden'), 'Portuguese form stays hidden');
+
+  const v = (sel) => d.querySelector(sel).value;
+  assert.equal(v('#es-p1kw'), '4.6');
+  assert.equal(v('#es-p2kw'), '4.6');
+  assert.equal(v('#es-days'), '31');
+  assert.match(v('#es-period'), /2026/);
+  assert.equal(v('#es-supplier'), 'ENDESA');
+  assert.ok(Math.abs(+v('#es-pp1') - 0.117686) < 2e-5);
+  assert.ok(Math.abs(+v('#es-pp2') - 0.041554) < 5e-5);
+  assert.ok(d.querySelector('#es-single').checked);
+  assert.equal(v('#es-ep-single'), '0.167283');
+  // consumption split from the meter readings 97 / 60 / 119 kWh scaled to the billed 277,224 kWh
+  const kwh = ['punta', 'llano', 'valle'].map((k) => +v(`#es-kwh-${k}`));
+  assert.ok(Math.abs(kwh[0] + kwh[1] + kwh[2] - 277.224) < 0.01, `sum ${kwh}`);
+  assert.ok(Math.abs(kwh[0] / kwh[2] - 97 / 119) < 1e-3);
+  assert.equal(v('#es-bono'), '0.024688');
+  assert.equal(v('#es-rent'), '0.026774');
+  assert.ok(Math.abs(+v('#es-ie') - 5.1126963) < 1e-6);
+  assert.equal(v('#es-iva'), '21');
+  assert.equal(v('#es-total'), '89.84');
+  assert.match(d.querySelector('#es-parse-warnings').textContent, /6 de 6 conceptos/);
+  assert.match(d.querySelector('#es-check').textContent, /89,84/);
+  assert.match(d.querySelector('#es-check').textContent, /coincide/);
+  assert.match(d.querySelector('#es-o-energy-total').textContent, /46,37/);
+  assert.ok(d.querySelectorAll('#values-form-es input.auto').length >= 10, 'auto-filled fields highlighted');
+
+  d.querySelector('#values-form-es').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.ok(!d.querySelector('#step-results-es').classList.contains('hidden'));
+  const cards = [...d.querySelectorAll('#es-summary-grid .sum')];
+  assert.ok(cards.length === 4, 'summary cards');
+  assert.match(cards[0].textContent, /89,84/);
+  assert.match(cards[1].textContent, /potencia 22,71/);
+  assert.match(cards[1].textContent, /energía 46,37/);
+  assert.match(cards[3].textContent, /Ahorro estimado/);
+
+  const rows = [...d.querySelectorAll('#es-results-table tbody tr')];
+  assert.ok(rows.length > 10, `rows ${rows.length}`);
+  assert.ok(rows[0].classList.contains('baseline'));
+  // baseline row shows the real bill lines: potencia 22,71 · energía 46,37 · regulados 1,60 · IE 3,57 · IVA 15,59 · total 89,84
+  const cellsBase = [...rows[0].children].map((c) => c.textContent);
+  assert.match(cellsBase[2], /22,71/); assert.match(cellsBase[3], /46,37/); assert.match(cellsBase[4], /1,60/);
+  assert.match(cellsBase[5], /3,57/); assert.match(cellsBase[6], /15,59/); assert.match(cellsBase[7], /89,84/);
+  assert.ok(rows[1].classList.contains('best'));
+  // every offer row carries a per-concept delta; bono social + alquiler (1,60 €) never change –
+  // only offers with an extra regulated line (Repsol SNOEE, indexed management fees) add to that column
+  for (const r of rows.slice(1)) assert.ok(r.querySelectorAll('.cell-delta').length >= 6, 'deltas under each cost cell');
+  const regulated = rows.slice(1).map((r) => r.children[4].textContent);
+  assert.ok(regulated.filter((t) => /^1,60\s*€=$/.test(t)).length >= regulated.length / 2, regulated.join(' | '));
+  assert.ok(regulated.every((t) => /^1,60\s*€=$/.test(t) || /\+/.test(t)), 'regulated column never goes below the bill');
+  const totals = rows.slice(1).map((r) => Number(r.children[7].textContent.replace(/[^\d,]/g, '').replace(',', '.')));
+  for (let i = 1; i < totals.length; i++) assert.ok(totals[i - 1] <= totals[i], 'sorted by total');
+  assert.ok(totals[0] < 80, `best total ${totals[0]}`);
+  // Endesa (current supplier) rows lose the welcome promotion / new-client offers are hidden for it
+  const endesaRows = rows.slice(1).filter((r) => /^Endesa/.test(r.querySelector('.offer-name').textContent));
+  assert.ok(endesaRows.length >= 1 && endesaRows.every((r) => r.classList.contains('current-supplier-es')));
+  assert.ok(!endesaRows.some((r) => /Conecta/.test(r.textContent)), 'Conecta (new clients only) hidden for an Endesa customer');
+
+  // CNMC deep link carries the profile
+  const link = new URL(d.querySelector('#es-cnmc-link').href);
+  assert.equal(link.hostname, 'comparador.cnmc.gob.es');
+  assert.equal(link.searchParams.get('pP1'), '4.6');
+  assert.equal(link.searchParams.get('iniA'), '2026-07-19');
+
+  // detail modal: all concepts with "su factura" vs "esta tarifa"
+  rows[1].querySelector('button').click();
+  const body = d.querySelector('#modal-body').textContent;
+  for (const c of ['Potencia P1', 'Potencia P2', 'Energía', 'Financiación Bono Social', 'Alquiler del contador', 'Impuesto electricidad', 'IVA 21 %', 'TOTAL', 'Fuente de los precios']) assert.match(body, new RegExp(c));
+  assert.match(body, /Ahorro respecto a su factura/);
+  d.querySelector('#modal-close').click();
+
+  // filters: only best per supplier -> unique suppliers
+  const best = d.querySelector('#es-flt-best'); best.checked = true; best.dispatchEvent(new window.Event('change', { bubbles: true }));
+  const names = [...d.querySelectorAll('#es-results-table tbody tr')].slice(1).map((r) => r.querySelector('.offer-name').textContent.split(' · ')[0]);
+  assert.equal(new Set(names).size, names.length);
+});
+
+test('Spanish manual mode: defaults, 3-period prices and reconstruction check', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  d.querySelector('#btn-manual-es').click();
+  assert.ok(!d.querySelector('#step-values-es').classList.contains('hidden'));
+  assert.ok(d.querySelector('#step-values').classList.contains('hidden'));
+  assert.equal(d.querySelector('#es-bono').value, '0.024688');
+  assert.equal(d.querySelector('#es-iva').value, '21');
+  const set = (sel, v) => { const el = d.querySelector(sel); el.value = v; el.dispatchEvent(new window.Event('input', { bubbles: true })); };
+  const single = d.querySelector('#es-single'); single.checked = false; single.dispatchEvent(new window.Event('input', { bubbles: true }));
+  assert.ok(d.querySelector('#es-single-row').classList.contains('hidden'));
+  set('#es-p1kw', '3.45'); set('#es-p2kw', '3.45'); set('#es-days', '30');
+  set('#es-pp1', '0.1'); set('#es-pp2', '0.05');
+  set('#es-kwh-punta', '80'); set('#es-kwh-llano', '70'); set('#es-kwh-valle', '120');
+  set('#es-ep-punta', '0.2'); set('#es-ep-llano', '0.15'); set('#es-ep-valle', '0.1');
+  assert.match(d.querySelector('#es-o-energy-total').textContent, /38,50/);
+  d.querySelector('#values-form-es').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.ok(!d.querySelector('#step-results-es').classList.contains('hidden'));
+  assert.match(d.querySelector('#es-results-sub').textContent, /3,45 kW punta/);
+  const baseCells = [...d.querySelector('#es-results-table tbody tr').children].map((c) => c.textContent);
+  assert.match(baseCells[2], /15,53/);   // 3,45 × 0,1 × 30 + 3,45 × 0,05 × 30 = 10,35 + 5,18
+  assert.match(baseCells[3], /38,50/);
+  // switching the PT manual button back hides the Spanish sections
+  d.querySelector('#btn-manual').click();
+  assert.ok(d.querySelector('#step-values-es').classList.contains('hidden'));
+  assert.ok(!d.querySelector('#step-values').classList.contains('hidden'));
+});

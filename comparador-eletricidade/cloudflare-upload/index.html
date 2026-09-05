@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Comparador de Faturas de Eletricidade · Portugal</title>
-<meta name="description" content="Carregue a sua fatura de eletricidade em PDF e compare o que paga com todas as ofertas do mercado português (EDP, Endesa, Iberdrola, Galp, Goldenergy, Repsol…) usando os dados oficiais da ERSE.">
+<title>Comparador de Faturas de Eletricidade · Portugal e España</title>
+<meta name="description" content="Carregue a sua fatura de eletricidade em PDF e compare o que paga com as ofertas do mercado: Portugal (dados oficiais da ERSE – EDP, Endesa, Iberdrola, Galp, Goldenergy, Repsol…) e España (peaje 2.0TD – Endesa, Iberdrola, Naturgy, Repsol, TotalEnergies, Octopus…).">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f766e'/%3E%3Cpath d='M36 8 16 36h14l-2 20 20-28H34z' fill='%23fde68a'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -15,13 +15,14 @@
       <span class="logo">⚡</span>
       <span>
         <strong>Comparador de Eletricidade</strong>
-        <small>A sua fatura vs. todas as ofertas do mercado (dados ERSE)</small>
+        <small>A sua fatura vs. as ofertas do mercado · Portugal (ERSE) e España (2.0TD)</small>
       </span>
     </a>
     <nav class="topnav">
       <a href="#como-funciona">Como funciona</a>
       <a href="#privacidade">Privacidade</a>
-      <span class="pill" id="dataset-pill" title="Data de publicação da lista de ofertas da ERSE">a carregar ofertas…</span>
+      <span class="pill" id="dataset-pill" title="Data de publicação da lista de ofertas da ERSE (Portugal)">a carregar ofertas…</span>
+      <span class="pill es" id="dataset-pill-es" title="Lista de tarifas españolas (2.0TD) incluida en esta versión">tarifas ES…</span>
     </nav>
   </div>
 </header>
@@ -34,7 +35,8 @@
       <span class="step-num">1</span>
       <div>
         <h1>Carregue a sua fatura de eletricidade (PDF)</h1>
-        <p class="muted">Lemos automaticamente o <b>Termo de Energia</b>, <b>Termo de Potência</b>, <b>Termo Fixo Acesso às Redes</b>, <b>Contribuição Audiovisual</b>, <b>Taxa de Exploração DGEG</b> e <b>Imposto Especial de Consumo</b>. Funciona com faturas da Endesa, EDP, Iberdrola, Galp, Goldenergy, Repsol, SU Eletricidade e outras.</p>
+        <p class="muted"><b>Portugal:</b> lemos o <b>Termo de Energia</b>, <b>Termo de Potência</b>, <b>Termo Fixo Acesso às Redes</b>, <b>Contribuição Audiovisual</b>, <b>Taxa DGEG</b> e <b>IEC</b> (Endesa, EDP, Iberdrola, Galp, Goldenergy, Repsol, SU Eletricidade…).<br>
+        <b>España:</b> leemos la <b>Potencia P1/P3</b> (kW × €/kW × días), el <b>Consumo</b> (kWh × €/kWh), la <b>Financiación del Bono Social</b>, el <b>Alquiler del contador</b>, el <b>Impuesto de electricidad</b>, el <b>IVA</b> y el <b>TOTAL</b> (Endesa, Iberdrola, Naturgy, Repsol, TotalEnergies, Octopus…). El país se detecta automáticamente.</p>
       </div>
     </div>
 
@@ -45,8 +47,10 @@
         <div><b>Arraste o PDF para aqui</b> ou clique para escolher</div>
         <div class="muted small">O ficheiro nunca sai do seu computador – toda a leitura é feita no browser.</div>
         <div class="dz-actions">
-          <button type="button" class="btn ghost small" id="btn-sample">Experimentar com uma fatura de exemplo</button>
-          <button type="button" class="btn ghost small" id="btn-manual">Não tenho PDF – introduzir valores à mão</button>
+          <button type="button" class="btn ghost small" id="btn-sample">Experimentar com uma fatura de exemplo (PT)</button>
+          <button type="button" class="btn ghost small" id="btn-sample-es">Probar con una factura de ejemplo (ES)</button>
+          <button type="button" class="btn ghost small" id="btn-manual">Não tenho PDF – introduzir valores à mão (PT)</button>
+          <button type="button" class="btn ghost small" id="btn-manual-es">No tengo PDF – introducir valores a mano (ES)</button>
         </div>
       </div>
     </label>
@@ -205,6 +209,192 @@
     </div>
   </section>
 
+
+  <!-- ====================== STEP 2 (ES) : valores leídos ====================== -->
+  <section class="card hidden es-flow" id="step-values-es">
+    <div class="step-head">
+      <span class="step-num">2</span>
+      <div>
+        <h2>Valores leídos de la factura <span class="tag" id="es-supplier-tag"></span></h2>
+        <p class="muted">Confirme (o corrija) los valores. Todos los precios son <b>sin impuestos</b>, tal como aparecen en el detalle de la factura. Los campos en verde se han leído automáticamente.</p>
+      </div>
+    </div>
+
+    <div id="es-parse-warnings"></div>
+
+    <form id="values-form-es" class="grid-form" autocomplete="off">
+      <fieldset>
+        <legend>Contrato y periodo</legend>
+        <label>Potencia punta-llano P1 (kW)
+          <input type="number" name="p1kw" id="es-p1kw" step="0.001" min="0.1" max="15" required>
+        </label>
+        <label>Potencia valle P2 (kW)
+          <input type="number" name="p2kw" id="es-p2kw" step="0.001" min="0.1" max="15">
+        </label>
+        <label>Días facturados
+          <input type="number" name="days" id="es-days" min="1" max="400" step="1" required>
+        </label>
+        <label>Periodo
+          <input type="text" name="period" id="es-period" placeholder="ej.: 19/07/2026 → 19/08/2026" readonly>
+        </label>
+        <label>Comercializadora actual
+          <select name="supplier" id="es-supplier"><option value="">— desconocida —</option></select>
+        </label>
+        <label>Código postal (para el comparador CNMC)
+          <input type="text" name="cp" id="es-cp" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="28001">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Potencia (kW × €/kW·día × días)</legend>
+        <div class="row3">
+          <label>P1 punta-llano (€/kW·día)
+            <input type="number" name="pp1" id="es-pp1" step="0.000001" min="0" required>
+          </label>
+          <label>P2 valle (€/kW·día)
+            <input type="number" name="pp2" id="es-pp2" step="0.000001" min="0" required>
+          </label>
+          <label>Importe potencia P1 / P2
+            <output><span id="es-o-pp1">—</span> / <span id="es-o-pp2">—</span></output>
+          </label>
+        </div>
+        <p class="hint">En la factura de Endesa: «P1 (Punta-Llano) 4,600 kW x 0,117686 Eur/kW x 31 días» y «Pot. P3 … 0,041554 Eur/kW». Si su factura indica el precio por kW y año (≈ 30 €/kW) divídalo entre 365.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Energía (kWh × €/kWh)</legend>
+        <label class="check" style="grid-column:1/-1"><input type="checkbox" name="single" id="es-single" checked> Mi factura tiene un <b>precio único</b> para todas las horas</label>
+        <div class="row3">
+          <label>Consumo punta (kWh)
+            <input type="number" name="kwh_punta" id="es-kwh-punta" step="0.001" min="0" required>
+          </label>
+          <label>Consumo llano (kWh)
+            <input type="number" name="kwh_llano" id="es-kwh-llano" step="0.001" min="0" required>
+          </label>
+          <label>Consumo valle (kWh)
+            <input type="number" name="kwh_valle" id="es-kwh-valle" step="0.001" min="0" required>
+          </label>
+        </div>
+        <p class="hint" id="es-split-hint"></p>
+        <div class="row3" id="es-single-row">
+          <label>Precio único (€/kWh)
+            <input type="number" name="ep_single" id="es-ep-single" step="0.000001" min="0">
+          </label>
+          <label>Importe energía
+            <output id="es-o-e-single">—</output>
+          </label>
+        </div>
+        <div class="row3">
+          <label>Precio punta (€/kWh)
+            <input type="number" name="ep_punta" id="es-ep-punta" step="0.000001" min="0">
+          </label>
+          <label>Precio llano (€/kWh)
+            <input type="number" name="ep_llano" id="es-ep-llano" step="0.000001" min="0">
+          </label>
+          <label>Precio valle (€/kWh)
+            <input type="number" name="ep_valle" id="es-ep-valle" step="0.000001" min="0">
+          </label>
+          <label>Importe punta<output id="es-o-e-punta">—</output></label>
+          <label>Importe llano<output id="es-o-e-llano">—</output></label>
+          <label>Importe valle<output id="es-o-e-valle">—</output></label>
+        </div>
+        <div class="line-total"><span>Consumo total <output id="es-o-kwh">—</output></span><span>Importe energía (sin impuestos) <output id="es-o-energy-total">—</output></span></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Conceptos regulados e impuestos (leídos de la factura)</legend>
+        <div class="row3">
+          <label>Financiación Bono Social (€/día)
+            <input type="number" name="bono" id="es-bono" step="0.000001" min="0">
+          </label>
+          <label>Alquiler del contador (€/día)
+            <input type="number" name="rent" id="es-rent" step="0.000001" min="0">
+          </label>
+          <label>Impuesto electricidad (%)
+            <input type="number" name="ie" id="es-ie" step="0.0000001" min="0" max="10">
+          </label>
+          <label>IVA / IGIC / IPSI (%)
+            <input type="number" name="iva" id="es-iva" step="0.01" min="0" max="25">
+          </label>
+          <label>TOTAL de la factura (€, con impuestos) – opcional
+            <input type="number" name="total" id="es-total" step="0.01" min="0">
+          </label>
+          <label>&nbsp;
+            <button type="submit" class="btn primary">Comparar con el mercado →</button>
+          </label>
+        </div>
+        <div class="alert info" id="es-check" style="grid-column:1/-1"></div>
+      </fieldset>
+    </form>
+
+    <details class="rawtext">
+      <summary>Ver texto extraído del PDF (diagnóstico)</summary>
+      <pre id="es-raw-text"></pre>
+    </details>
+  </section>
+
+  <!-- ====================== STEP 3 (ES) : comparación ====================== -->
+  <section class="card hidden es-flow" id="step-results-es">
+    <div class="step-head">
+      <span class="step-num">3</span>
+      <div>
+        <h2>Comparación concepto a concepto con las tarifas del mercado</h2>
+        <p class="muted" id="es-results-sub"></p>
+      </div>
+    </div>
+
+    <div class="summary-grid" id="es-summary-grid"></div>
+
+    <div class="filters">
+      <label><input type="checkbox" id="es-flt-promo" checked> Aplicar promociones de bienvenida (1.er año)</label>
+      <label><input type="checkbox" id="es-flt-newclient" checked> Incluir tarifas sólo para nuevos clientes</label>
+      <label><input type="checkbox" id="es-flt-noindexed"> Excluir indexadas (precio variable)</label>
+      <label><input type="checkbox" id="es-flt-best"> Sólo la mejor tarifa de cada comercializadora</label>
+      <label>Comercializadora
+        <select id="es-flt-supplier"><option value="">Todas</option></select>
+      </label>
+      <label>Ordenar por
+        <select id="es-flt-sort">
+          <option value="total">Total estimado</option>
+          <option value="energy">Importe energía</option>
+          <option value="power">Importe potencia</option>
+          <option value="supplier">Comercializadora</option>
+        </select>
+      </label>
+      <a class="btn ghost small" id="es-cnmc-link" href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener" title="Abre el comparador oficial de la CNMC con su potencia y consumo anualizado">Comprobar en el comparador oficial CNMC ↗</a>
+    </div>
+
+    <div class="table-wrap">
+      <table class="results es" id="es-results-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Comercializadora / Tarifa</th>
+            <th class="num">Potencia<br><small>P1 + P2</small></th>
+            <th class="num">Energía<br><small>kWh × €/kWh</small></th>
+            <th class="num">Otros conceptos<br><small>bono social · alquiler · cuotas</small></th>
+            <th class="num">Impuesto<br><small>electricidad</small></th>
+            <th class="num">IVA</th>
+            <th class="num">TOTAL<br><small id="es-th-days">con impuestos</small></th>
+            <th class="num">Diferencia<br><small>vs. su factura</small></th>
+            <th class="num">Al año</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="muted small" id="es-results-count"></p>
+
+    <div class="alert info">
+      <b>Cómo comparamos:</b> aplicamos su potencia, su consumo y sus días facturados a los precios de cada tarifa y reconstruimos la factura completa con las mismas reglas que su comercializadora:
+      potencia (kW × €/kW·día × días), energía (kWh × €/kWh), financiación del bono social (0,024688 €/día) y alquiler del contador (idénticos en todas las tarifas), impuesto de electricidad (5,11269632 % sobre potencia + energía + bono social) e IVA 21 % sobre todo lo anterior.
+      Debajo de cada importe se muestra la diferencia con la misma línea de su factura.
+      Los precios proceden de las webs de las comercializadoras y de comparadores públicos (fecha indicada en cada tarifa) y <b>pueden cambiar</b>: el comparador oficial es el de la
+      <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">CNMC</a> (botón de arriba, ya con sus datos).
+    </div>
+  </section>
+
   <!-- ====================== detail modal ====================== -->
   <dialog id="detail-modal" class="modal">
     <div class="modal-head">
@@ -222,7 +412,13 @@
       <li><b>Confirmas os valores</b> (podes corrigir qualquer campo).</li>
       <li><b>Simulamos a mesma fatura</b> em cada uma das ~800 ofertas de eletricidade em Portugal continental publicadas pela ERSE (EDP Comercial, Endesa, Iberdrola, Galp, Goldenergy, Repsol, Plenitude, MEO Energia, Coopérnico, SU Eletricidade/tarifa regulada, etc.) e mostramos a poupança estimada.</li>
     </ol>
-    <h3>Regras fiscais aplicadas (2026)</h3>
+    <h3>España (peaje 2.0TD)</h3>
+    <ul class="small">
+      <li>Detectamos automáticamente las facturas españolas (Endesa, Iberdrola, Naturgy, Repsol, TotalEnergies, Octopus, Plenitude…) y leemos <i>todas</i> las líneas de coste: potencia P1/P3, consumo, financiación del bono social, alquiler del contador, impuesto de electricidad, IVA y TOTAL, además del periodo, las potencias contratadas y las lecturas punta/llano/valle.</li>
+      <li>Reconstruimos su factura (debe coincidir al céntimo con el TOTAL) y la volvemos a calcular con cada tarifa del mercado, mostrando la diferencia concepto a concepto.</li>
+      <li>La lista de tarifas españolas (<code>public/data/ofertas-es.json</code>) se mantiene a mano a partir de las webs de las comercializadoras; la fecha de consulta aparece en cada tarifa. El botón «Comprobar en el comparador oficial CNMC» abre <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">comparador.cnmc.gob.es</a> con su potencia y consumo anualizado.</li>
+    </ul>
+    <h3>Regras fiscais aplicadas em Portugal (2026)</h3>
     <ul class="small">
       <li>IVA 6% nos primeiros 200 kWh por 30 dias (300 kWh famílias numerosas) para potências ≤ 6,9 kVA; restante a 23% (Lei n.º 38/2024).</li>
       <li>IVA 6% no termo fixo da tarifa de acesso às redes para potências ≤ 3,45 kVA; restante da potência a 23% (DL 60/2019).</li>
@@ -239,10 +435,10 @@
 </main>
 
 <footer class="wrap footer muted small">
-  Dados de ofertas: ERSE – Entidade Reguladora dos Serviços Energéticos (<span id="dataset-date"></span>). Esta ferramenta é independente e não representa nenhum comercializador. Os valores são estimativas; confirme sempre com a ficha padronizada da oferta.
+  Dados de ofertas: Portugal – ERSE (<span id="dataset-date"></span>); España – webs de las comercializadoras y comparadores públicos (lista actualizada el <span id="dataset-date-es"></span>; comparador oficial: <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">CNMC</a>). Esta ferramenta é independente e não representa nenhum comercializador. Os valores são estimativas; confirme sempre com a ficha padronizada da oferta.
   <span id="app-version" title="Versão da aplicação"></span>
 </footer>
 
-<script type="module" src="app.js?v=1.2.0"></script>
+<script type="module" src="app.js?v=1.3.0"></script>
 </body>
 </html>

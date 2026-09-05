@@ -1,14 +1,17 @@
 import { extractPdfText } from './lib/pdf-text.js';
 import { parseInvoiceText } from './lib/parser.js';
+import { parseInvoiceTextES, detectCountry } from './lib/parser-es.js';
 import { simulate, simulateAll, baselinePrices, nearestStandardPower, STANDARD_POWERS, PERIOD_KEYS, PERIOD_LABELS, RULES_2026 } from './lib/simulator.js';
+import { initES, fillFormES, showManualES } from './app-es.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
-export const APP_VERSION = '1.2.0'; // shown in the footer + error messages (helps spot stale caches)
+export const APP_VERSION = '1.3.0'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
+  country: 'PT',    // 'PT' (ERSE flow) or 'ES' (2.0TD flow, app-es.js)
   dataset: null,
   parsed: null,
   form: null,       // current profile & prices
@@ -35,6 +38,7 @@ async function init() {
   bindForm();
   bindFilters();
   $('#modal-close').addEventListener('click', () => $('#detail-modal').close());
+  initES({ show, hide, showError, hideError }); // Spanish flow (loads data/ofertas-es.json in parallel)
   try {
     const res = await fetch('data/ofertas.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -81,14 +85,37 @@ function bindUpload() {
       handleFile(new File([await res.blob()], 'fatura-exemplo-endesa.pdf', { type: 'application/pdf' }));
     } catch (err) { showError(`Não foi possível abrir o exemplo: ${err.message}`); }
   });
+  $('#btn-sample-es').addEventListener('click', async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('samples/factura-ejemplo-endesa-es.pdf');
+      if (!res.ok) throw new Error('ejemplo no disponible');
+      handleFile(new File([await res.blob()], 'factura-ejemplo-endesa-es.pdf', { type: 'application/pdf' }));
+    } catch (err) { showError(`No se ha podido abrir el ejemplo: ${err.message}`); }
+  });
   $('#btn-manual').addEventListener('click', (e) => {
     e.preventDefault();
     state.parsed = null;
+    setCountry('PT');
     fillForm(null);
     $('#raw-text').textContent = '';
     show('#step-values');
     $('#step-values').scrollIntoView({ behavior: 'smooth' });
   });
+  $('#btn-manual-es').addEventListener('click', (e) => {
+    e.preventDefault();
+    hideError();
+    setCountry('ES');
+    showManualES();
+  });
+}
+
+/** Show only the sections of one country's flow (PT: #step-values/#step-results, ES: #step-values-es/#step-results-es). */
+function setCountry(country) {
+  state.country = country;
+  document.body.dataset.country = country;
+  if (country === 'ES') { hide('#step-values'); hide('#step-results'); }
+  else { hide('#step-values-es'); hide('#step-results-es'); }
 }
 
 async function handleFile(file, password) {
@@ -109,6 +136,7 @@ async function handleFile(file, password) {
     setProgress(85, 'A identificar as linhas da fatura…');
     if (!text.trim() || info.textItems < 5) {
       state.parsed = null;
+      setCountry('PT');
       fillForm(null);
       $('#raw-text').textContent = text;
       show('#step-values');
@@ -118,9 +146,26 @@ async function handleFile(file, password) {
       $('#step-values').scrollIntoView({ behavior: 'smooth' });
       return;
     }
+    const { country } = detectCountry(text);
+    if (country === 'ES') {
+      // Spanish bill (peaje 2.0TD): Potencia P1/P3, Consumo, Bono Social, Alquiler, Impuesto electricidad, IVA, TOTAL
+      const parsedES = parseInvoiceTextES(text);
+      parsedES.fileName = file.name; parsedES.numPages = numPages; parsedES.pdfInfo = info;
+      state.parsed = parsedES;
+      setCountry('ES');
+      fillFormES(parsedES, text);
+      $('#es-raw-text').textContent = text;
+      setProgress(100, 'Completado');
+      setTimeout(() => prog.classList.add('hidden'), 600);
+      show('#step-values-es');
+      hide('#step-results-es');
+      $('#step-values-es').scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
     const parsed = parseInvoiceText(text);
     parsed.fileName = file.name; parsed.numPages = numPages; parsed.pdfInfo = info;
     state.parsed = parsed;
+    setCountry('PT');
     $('#raw-text').textContent = text;
     fillForm(parsed);
     setProgress(100, 'Concluído');
@@ -144,8 +189,15 @@ async function handleFile(file, password) {
   }
 }
 
-// Hook used by the automated UI test (test/app.test.mjs) to inject a parsed invoice without pdf.js.
-if (typeof window !== 'undefined') window.__test_fill = (parsed) => { state.parsed = parsed; fillForm(parsed); show('#step-values'); };
+// Hooks used by the automated UI test (test/app.test.mjs) to inject a parsed invoice / raw text without pdf.js.
+if (typeof window !== 'undefined') {
+  window.__test_fill = (parsed) => { state.parsed = parsed; setCountry('PT'); fillForm(parsed); show('#step-values'); };
+  window.__test_text = (text) => {
+    const { country } = detectCountry(text);
+    if (country === 'ES') { const p = parseInvoiceTextES(text); state.parsed = p; setCountry('ES'); fillFormES(p, text); show('#step-values-es'); return p; }
+    const p = parseInvoiceText(text); state.parsed = p; setCountry('PT'); fillForm(p); show('#step-values'); return p;
+  };
+}
 
 function setProgress(pct, text) { $('#progress .bar').style.width = `${pct}%`; $('#progress .ptext').textContent = text; }
 function showError(msg) { const el = $('#upload-error'); el.textContent = msg; el.classList.remove('hidden'); }

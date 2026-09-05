@@ -25,6 +25,8 @@ const required = [
   [`public/vendor/${vendorDir}/pdf.min.js`, 'npm run vendor'],
   [`public/vendor/${vendorDir}/pdf.worker.min.js`, 'npm run vendor'],
   ['public/data/ofertas.json', 'npm run data:build'],
+  ['public/data/ofertas-es.json', 'git checkout public/data/ofertas-es.json'],
+  ['public/samples/factura-ejemplo-endesa-es.pdf', 'npm run samples'],
 ];
 for (const [f, fix] of required) {
   if (!existsSync(resolve(ROOT, f))) { console.error(`missing ${f} – run "${fix}" first`); process.exit(1); }
@@ -78,7 +80,9 @@ writeFileSync(resolve(DIST, '404.html'), `<!DOCTYPE html><html lang="pt-PT"><hea
 // robots + a tiny build manifest (handy to check which dataset is live)
 writeFileSync(resolve(DIST, 'robots.txt'), 'User-agent: *\nAllow: /\nDisallow: /data/\n');
 const meta = JSON.parse(readFileSync(resolve(PUBLIC, 'data/ofertas.json'), 'utf8')).meta;
-writeFileSync(resolve(DIST, 'build.json'), JSON.stringify({ builtAt: new Date().toISOString(), pdfjs: vendorDir, dataset: meta }, null, 2));
+const metaES = JSON.parse(readFileSync(resolve(PUBLIC, 'data/ofertas-es.json'), 'utf8')).meta;
+const appVersion = (readFileSync(resolve(PUBLIC, 'app.js'), 'utf8').match(/APP_VERSION = '([^']+)'/) || [])[1] || null;
+writeFileSync(resolve(DIST, 'build.json'), JSON.stringify({ builtAt: new Date().toISOString(), appVersion, pdfjs: vendorDir, dataset: meta, datasetES: { offers: metaES.offers, suppliers: metaES.suppliers, publishedAt: metaES.publishedAt } }, null, 2));
 
 // --- report ------------------------------------------------------------------
 let total = 0, count = 0;

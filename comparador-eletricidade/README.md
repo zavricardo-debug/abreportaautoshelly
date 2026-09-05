@@ -1,11 +1,16 @@
-# Comparador de Faturas de Eletricidade (Portugal)
+# Comparador de Faturas de Eletricidade (Portugal · España)
 
 Site estático onde o utilizador carrega a **fatura de eletricidade em PDF**; o browser lê as
-rubricas da fatura e compara o que está a pagar com **todas as ofertas do mercado português**
-(EDP Comercial, Endesa, Iberdrola, Galp, Goldenergy, Repsol, Plenitude, MEO Energia, SU
-Eletricidade/tarifa regulada, …) usando a lista oficial de preços publicada pela **ERSE**.
+rubricas da fatura e compara o que está a pagar com as ofertas do mercado:
 
-Rubricas lidas da fatura:
+* **Portugal** – todas as ofertas publicadas pela **ERSE** (EDP Comercial, Endesa, Iberdrola, Galp,
+  Goldenergy, Repsol, Plenitude, MEO Energia, SU Eletricidade/tarifa regulada, …).
+* **España** (peaje 2.0TD) – lista curada de tarifas de Endesa, Iberdrola, Naturgy, Repsol,
+  TotalEnergies, Octopus, Plenitude, Chippio e Imagina, com **comparação conceito a conceito**
+  (potencia, energía, bono social, alquiler, impuesto eléctrico, IVA, total) e ligação ao
+  comparador oficial da CNMC. O país é detetado automaticamente a partir do texto da fatura.
+
+Rubricas lidas da fatura portuguesa:
 
 | Rubrica                              | O que extraímos                          |
 | ------------------------------------ | ---------------------------------------- |
@@ -16,6 +21,18 @@ Rubricas lidas da fatura:
 | Taxa Exploração DGEG                 | meses, €/mês, total                      |
 | Imposto Especial Consumo             | kWh, €/kWh, total                        |
 | Período de faturação, potência contratada, opção horária, totais e IVA (6 % / 23 %), fornecedor |
+
+Conceptos leídos de la factura española (Endesa, Iberdrola, Naturgy, Repsol, …):
+
+| Concepto                                   | Qué extraemos                                        |
+| ------------------------------------------ | ---------------------------------------------------- |
+| Potencia P1 (punta-llano) / P2-P3 (valle)  | kW × €/kW·día (o €/kW·año) × días = €                |
+| Energía / Consumo                          | kWh × €/kWh = € (precio único o punta/llano/valle)   |
+| Financiación Bono Social                   | días × €/día = €                                     |
+| Alquiler del contador                      | días × €/día = €                                     |
+| Impuesto electricidad                      | base × % = €                                         |
+| IVA / IGIC / IPSI                          | % s/ base = €                                        |
+| TOTAL, periodo, potencias contratadas, lecturas punta/llano/valle, comercializadora y nombre del contrato |
 
 Tudo corre **no browser** (pdf.js) – o PDF nunca sai do computador do utilizador.
 
@@ -88,7 +105,32 @@ O JSON gerado inclui a data de publicação (mostrada no cabeçalho do site). Ta
 
 Dataset atual: ZIP ERSE de **2026-09-02** (809 ofertas, 28 comercializadores, 17 114 linhas de preços).
 
-## Como é feita a comparação
+## Tarifas españolas (`public/data/ofertas-es.json`)
+
+No existe un fichero público de precios del mercado español (el comparador de la CNMC no ofrece
+descarga y su API interna no es pública), por lo que la lista se mantiene **a mano** con los
+precios sin impuestos publicados en las webs de las comercializadoras (y, cuando la web no los
+muestra, en Rastreator/Selectra). Cada tarifa guarda `source.url` y `source.date`; el detalle de
+cada tarifa en el sitio muestra esa fuente. Campos: `energy` (`single` o `punta/llano/valle`,
+€/kWh), `power` (`p1`/`p2`, €/kW·día), `after` (precios tras la promoción), `feePerDay`/`feePerMonth`
+(indexadas), `extraPerKwh` (p. ej. SNOEE de Repsol), `maxPower`, `maxKwhYear`, `newClientsOnly`,
+`onlineOnly`, `indexed`, `renewable`, `notes`.
+
+```bash
+npm run data:check-es      # simula la factura de referencia (4,6 kW, 277 kWh, 31 días) con todas las tarifas
+npm run data:cnmc          # consulta la API del comparador CNMC para el mismo perfil (sólo desde tu PC;
+                           # imprime el coste anual de cada oferta para detectar tarifas nuevas/obsoletas)
+```
+
+Modelo de factura (`public/lib/simulator-es.js`, reproduce al céntimo la factura de Endesa incluida
+como ejemplo, 89,84 €): potencia = kW × €/kW·día × días (P1 y P2); energía = kWh × €/kWh;
+financiación bono social 0,024688 €/día y alquiler del contador (iguales en todas las tarifas);
+impuesto eléctrico 5,11269632 % sobre potencia + energía + cuotas + bono social (mínimo 1 €/MWh);
+IVA 21 % sobre todo lo anterior más el alquiler. Si la factura tiene precio único, el reparto
+punta/llano/valle para simular tarifas con discriminación horaria se toma de las lecturas de la
+propia factura (o de un perfil típico 30/26/44 % si no aparecen).
+
+## Como é feita a comparação (Portugal)
 
 Para cada oferta reconstruímos a fatura completa com o perfil do utilizador (kVA, opção horária,
 kWh por período, dias faturados):
@@ -115,16 +157,19 @@ apenas a melhor oferta de cada comercializador.
 public/
   index.html, styles.css, app.js     interface (3 passos: PDF → valores → comparação)
   lib/pdf-text.js                    extração de texto com pdf.js (reconstrói linhas por coordenadas)
-  lib/parser.js                      parser das rubricas da fatura
-  lib/simulator.js                   motor de cálculo da fatura / IVA / comparação
+  lib/parser.js                      parser das rubricas da fatura (PT)
+  lib/simulator.js                   motor de cálculo da fatura / IVA / comparação (PT)
+  app-es.js, lib/parser-es.js, lib/simulator-es.js   fluxo espanhol (deteção de país, parser 2.0TD, modelo de fatura)
   data/ofertas.json                  ofertas ERSE (gerado)
+  data/ofertas-es.json               tarifas españolas (curadas a mano, com fonte e data)
   vendor/pdfjs/                      pdf.js (gerado por npm run vendor)
-  samples/                           faturas de exemplo fictícias (Endesa simples, EDP bi-horária)
+  samples/                           faturas de exemplo fictícias (Endesa simples, EDP bi-horária, Endesa España 2.0TD)
 scripts/
   update-erse.mjs, lib/erse-parse.mjs  download + conversão dos CSV da ERSE
   vendor-pdfjs.mjs                     copia pdf.js
   make-sample-pdf.mjs                  gera os PDFs de exemplo (pdfkit)
   pdf-to-text.mjs                      debug: `node scripts/pdf-to-text.mjs fatura.pdf --parse`
+  update-cnmc.mjs                      consulta a API do comparador da CNMC (npm run data:cnmc)
   build-dist.mjs                       cria cloudflare-upload/ + zip para Cloudflare Pages (npm run build)
 server.mjs                           servidor estático local (gzip) + /api/refresh-data
 wrangler.toml                        config Cloudflare Pages (output dir = cloudflare-upload)
@@ -154,3 +199,6 @@ aplicação aparece no rodapé (`APP_VERSION` em `app.js`) e nas mensagens de er
   o parser (`public/lib/parser.js`, `LINE_DEFS`).
 * IVA das Regiões Autónomas (Madeira 4 %/22 %, Açores 4 %/16 %) não está implementado.
 * Ofertas indexadas usam o preço médio comunicado à ERSE – o valor real varia com o OMIE.
+* España: la lista de tarifas es manual (fecha en cada tarifa) y no incluye PVPC ni tarifas
+  planas/flexibles; IGIC/IPSI se aplican sólo si la factura los indica. Confirme siempre en el
+  comparador oficial de la CNMC (botón con sus datos ya cargados) antes de cambiar.

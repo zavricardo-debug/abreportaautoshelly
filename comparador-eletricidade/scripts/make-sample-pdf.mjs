@@ -201,6 +201,66 @@ await write('fatura-exemplo-edp-bihoraria.pdf', (doc) => {
   doc.fontSize(7).fillColor('#777').text(DISCLAIMER, 40, 780, { width: 515, lineBreak: false });
 });
 
+/* ---------------------------------------------------------------- Endesa España, 2.0TD, 4,6 kW (same layout/numbers as the user's real bill) */
+const esNum = (v, d) => v.toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+const esEur = (v) => esNum(v, 2) + ' €';
+// "label ........ value" fitted to the column width using the real glyph widths (no wrapping)
+const dots = (doc, label, value, width = 500) => {
+  const dotW = doc.widthOfString('.');
+  const free = width - doc.widthOfString(`${label} `) - doc.widthOfString(` ${value}`);
+  return `${label} ${'.'.repeat(Math.max(3, Math.floor(free / dotW)))} ${value}`;
+};
+const es = { days: 31, kw: 4.6, pp1: 0.117686, pp2: 0.041554, kwh: 277.224, ep: 0.167283, bono: 0.024688, rent: 0.026774, ie: 0.051126963, iva: 0.21 };
+const esCalc = (() => {
+  const p1 = r2(es.kw * es.pp1 * es.days), p2 = r2(es.kw * es.pp2 * es.days), en = r2(es.kwh * es.ep), bono = r2(es.bono * es.days), rent = r2(es.rent * es.days);
+  const ieBase = r2(p1 + p2 + en + bono), ie = r2(ieBase * es.ie), ivaBase = r2(ieBase + ie + rent), iva = r2(ivaBase * es.iva);
+  return { p1, p2, en, bono, rent, ieBase, ie, ivaBase, iva, total: r2(ivaBase + iva) };
+})();
+await write('factura-ejemplo-endesa-es.pdf', (doc) => {
+  doc.font('Helvetica-Bold').fontSize(20).fillColor('#0b2a5b').text('endesa', 40, 40);
+  doc.font('Helvetica').fontSize(8).fillColor('#000');
+  doc.text('Endesa Energía, S.A. Unipersonal – CIF A81948077', 330, 42, { width: 225, align: 'right' });
+  doc.text('Atención al cliente: 800 760 909', 330, 52, { width: 225, align: 'right' });
+  doc.font('Helvetica-Bold').fontSize(11).text('Factura de electricidad', 40, 90);
+  doc.font('Helvetica').fontSize(9);
+  doc.text('Nº factura: PNR601N0123456 · Fecha de emisión: 21/08/2026', 40, 108)
+    .text('Titular: CARMEN EJEMPLO GARCÍA · Dirección de suministro: CALLE MAYOR 12, 2º B, 28001 MADRID', 40, 120)
+    .text('CUPS: ES0021000001234567AB · Peaje de acceso: 2.0TD · Contrato de mercado libre: Libre Endesa', 40, 132)
+    .text('Referencia de contrato de suministro: 130117065301', 40, 144)
+    .text('Potencias contratadas: punta-llano 4,600 kW; valle 4,600 kW', 40, 156);
+  doc.font('Helvetica-Bold').fontSize(14).fillColor('#0b2a5b').text('TOTAL IMPORTE FACTURA', 40, 180).text(esEur(esCalc.total), 400, 180, { width: 155, align: 'right' });
+  doc.font('Helvetica').fontSize(8).fillColor('#000').text('Periodo de facturación: del 19/07/2026 al 19/08/2026 (31 días). Cargo en cuenta ES12 **** **** **** **** 5678 el 04/09/2026.', 40, 200);
+
+  doc.font('Helvetica-Bold').fontSize(10).text('Detalle de la factura', 40, 232);
+  let y = 250;
+  const row = (label, value, bold = false) => { doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.2); doc.text(dots(doc, label, value), 40, y, { width: 515, lineBreak: false }); y += 13; };
+  row('Potencia ' + esEur(r2(esCalc.p1 + esCalc.p2)), '', true);
+  row(`P1 (Punta-Llano) ${esNum(es.kw, 3)} kW x ${esNum(es.pp1, 6)} Eur/kW x ${es.days} días`, esEur(esCalc.p1));
+  row(`Pot. P3 ${esNum(es.kw, 3)} kW x ${esNum(es.pp2, 6)} Eur/kW x ${es.days} días`, esEur(esCalc.p2));
+  row('Energía ' + esEur(esCalc.en), '', true);
+  row(`Consumo ${esNum(es.kwh, 3)} kWh x ${esNum(es.ep, 6)} Eur/kWh`, esEur(esCalc.en));
+  row('Varios ' + esEur(r2(esCalc.bono + esCalc.rent)), '', true);
+  row(`Financiación Bono Social ${es.days} días x ${esNum(es.bono, 6)} Eur/día`, esEur(esCalc.bono));
+  row(`Alquiler del contador ( ${es.days} días x ${esNum(es.rent, 6)} Eur/día )`, esEur(esCalc.rent));
+  row('Impuestos ' + esEur(r2(esCalc.ie + esCalc.iva)), '', true);
+  row(`Impuesto electricidad ( ${esNum(esCalc.ieBase, 2)} Eur X ${esNum(es.ie * 100, 7)} %)`, esEur(esCalc.ie));
+  row(`IVA normal 21 % s/ ${esNum(esCalc.ivaBase, 2)}`, esEur(esCalc.iva));
+  y += 4;
+  doc.font('Helvetica-Bold').fontSize(10).text('TOTAL ' + esEur(esCalc.total), 40, y); y += 24;
+
+  doc.font('Helvetica-Bold').fontSize(9).text('Información del consumo eléctrico', 40, y); y += 14;
+  doc.font('Helvetica').fontSize(8);
+  doc.text('Periodo 19/07/2026 19/08/2026', 40, y).text('Lectura anterior', 200, y).text('Lectura actual', 280, y).text('Multipl.', 360, y).text('Ajuste', 410, y).text('Consumo kWh', 460, y); y += 12;
+  doc.text('Energía kWh', 40, y); y += 12;
+  for (const [k, a, b, c] of [['Punta', '7.161,000', '7.258,000', '97,000'], ['Llano', '6.746,000', '6.806,000', '60,000'], ['Valle', '11.006,000', '11.125,000', '119,000']]) {
+    doc.text(`${k} ${a} ${b} 1,00 0,000 ${c}`, 40, y); y += 12;
+  }
+  y += 10;
+  doc.fontSize(7.5).fillColor('#333').text('Puede comparar esta oferta con otras en el comparador de ofertas de la CNMC: https://comparador.cnmc.gob.es', 40, y, { width: 515 });
+  doc.fontSize(7).fillColor('#777').text('Documento de ejemplo con datos ficticios (los importes reproducen una factura real de 2026) generado para demostración del comparador. No es una factura real.', 40, 780, { width: 515, lineBreak: false });
+});
+
 console.log('Sample PDFs written to', OUT);
 console.log('  Endesa  total', endesa.invoiceTotal, '€ (a pagar', r2(endesa.invoiceTotal + endesaCredit), '€)');
 console.log('  EDP     total', edp.invoiceTotal, '€');
+console.log('  Endesa ES total', esCalc.total, '€ (expected 89.84)');

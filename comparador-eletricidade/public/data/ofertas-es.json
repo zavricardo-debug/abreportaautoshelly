@@ -1,0 +1,637 @@
+{
+  "meta": {
+    "country": "ES",
+    "market": "Peaje 2.0TD · viviendas · Península y Baleares",
+    "publishedAt": "2026-09-05",
+    "source": "Precios publicados por las comercializadoras en sus webs (sin impuestos) y, cuando la web no los muestra, por los comparadores Rastreator (05/09/2026) y Selectra (09/2026). Lista curada manualmente – no es un volcado del comparador de la CNMC.",
+    "official": "https://comparador.cnmc.gob.es",
+    "offers": 21,
+    "suppliers": 9,
+    "note": "Los precios promocionales de primer año se indican en 'promoText'; 'after' contiene los precios una vez terminada la promoción. Todos los precios son €/kWh y €/kW·día sin impuestos."
+  },
+  "rules": {
+    "year": 2026,
+    "iva": 0.21,
+    "ieRate": 0.0511269632,
+    "ieMinPerKwh": 0.001,
+    "bonoSocialPerDay": 0.024688,
+    "meterRentPerDay": 0.026774,
+    "peajesPowerP1": 0.075903,
+    "peajesPowerP2": 0.001987,
+    "defaultSplit": {
+      "punta": 0.3,
+      "llano": 0.26,
+      "valle": 0.44
+    }
+  },
+  "suppliers": [
+    {
+      "code": "ENDESA",
+      "name": "Endesa Energía",
+      "url": "https://www.endesa.com/es/luz-y-gas/luz"
+    },
+    {
+      "code": "IBERDROLA",
+      "name": "Iberdrola Clientes",
+      "url": "https://www.iberdrola.es/luz/tarifas"
+    },
+    {
+      "code": "NATURGY",
+      "name": "Naturgy",
+      "url": "https://www.naturgy.es/hogar/luz"
+    },
+    {
+      "code": "REPSOL",
+      "name": "Repsol",
+      "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/tarifas-luz/"
+    },
+    {
+      "code": "TOTAL",
+      "name": "TotalEnergies",
+      "url": "https://www.totalenergies.es/es/hogares"
+    },
+    {
+      "code": "OCTOPUS",
+      "name": "Octopus Energy",
+      "url": "https://octopusenergy.es/precios"
+    },
+    {
+      "code": "PLENITUDE",
+      "name": "Plenitude (Eni)",
+      "url": "https://eniplenitude.es/hogar/tarifas-luz/"
+    },
+    {
+      "code": "CHIPPIO",
+      "name": "Chippio",
+      "url": "https://chippio.com"
+    },
+    {
+      "code": "IMAGINA",
+      "name": "Imagina Energía",
+      "url": "https://www.imaginaenergia.com"
+    }
+  ],
+  "offers": [
+    {
+      "id": "ENDESA-CONECTA-LUZ",
+      "supplierCode": "ENDESA",
+      "supplier": "Endesa",
+      "name": "Tarifa Conecta Luz",
+      "type": "fixed",
+      "energy": {
+        "single": 0.109
+      },
+      "power": {
+        "p1": 0.093666,
+        "p2": 0.093666
+      },
+      "after": {
+        "energy": {
+          "single": 0.124571
+        }
+      },
+      "promoText": "10 % dto. el 1.er año + 20 % dto. indefinido en el consumo (precio mostrado con ambos descuentos)",
+      "newClientsOnly": true,
+      "onlineOnly": true,
+      "permanence": false,
+      "priceFixedMonths": 24,
+      "maxPower": 15,
+      "source": {
+        "name": "endesa.com (precios actualizados 01/09/2026)",
+        "url": "https://www.endesa.com/es/luz-y-gas/luz/conecta-de-endesa",
+        "date": "2026-09-05"
+      },
+      "notes": "Sólo contratación online. Potencia 2,849 €/kW·mes (= 0,093666 €/kW·día) en punta y valle."
+    },
+    {
+      "id": "ENDESA-LUZ-24H-ONLINE",
+      "supplierCode": "ENDESA",
+      "supplier": "Endesa",
+      "name": "Tarifa Luz 24h Online (antes One Luz)",
+      "type": "fixed",
+      "energy": {
+        "single": 0.124571
+      },
+      "power": {
+        "p1": 0.093666,
+        "p2": 0.093666
+      },
+      "after": {
+        "energy": {
+          "single": 0.155714
+        }
+      },
+      "promoText": "20 % dto. en el consumo durante el 1.er año (sólo nuevas contrataciones); 50 € por contratar",
+      "newClientsOnly": false,
+      "permanence": false,
+      "priceFixedMonths": 24,
+      "maxPower": 15,
+      "source": {
+        "name": "endesa.com (precios actualizados 01/09/2026)",
+        "url": "https://www.endesa.com/es/luz-y-gas/luz/one/tarifa-one-luz",
+        "date": "2026-09-05"
+      },
+      "notes": "Precio estable 2 años. Con impuestos: 0,158437 €/kWh y 43,482474 €/kW·año."
+    },
+    {
+      "id": "ENDESA-CONECTA-3P",
+      "supplierCode": "ENDESA",
+      "supplier": "Endesa",
+      "name": "Tarifa Conecta 3 Periodos",
+      "type": "fixed3",
+      "energy": {
+        "punta": 0.18621,
+        "llano": 0.11781,
+        "valle": 0.09441
+      },
+      "power": {
+        "p1": 0.093666,
+        "p2": 0.093666
+      },
+      "after": {
+        "energy": {
+          "punta": 0.2069,
+          "llano": 0.1309,
+          "valle": 0.1049
+        }
+      },
+      "promoText": "10 % dto. en el consumo durante el 1.er año (sólo nuevos clientes)",
+      "newClientsOnly": true,
+      "permanence": false,
+      "priceFixedMonths": 24,
+      "maxPower": 15,
+      "source": {
+        "name": "endesa.com (precios actualizados 01/09/2026)",
+        "url": "https://www.endesa.com/es/luz-y-gas/luz/one/tarifa-one-luz-3periodos",
+        "date": "2026-09-05"
+      },
+      "notes": "Potencia 2,849 €/kW·mes (= 34,188 €/kW·año = 0,093666 €/kW·día) en punta y valle, igual que el resto de tarifas Endesa (la tabla 'con impuestos' de su web muestra ese mismo importe sin impuestos). No compatible con bono social ni autoconsumo."
+    },
+    {
+      "id": "IBERDROLA-PLAN-ONLINE",
+      "supplierCode": "IBERDROLA",
+      "supplier": "Iberdrola",
+      "name": "Plan Online",
+      "type": "fixed",
+      "energy": {
+        "single": 0.1249
+      },
+      "power": {
+        "p1": 0.119151,
+        "p2": 0.069836
+      },
+      "onlineOnly": true,
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 10,
+      "renewable": true,
+      "source": {
+        "name": "iberdrola.es (oferta válida hasta 15/09/2026)",
+        "url": "https://www.iberdrola.es/luz/tarifas/plan-online",
+        "date": "2026-09-05"
+      },
+      "notes": "Contratación y gestión 100 % online. Precios para potencia contratada hasta 10 kW."
+    },
+    {
+      "id": "IBERDROLA-PLAN-ONLINE-3P",
+      "supplierCode": "IBERDROLA",
+      "supplier": "Iberdrola",
+      "name": "Plan Online 3 Periodos",
+      "type": "fixed3",
+      "energy": {
+        "punta": 0.194,
+        "llano": 0.136,
+        "valle": 0.09999
+      },
+      "power": {
+        "p1": 0.091074,
+        "p2": 0.013483
+      },
+      "onlineOnly": true,
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 10,
+      "renewable": true,
+      "source": {
+        "name": "iberdrola.es (oferta válida hasta 15/09/2026)",
+        "url": "https://www.iberdrola.es/luz/tarifas/plan-online-tres-periodos",
+        "date": "2026-09-05"
+      },
+      "notes": "Potencia valle muy barata (0,013483 €/kW·día). Precios para potencia hasta 10 kW."
+    },
+    {
+      "id": "IBERDROLA-PLAN-ESTABLE",
+      "supplierCode": "IBERDROLA",
+      "supplier": "Iberdrola",
+      "name": "Plan Estable",
+      "type": "fixed",
+      "energy": {
+        "single": 0.148644
+      },
+      "power": {
+        "p1": 0.109562,
+        "p2": 0.071205
+      },
+      "after": {
+        "energy": {
+          "single": 0.174875
+        }
+      },
+      "promoText": "15 % dto. en la energía durante los primeros 12 meses",
+      "permanence": false,
+      "priceFixedMonths": 60,
+      "maxPower": 10,
+      "renewable": true,
+      "source": {
+        "name": "iberdrola.es (oferta válida hasta 15/09/2026)",
+        "url": "https://www.iberdrola.es/luz/tarifas/plan-estable",
+        "date": "2026-09-05"
+      },
+      "notes": "Precio de energía estable 5 años (sólo se repercuten IPC y conceptos regulados). Factura electrónica obligatoria."
+    },
+    {
+      "id": "NATURGY-POR-USO",
+      "supplierCode": "NATURGY",
+      "supplier": "Naturgy",
+      "name": "Tarifa Por Uso Luz",
+      "type": "fixed",
+      "energy": {
+        "single": 0.112
+      },
+      "power": {
+        "p1": 0.12303,
+        "p2": 0.061562
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 10,
+      "maxKwhYear": 10000,
+      "source": {
+        "name": "naturgy.es (vigencia hasta 25/09/2026)",
+        "url": "https://www.naturgy.es/hogar/luz/tarifa_por_uso_luz",
+        "date": "2026-09-05"
+      },
+      "notes": "Precio fijo 12 meses. Oferta para nuevas contrataciones 2.0TD, potencia ≤ 15 kW (precios de ≤ 10 kW), consumo ≤ 10.000 kWh/año, sin bono social. Compatible con autoconsumo."
+    },
+    {
+      "id": "NATURGY-NOCHE",
+      "supplierCode": "NATURGY",
+      "supplier": "Naturgy",
+      "name": "Tarifa Noche Luz",
+      "type": "fixed3",
+      "energy": {
+        "punta": 0.1822,
+        "llano": 0.1092,
+        "valle": 0.0739
+      },
+      "power": {
+        "p1": 0.12303,
+        "p2": 0.061562
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 10,
+      "maxKwhYear": 10000,
+      "renewable": true,
+      "source": {
+        "name": "naturgy.es (vigencia hasta 25/09/2026)",
+        "url": "https://www.naturgy.es/hogar/luz/tarifa_noche",
+        "date": "2026-09-05"
+      },
+      "notes": "Discriminación horaria en 3 periodos. Energía con garantías de origen renovable. Precios de ≤ 10 kW."
+    },
+    {
+      "id": "REPSOL-SIN-HORARIOS",
+      "supplierCode": "REPSOL",
+      "supplier": "Repsol",
+      "name": "Tarifa Sin Horarios",
+      "type": "fixed",
+      "energy": {
+        "single": 0.1199
+      },
+      "power": {
+        "p1": 0.081918,
+        "p2": 0.081918
+      },
+      "extraPerKwh": 0.00266,
+      "extraLabel": "Financiación SNOEE (eficiencia energética)",
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "promoText": "40 € de saldo Waylet por contratar (hasta 30/09/2026) – no incluido en el cálculo",
+      "source": {
+        "name": "repsol.es + Selectra (09/2026)",
+        "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/tarifas/tarifa-sin-horarios/",
+        "date": "2026-09-05"
+      },
+      "notes": "Repsol factura aparte el SNOEE (0,00266 €/kWh) además del bono social; se incluye en la simulación. Precio de energía según Selectra; potencia según la web de Repsol."
+    },
+    {
+      "id": "REPSOL-TRANQUILISIMA",
+      "supplierCode": "REPSOL",
+      "supplier": "Repsol",
+      "name": "Tarifa Tranquilísima",
+      "type": "fixed",
+      "energy": {
+        "single": 0.1399
+      },
+      "power": {
+        "p1": 0.081918,
+        "p2": 0.081918
+      },
+      "extraPerKwh": 0.00266,
+      "extraLabel": "Financiación SNOEE (eficiencia energética)",
+      "permanence": false,
+      "priceFixedMonths": 60,
+      "maxPower": 15,
+      "promoText": "40 € de saldo Waylet por contratar – no incluido en el cálculo",
+      "source": {
+        "name": "repsol.es",
+        "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/tarifas/tarifa-tranquilisima/",
+        "date": "2026-09-05"
+      },
+      "notes": "Mismo precio del kWh durante 5 años, sin permanencia. Variante sin Asistente 24h Plus."
+    },
+    {
+      "id": "REPSOL-DH",
+      "supplierCode": "REPSOL",
+      "supplier": "Repsol",
+      "name": "Tarifa Discriminación Horaria",
+      "type": "fixed3",
+      "energy": {
+        "punta": 0.1659,
+        "llano": 0.1159,
+        "valle": 0.0969
+      },
+      "power": {
+        "p1": 0.120274,
+        "p2": 0.06
+      },
+      "extraPerKwh": 0.00266,
+      "extraLabel": "Financiación SNOEE (eficiencia energética)",
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "promoText": "40 € de saldo Waylet por contratar – no incluido en el cálculo",
+      "source": {
+        "name": "repsol.es",
+        "url": "https://www.repsol.es/particulares/hogar/luz-y-gas/tarifas/tarifa-discriminacion-horaria/",
+        "date": "2026-09-05"
+      },
+      "notes": "3 periodos de energía y 2 de potencia. Variante sin Asistente 24h."
+    },
+    {
+      "id": "TOTAL-A-TU-AIRE-SIEMPRE",
+      "supplierCode": "TOTAL",
+      "supplier": "TotalEnergies",
+      "name": "A Tu Aire Luz Siempre",
+      "type": "fixed",
+      "energy": {
+        "single": 0.1099
+      },
+      "power": {
+        "p1": 0.0862,
+        "p2": 0.0862
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "maxKwhYear": 4500,
+      "renewable": true,
+      "source": {
+        "name": "Rastreator (precios actualizados 05/09/2026)",
+        "url": "https://www.rastreator.com/tarifas-energia/guias/mejores-tarifas-electricidad",
+        "date": "2026-09-05"
+      },
+      "notes": "Precio único 24 h para consumos < 4.500 kWh/año. Selectra publica 0,0999 €/kWh para la misma tarifa (precio negociado)."
+    },
+    {
+      "id": "TOTAL-PROGRAMA-TU-AHORRO",
+      "supplierCode": "TOTAL",
+      "supplier": "TotalEnergies",
+      "name": "A Tu Aire Luz Programa Tu Ahorro",
+      "type": "fixed3",
+      "energy": {
+        "punta": 0.1736,
+        "llano": 0.1039,
+        "valle": 0.0762
+      },
+      "power": {
+        "p1": 0.0862,
+        "p2": 0.0862
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "maxKwhYear": 4500,
+      "renewable": true,
+      "source": {
+        "name": "Rastreator (precios actualizados 05/09/2026)",
+        "url": "https://www.rastreator.com/tarifas-energia/guias/mejores-tarifas-electricidad",
+        "date": "2026-09-05"
+      },
+      "notes": "3 periodos, para consumos < 4.500 kWh/año. Selectra publica 0,1636/0,0939/0,0662 €/kWh."
+    },
+    {
+      "id": "OCTOPUS-RELAX",
+      "supplierCode": "OCTOPUS",
+      "supplier": "Octopus Energy",
+      "name": "Octopus Relax",
+      "type": "fixed",
+      "energy": {
+        "single": 0.133
+      },
+      "power": {
+        "p1": 0.093,
+        "p2": 0.093
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "renewable": true,
+      "source": {
+        "name": "octopusenergy.es/precios",
+        "url": "https://octopusenergy.es/precios",
+        "date": "2026-09-05"
+      },
+      "notes": "Mismo precio las 24 horas, fijo 12 meses. No disponible en Ceuta y Melilla."
+    },
+    {
+      "id": "OCTOPUS-3",
+      "supplierCode": "OCTOPUS",
+      "supplier": "Octopus Energy",
+      "name": "Octopus 3",
+      "type": "fixed3",
+      "energy": {
+        "punta": 0.174,
+        "llano": 0.124,
+        "valle": 0.114
+      },
+      "power": {
+        "p1": 0.093,
+        "p2": 0.093
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "renewable": true,
+      "source": {
+        "name": "octopusenergy.es/precios",
+        "url": "https://octopusenergy.es/precios",
+        "date": "2026-09-05"
+      },
+      "notes": "Precios más bajos por la noche y fin de semana, fijos 12 meses."
+    },
+    {
+      "id": "OCTOPUS-FLEXI",
+      "supplierCode": "OCTOPUS",
+      "supplier": "Octopus Energy",
+      "name": "Octopus Flexi (indexada)",
+      "type": "indexed",
+      "energy": {
+        "single": 0.199
+      },
+      "power": {
+        "p1": 0.076,
+        "p2": 0.002
+      },
+      "feePerDay": 0.123,
+      "indexed": true,
+      "permanence": false,
+      "maxPower": 15,
+      "renewable": true,
+      "source": {
+        "name": "octopusenergy.es/precios (precio medio del último mes)",
+        "url": "https://octopusenergy.es/precios",
+        "date": "2026-09-05"
+      },
+      "notes": "Energía a precio de mercado (varía cada hora); se usa el precio medio del último mes publicado por Octopus (0,199 €/kWh) + coste de gestión 0,123 €/día."
+    },
+    {
+      "id": "PLENITUDE-FACIL-PLUS",
+      "supplierCode": "PLENITUDE",
+      "supplier": "Plenitude",
+      "name": "Fácil Plus Luz",
+      "type": "fixed",
+      "energy": {
+        "single": 0.107914
+      },
+      "power": {
+        "p1": 0.099984,
+        "p2": 0.099984
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 5,
+      "renewable": true,
+      "promoText": "Tarjeta regalo de 25 € por contratar – no incluida en el cálculo",
+      "source": {
+        "name": "eniplenitude.es",
+        "url": "https://eniplenitude.es/hogar/tarifas-luz/",
+        "date": "2026-09-05"
+      },
+      "notes": "Precios para potencia hasta 5 kW (la web muestra otros precios para más de 5 kW). Precio fijo 12 meses. Selectra publica 0,0973 €/kWh."
+    },
+    {
+      "id": "PLENITUDE-TENDENCIA",
+      "supplierCode": "PLENITUDE",
+      "supplier": "Plenitude",
+      "name": "Tarifa Tendencia Luz (indexada)",
+      "type": "indexed",
+      "energy": {
+        "single": 0.18257
+      },
+      "power": {
+        "p1": 0.075902,
+        "p2": 0.001987
+      },
+      "feePerMonth": 3.5,
+      "indexed": true,
+      "permanence": false,
+      "maxPower": 15,
+      "renewable": true,
+      "source": {
+        "name": "eniplenitude.es (precio medio del último mes)",
+        "url": "https://eniplenitude.es/hogar/tarifas-luz/",
+        "date": "2026-09-05"
+      },
+      "notes": "Energía a precio de mercado horario; se usa el precio medio del último mes publicado por Plenitude (0,18257 €/kWh) + cuota de gestión 3,50 €/mes. Potencia al precio regulado (peajes + cargos)."
+    },
+    {
+      "id": "CHIPPIO-CONSTANTE",
+      "supplierCode": "CHIPPIO",
+      "supplier": "Chippio",
+      "name": "Tarifa Constante",
+      "type": "fixed",
+      "energy": {
+        "single": 0.124
+      },
+      "power": {
+        "p1": 0.079,
+        "p2": 0.079
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "renewable": true,
+      "source": {
+        "name": "Rastreator (precios actualizados 05/09/2026)",
+        "url": "https://www.rastreator.com/tarifas-energia/guias/mejores-tarifas-electricidad",
+        "date": "2026-09-05"
+      },
+      "notes": "Precio único 24 h, energía renovable, sin permanencia."
+    },
+    {
+      "id": "IMAGINA-SIN-HORAS",
+      "supplierCode": "IMAGINA",
+      "supplier": "Imagina Energía",
+      "name": "Plan Sin Horas",
+      "type": "fixed",
+      "energy": {
+        "single": 0.119
+      },
+      "power": {
+        "p1": 0.1055,
+        "p2": 0.0483
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "renewable": true,
+      "source": {
+        "name": "Rastreator (precios actualizados 05/09/2026)",
+        "url": "https://www.rastreator.com/tarifas-energia/guias/mejores-tarifas-electricidad",
+        "date": "2026-09-05"
+      },
+      "notes": "Precio único 24 h, energía renovable."
+    },
+    {
+      "id": "IMAGINA-NOCHE-FINDES",
+      "supplierCode": "IMAGINA",
+      "supplier": "Imagina Energía",
+      "name": "Plan Noche y Findes",
+      "type": "fixed3",
+      "energy": {
+        "punta": 0.1848,
+        "llano": 0.1241,
+        "valle": 0.0994
+      },
+      "power": {
+        "p1": 0.102,
+        "p2": 0.029
+      },
+      "promoText": "20 % dto. en la energía durante 1 año contratando a través de Rastreator (ya aplicado en el precio)",
+      "newClientsOnly": true,
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "renewable": true,
+      "source": {
+        "name": "Rastreator (precios actualizados 05/09/2026)",
+        "url": "https://www.rastreator.com/tarifas-energia/guias/mejores-tarifas-electricidad",
+        "date": "2026-09-05"
+      },
+      "notes": "3 periodos; potencia valle muy barata (0,029 €/kW·día)."
+    }
+  ]
+}

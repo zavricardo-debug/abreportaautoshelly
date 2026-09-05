@@ -41,6 +41,7 @@ code { background: #eef2f6; padding: 1px 6px; border-radius: 6px; font-size: .9e
 .topnav { display: flex; align-items: center; gap: 16px; font-size: .9rem; }
 .topnav a { text-decoration: none; color: var(--muted); }
 .pill { background: #e6f4f2; color: var(--brand-2); border-radius: 999px; padding: 4px 10px; font-size: .75rem; white-space: nowrap; }
+.pill.es { background: #fff7ed; color: #9a3412; }
 
 /* cards */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; margin: 22px 0; }
@@ -125,6 +126,17 @@ table.results .num { text-align: right; white-space: nowrap; font-variant-numeri
 table.results tr.baseline { background: #fffbeb; }
 table.results tr.best { background: #f0fdf4; }
 table.results tr.current-supplier td:nth-child(2)::after { content: " (o seu fornecedor)"; color: var(--muted); font-size: .78rem; }
+table.results tr.current-supplier-es td:nth-child(2)::after { content: " (su comercializadora)"; color: var(--muted); font-size: .78rem; }
+/* Spanish results: every cost line with its delta vs. the bill underneath */
+table.results.es { font-size: .86rem; }
+table.results.es th, table.results.es td { padding: 8px 9px; }
+.cell-delta { display: block; font-size: .72rem; font-weight: 600; margin-top: 1px; }
+.cell-delta.good { color: var(--good); }
+.cell-delta.bad { color: var(--bad); }
+.cell-delta.zero { color: #94a3b8; font-weight: 400; }
+.filters a.btn { text-decoration: none; margin-left: auto; }
+#es-check { margin: 0; }
+.sum .v small { font-size: .7rem; font-weight: 500; color: var(--muted); }
 .offer-name { font-weight: 600; }
 .offer-sub { color: var(--muted); font-size: .78rem; }
 .badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
