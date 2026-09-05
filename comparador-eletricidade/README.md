@@ -131,6 +131,15 @@ wrangler.toml                        config Cloudflare Pages (output dir = cloud
 test/                                node --test (parser, simulador, UI em jsdom)
 ```
 
+## Compatibilidade de browsers
+
+Safari (macOS/iOS até à versão 26) não implementa `ReadableStream[Symbol.asyncIterator]`, que o
+pdf.js 5 usa (`for await … of stream`) – o sintoma é *"undefined is not a function (near '...t of
+e...')"*. O `npm run vendor` injeta um polyfill no início de `pdf.min.js` e `pdf.worker.min.js`, e
+`lib/pdf-text.js` lê o texto com um `reader` clássico, por isso o site funciona em Safari 16.4+,
+Chrome/Edge 100+ e Firefox 115+. Browsers mais antigos recebem uma mensagem clara a sugerir a
+introdução manual dos valores.
+
 ## Limitações conhecidas
 
 * PDFs digitalizados (imagem) não têm texto – o site pede a introdução manual dos valores.

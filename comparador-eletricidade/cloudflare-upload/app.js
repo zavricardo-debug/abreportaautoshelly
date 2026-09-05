@@ -136,7 +136,8 @@ async function handleFile(file, password) {
     }
     if (e?.name === 'InvalidPDFException') return showError(`O ficheiro não é um PDF válido ou está corrompido (${e.message}). Volte a descarregar a fatura.`);
     if (e?.code === 'PDFJS_LOAD') return showError(e.message);
-    showError(`Erro ao ler o PDF: ${e?.message || e}. Pode introduzir os valores manualmente com o botão "Não tenho PDF".`);
+    const ua = (navigator.userAgent.match(/(Firefox|Edg|OPR|Chrome|Version)\/[\d.]+/g) || []).join(' ') + (/iPhone|iPad/.test(navigator.userAgent) ? ' iOS' : '');
+    showError(`Erro ao ler o PDF: ${e?.message || e} [${e?.name || 'Error'}; ${ua || navigator.userAgent.slice(0, 60)}]. Pode introduzir os valores manualmente com o botão "Não tenho PDF".`);
   }
 }
 

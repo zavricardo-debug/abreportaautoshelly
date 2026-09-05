@@ -4,14 +4,74 @@
 
 let pdfjsPromise = null;
 
+/**
+ * Safari (macOS/iOS up to 26.x) does not implement ReadableStream[Symbol.asyncIterator];
+ * pdf.js 5.x uses `for await (... of readableStream)` in getTextContent(), which throws
+ * "undefined is not a function (near '...t of e...')" there. Polyfill the async iterator
+ * so any such loop inside pdf.js works, and read the text stream with a classic reader.
+ */
+function polyfillStreams() {
+  if (typeof ReadableStream === 'undefined') return;
+  const proto = ReadableStream.prototype;
+  if (typeof proto[Symbol.asyncIterator] === 'function') return;
+  const values = function ({ preventCancel = false } = {}) {
+    const reader = this.getReader();
+    return {
+      next: () => reader.read(),
+      return: async (value) => { if (!preventCancel) await reader.cancel(value); reader.releaseLock(); return { value, done: true }; },
+      [Symbol.asyncIterator]() { return this; },
+    };
+  };
+  try {
+    Object.defineProperty(proto, Symbol.asyncIterator, { value: values, writable: true, configurable: true });
+    if (typeof proto.values !== 'function') Object.defineProperty(proto, 'values', { value: values, writable: true, configurable: true });
+  } catch { /* frozen prototype – fall back to the reader loop below */ }
+}
+
+/** Browser features pdf.js 5 (legacy build) really needs; report the missing ones in plain words. */
+export function browserSupport() {
+  const missing = [];
+  const inBrowser = typeof document !== 'undefined';
+  if (inBrowser && typeof Worker === 'undefined') missing.push('Web Workers');
+  if (typeof ReadableStream === 'undefined') missing.push('Streams API');
+  if (typeof DecompressionStream === 'undefined') missing.push('DecompressionStream (Safari 16.4+, Chrome 80+, Firefox 113+)');
+  if (typeof structuredClone === 'undefined') missing.push('structuredClone (Safari 15.4+)');
+  let es2022 = true;
+  try { new Function('class A { #x = 1; static { } get x() { return this.#x ?? 0; } }'); } catch { es2022 = false; }
+  if (!es2022) missing.push('JavaScript 2022 (campos privados / static blocks)');
+  return { ok: missing.length === 0, missing };
+}
+
 async function loadPdfjs() {
   if (!pdfjsPromise) {
+    const sup = browserSupport();
+    if (!sup.ok) {
+      const err = new Error(`O seu browser não suporta funcionalidades necessárias para ler PDFs (${sup.missing.join(', ')}). Atualize o browser (Safari 16.4+, Chrome 100+, Firefox 115+, Edge 100+) ou introduza os valores manualmente.`);
+      err.code = 'PDFJS_LOAD';
+      throw err;
+    }
+    polyfillStreams();
     pdfjsPromise = import('../vendor/pdfjs/pdf.min.js').then((pdfjs) => {
       pdfjs.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdfjs/pdf.worker.min.js', import.meta.url).href;
       return pdfjs;
     });
   }
   return pdfjsPromise;
+}
+
+/** page.getTextContent() without relying on async iteration of streams (Safari-safe). */
+async function readTextContent(page) {
+  const stream = page.streamTextContent({ includeMarkedContent: false, disableNormalization: false });
+  const reader = stream.getReader();
+  const out = { items: [], styles: Object.create(null), lang: null };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    out.lang ??= value.lang;
+    Object.assign(out.styles, value.styles);
+    out.items.push(...value.items);
+  }
+  return out;
 }
 
 /**
@@ -28,7 +88,8 @@ export async function extractPdfText(data, onProgress, opts = {}) {
   try {
     pdfjs = await loadPdfjs();
   } catch (e) {
-    const err = new Error('Não foi possível carregar o leitor de PDF (pdf.js). Atualize o browser ou confirme que a pasta vendor/pdfjs foi publicada.');
+    if (e?.code === 'PDFJS_LOAD') throw e;
+    const err = new Error(`Não foi possível carregar o leitor de PDF (pdf.js): ${e?.message || e}. Atualize o browser ou confirme que a pasta vendor/pdfjs foi publicada.`);
     err.code = 'PDFJS_LOAD'; err.cause = e;
     throw err;
   }
@@ -37,7 +98,7 @@ export async function extractPdfText(data, onProgress, opts = {}) {
   let textItems = 0;
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
-    const content = await page.getTextContent();
+    const content = await readTextContent(page);
     textItems += content.items.filter((it) => it.str && it.str.trim()).length;
     pages.push(itemsToLines(content.items));
     onProgress?.({ page: p, pages: doc.numPages });
