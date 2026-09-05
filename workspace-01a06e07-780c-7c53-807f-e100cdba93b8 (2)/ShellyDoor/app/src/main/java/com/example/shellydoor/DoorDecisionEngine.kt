@@ -231,7 +231,11 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
                     else -> "não · estás a %.0f m (é preciso passar dos %.0f m)".format(distanceM, rearmAt)
                 },
                 "afasta-te >%.0f m durante %ds".format(rearmAt, prefs.awayConfirmSeconds),
-                "Só arma depois de te afastares mesmo. Para testar aqui, usa \"Armar esta morada agora\"."
+                "Só arma depois de te afastares mesmo. Para testar aqui, usa \"Armar esta morada agora\". " +
+                    "Para mudar estes números: Definições › Aproximação › \"Margem de rearme (metros)\" " +
+                    "(agora %.0f) e \"Tempo longe para armar (segundos)\" (agora %d).".format(
+                        prefs.rearmMarginM, prefs.awayConfirmSeconds
+                    )
             )
         )
 

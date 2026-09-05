@@ -2,6 +2,7 @@ package com.example.shellydoor
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.location.Location
@@ -129,6 +130,47 @@ class DoorDiagnosticsActivity : AppCompatActivity() {
         root.addView(Button(this).apply {
             text = "🔄 Armar esta morada agora"
             setOnClickListener { armNow() }
+        })
+
+        // Atalhos directos para os campos que se ajustam a partir daqui.
+        // Sem isto, quem esta no local nao sabe onde mudar os 55 m / 60 s.
+        root.addView(TextView(this).apply {
+            text = "AJUSTAR OS VALORES"
+            textSize = 12f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(color(R.color.text_hint))
+            setPadding(0, dp(14), 0, dp(4))
+        })
+
+        root.addView(Button(this).apply {
+            text = "⚙️ Afastamento e tempo p/ armar (55 m · 60 s)"
+            setOnClickListener {
+                startActivity(Intent(this@DoorDiagnosticsActivity, GlobalSettingsActivity::class.java))
+            }
+        })
+        root.addView(TextView(this).apply {
+            text = "Secção \"Aproximação\": \"Margem de rearme (metros)\" e " +
+                "\"Tempo longe para armar (segundos)\"."
+            textSize = 11.5f
+            setTextColor(color(R.color.text_hint))
+            setPadding(dp(4), 0, 0, dp(6))
+        })
+
+        root.addView(Button(this).apply {
+            text = "📍 Raio de disparo desta morada"
+            setOnClickListener {
+                startActivity(
+                    Intent(this@DoorDiagnosticsActivity, DoorSettingsActivity::class.java)
+                        .putExtra(DoorSettingsActivity.EXTRA_DOOR_ID, doorId)
+                )
+            }
+        })
+        root.addView(TextView(this).apply {
+            text = "Campo \"Raio de disparo (metros)\". O afastamento para armar " +
+                "é este raio + a margem de rearme."
+            textSize = 11.5f
+            setTextColor(color(R.color.text_hint))
+            setPadding(dp(4), 0, 0, dp(6))
         })
 
         setContentView(root)
