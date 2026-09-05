@@ -10,6 +10,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.CompoundButton
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -45,6 +46,11 @@ class DoorSettingsActivity : AppCompatActivity() {
         findViewById<EditText>(R.id.etRadius).setText(door.radiusM.toString())
         findViewById<EditText>(R.id.etLat).setText(if (door.hasPoint()) door.lat.toString() else "")
         findViewById<EditText>(R.id.etLng).setText(if (door.hasPoint()) door.lng.toString() else "")
+        findViewById<EditText>(R.id.etRearmOverride)
+            .setText(if (door.rearmMarginOverrideM >= 0f) door.rearmMarginOverrideM.toString() else "")
+        findViewById<EditText>(R.id.etAwayOverride)
+            .setText(if (door.awayConfirmOverrideS >= 0) door.awayConfirmOverrideS.toString() else "")
+        updateArmSummary(door)
         findViewById<EditText>(R.id.etHomeSsid).setText(door.homeSsid)
         findViewById<CheckBox>(R.id.cbWifiKill).isChecked = door.wifiKillEnabled
         findViewById<EditText>(R.id.etMode).setText(door.controlMode)
@@ -67,6 +73,10 @@ class DoorSettingsActivity : AppCompatActivity() {
                 .coerceIn(5f, 500f)
             findViewById<EditText>(R.id.etLat).text.toString().toDoubleOrNull()?.let { d.lat = it }
             findViewById<EditText>(R.id.etLng).text.toString().toDoubleOrNull()?.let { d.lng = it }
+            d.rearmMarginOverrideM = findViewById<EditText>(R.id.etRearmOverride)
+                .text.toString().trim().toFloatOrNull()?.coerceIn(0f, 500f) ?: -1f
+            d.awayConfirmOverrideS = findViewById<EditText>(R.id.etAwayOverride)
+                .text.toString().trim().toIntOrNull()?.coerceIn(0, 3600) ?: -1
             d.homeSsid = findViewById<EditText>(R.id.etHomeSsid).text.toString()
             d.wifiKillEnabled = findViewById<CheckBox>(R.id.cbWifiKill).isChecked
             d.controlMode = findViewById<EditText>(R.id.etMode).text.toString().ifBlank { "cloud" }
@@ -140,6 +150,22 @@ class DoorSettingsActivity : AppCompatActivity() {
                 } else toast("Não consegui obter posição. Liga a localização.")
             }
             .addOnFailureListener { toast("Erro ao obter posição: ${it.message}") }
+    }
+
+    /** Mostra a conta ja feita, para nao ser preciso soma-la de cabeca. */
+    private fun updateArmSummary(door: Door) {
+        val prefs = Prefs(this)
+        val margin = if (door.rearmMarginOverrideM >= 0f) door.rearmMarginOverrideM else prefs.rearmMarginM
+        val need = if (door.awayConfirmOverrideS >= 0) door.awayConfirmOverrideS else prefs.awayConfirmSeconds
+        val origem = when {
+            door.rearmMarginOverrideM >= 0f && door.awayConfirmOverrideS >= 0 -> "valores desta morada"
+            door.rearmMarginOverrideM >= 0f -> "margem desta morada, tempo global"
+            door.awayConfirmOverrideS >= 0 -> "margem global, tempo desta morada"
+            else -> "valores globais"
+        }
+        findViewById<TextView>(R.id.tvArmSummary).text =
+            "➡ Esta morada arma a %.0f m (raio %.0f + margem %.0f), depois de %d s seguidos longe. (%s)"
+                .format(door.radiusM + margin, door.radiusM, margin, need, origem)
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

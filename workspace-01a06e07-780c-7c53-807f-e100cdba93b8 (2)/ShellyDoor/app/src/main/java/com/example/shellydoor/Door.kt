@@ -22,6 +22,12 @@ data class Door(
     var lat: Double = 0.0,
     var lng: Double = 0.0,
     var radiusM: Float = 30f,
+    /** Margem de rearme SO desta morada. -1 = usa a global.
+     *  Existe porque moradas diferentes tem geografias diferentes: numa o
+     *  carro fica a 20 m, noutra a 150 m, e um valor global nao serve as duas. */
+    var rearmMarginOverrideM: Float = -1f,
+    /** Segundos longe SO desta morada. -1 = usa o global. */
+    var awayConfirmOverrideS: Int = -1,
     var wifiKillEnabled: Boolean = true,
     var homeSsid: String = "",          // SSID(s) separados por vírgula
     var controlMode: String = "cloud",  // "local" | "cloud"
@@ -74,6 +80,8 @@ data class Door(
         put("id", id); put("name", name); put("enabled", enabled)
         put("lat", lat); put("lng", lng); put("radiusM", radiusM.toDouble())
         put("wifiKill", wifiKillEnabled); put("homeSsid", homeSsid)
+        put("rearmMarginOverrideM", rearmMarginOverrideM.toDouble())
+        put("awayConfirmOverrideS", awayConfirmOverrideS)
         put("mode", controlMode); put("ip", shellIp); put("cloudHost", cloudHost)
         put("deviceId", cloudDeviceId); put("authKey", cloudAuthKey)
         put("channel", channel); put("pulse", relayPulseSeconds)
@@ -95,6 +103,8 @@ data class Door(
             lng = o.optDouble("lng", 0.0),
             radiusM = o.optDouble("radiusM", 30.0).toFloat(),
             wifiKillEnabled = o.optBoolean("wifiKill", true),
+            rearmMarginOverrideM = o.optDouble("rearmMarginOverrideM", -1.0).toFloat(),
+            awayConfirmOverrideS = o.optInt("awayConfirmOverrideS", -1),
             homeSsid = o.optString("homeSsid", ""),
             controlMode = o.optString("mode", "cloud"),
             shellIp = o.optString("ip", "192.168.1.100"),

@@ -173,4 +173,10 @@ Por defeito: 1</string>
     <string name="desc_auth_key">Deixa em branco para usar a chave global. Preenche só se este Shelly estiver noutra conta.</string>
 
     <string name="desc_test_shelly">Aciona o relé já, sem esperar pelo GPS. Serve para confirmar que a ligação e as chaves estão certas.</string>
+    <string name="label_rearm_override">Margem de rearme desta morada (metros)</string>
+    <string name="desc_rearm_override">Só para esta morada. Deixa VAZIO para usar o valor global. Útil quando as moradas têm geografias diferentes: numa o carro fica a 20 m, noutra a 150 m.</string>
+    <string name="hint_rearm_override">vazio = usa o global</string>
+    <string name="label_away_override">Tempo longe desta morada (segundos)</string>
+    <string name="desc_away_override">Só para esta morada. Deixa VAZIO para usar o valor global.</string>
+    <string name="hint_away_override">vazio = usa o global</string>
 </resources>

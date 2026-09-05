@@ -26,6 +26,15 @@ import android.location.Location
  */
 class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChecker) {
 
+    /** Margem de rearme a usar nesta morada: a dela, se estiver definida. */
+    fun marginFor(door: Door): Float =
+        if (door.rearmMarginOverrideM >= 0f) door.rearmMarginOverrideM else prefs.rearmMarginM
+
+    /** Segundos longe a usar nesta morada: os dela, se estiverem definidos. */
+    fun awayNeedFor(door: Door): Int =
+        if (door.awayConfirmOverrideS >= 0) door.awayConfirmOverrideS else prefs.awayConfirmSeconds
+
+
     sealed class Outcome {
         /** Abrir agora. */
         data object AllowOpen : Outcome()
@@ -53,7 +62,7 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
         if (!prefs.autoEnabled) return silent(door, "Automação desligada")
 
         val radius = door.radiusM
-        val rearmAt = radius + prefs.rearmMarginM
+        val rearmAt = radius + marginFor(door)
 
         // ---------------------------------------------------------------
         // 1) LONGE: é aqui que a morada ARMA.
@@ -92,7 +101,7 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
             }
 
             val awayFor = (now - door.awaySinceAt) / 1000
-            val need = prefs.awayConfirmSeconds
+            val need = awayNeedFor(door)
             if (awayFor < need) {
                 return silent(door, "Longe (%.0f m) há ${awayFor}s de ${need}s".format(distanceM))
             }
@@ -120,7 +129,7 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
             // Nunca saíste (estás em casa / continuas por aqui). Não abre — e é
             // isto que impede a porta de abrir enquanto estás no apartamento.
             return silent(door, "Perto (%.0f m) · não armada (afasta-te >%.0f m durante %ds)"
-                .format(distanceM, rearmAt, prefs.awayConfirmSeconds))
+                .format(distanceM, rearmAt, awayNeedFor(door)))
         }
 
         // Precisão do GPS. Regra DELIBERADAMENTE permissiva: só recusamos quando
@@ -178,7 +187,7 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
         val now = System.currentTimeMillis()
         val c = ArrayList<Condition>()
         val radius = door.radiusM
-        val rearmAt = radius + prefs.rearmMarginM
+        val rearmAt = radius + marginFor(door)
 
         // 1) Automação ligada
         c.add(
@@ -242,15 +251,15 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
                 when {
                     door.armed -> "sim"
                     atHomeNow -> "não · estás no Wi-Fi de casa"
-                    door.awaySinceAt > 0L -> "não · longe há ${awayFor}s de ${prefs.awayConfirmSeconds}s"
+                    door.awaySinceAt > 0L -> "não · longe há ${awayFor}s de ${awayNeedFor(door)}s"
                     distanceM > rearmAt -> "não · a contar a partir de agora"
                     else -> "não · estás a %.0f m (é preciso passar dos %.0f m)".format(distanceM, rearmAt)
                 },
-                "afasta-te >%.0f m durante %ds".format(rearmAt, prefs.awayConfirmSeconds),
+                "afasta-te >%.0f m durante %ds".format(rearmAt, awayNeedFor(door)),
                 "Só arma depois de te afastares mesmo. Para testar aqui, usa \"Armar esta morada agora\". " +
                     "Para mudar estes números: Definições › Aproximação › \"Margem de rearme (metros)\" " +
                     "(agora %.0f) e \"Tempo longe para armar (segundos)\" (agora %d).".format(
-                        prefs.rearmMarginM, prefs.awayConfirmSeconds
+                        marginFor(door), awayNeedFor(door)
                     )
             )
         )

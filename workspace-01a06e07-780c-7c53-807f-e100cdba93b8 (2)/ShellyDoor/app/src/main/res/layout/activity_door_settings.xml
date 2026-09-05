@@ -101,6 +101,39 @@
             android:inputType="numberDecimal"
             android:hint="@string/hint_radius" />
 
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_rearm_override" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_rearm_override" />
+
+        <EditText
+            android:id="@+id/etRearmOverride"
+            style="@style/SettingsField"
+            android:inputType="numberDecimal"
+            android:hint="@string/hint_rearm_override" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_away_override" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_away_override" />
+
+        <EditText
+            android:id="@+id/etAwayOverride"
+            style="@style/SettingsField"
+            android:inputType="number"
+            android:hint="@string/hint_away_override" />
+
+        <TextView
+            android:id="@+id/tvArmSummary"
+            style="@style/SettingsCaption"
+            android:textStyle="bold" />
+
         <!-- ============ Wi-Fi de casa ============ -->
 
         <TextView
