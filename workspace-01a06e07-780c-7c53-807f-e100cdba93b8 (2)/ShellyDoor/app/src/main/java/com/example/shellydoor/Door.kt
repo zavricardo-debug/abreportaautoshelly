@@ -38,6 +38,9 @@ data class Door(
     var channel: Int = 0,
     var relayPulseSeconds: Int = 1,
     var lastHomeWifiAt: Long = 0L,  // última vez que esteve no Wi-Fi de casa desta morada
+    /** Desde quando esta LIGADO sem interrupcao ao Wi-Fi de casa. 0 = nao esta.
+     *  Distingue "estou em casa ha muito" de "acabei de chegar e o router engatou". */
+    var homeWifiSinceAt: Long = 0L,
 
     // ---- Estado de funcionamento (por morada) ----
     /** true = já te afastaste desta morada, logo a chegada pode disparar. */
@@ -86,6 +89,7 @@ data class Door(
         put("deviceId", cloudDeviceId); put("authKey", cloudAuthKey)
         put("channel", channel); put("pulse", relayPulseSeconds)
         put("lastHomeWifiAt", lastHomeWifiAt)
+        put("homeWifiSinceAt", homeWifiSinceAt)
         put("armed", armed); put("lastArmedAt", lastArmedAt)
         put("awaySinceAt", awaySinceAt)
         put("lastOpenAt", lastOpenAt); put("pauseUntil", pauseUntil)
@@ -114,6 +118,7 @@ data class Door(
             channel = o.optInt("channel", 0),
             relayPulseSeconds = o.optInt("pulse", 1),
             lastHomeWifiAt = o.optLong("lastHomeWifiAt", 0L),
+            homeWifiSinceAt = o.optLong("homeWifiSinceAt", 0L),
             armed = o.optBoolean("armed", false),
             lastArmedAt = o.optLong("lastArmedAt", 0L),
             awaySinceAt = o.optLong("awaySinceAt", 0L),

@@ -132,6 +132,26 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
                 .format(distanceM, rearmAt, awayNeedFor(door)))
         }
 
+        // Armada, dentro do raio, mas ligada ao Wi-Fi de casa há vários minutos
+        // SEM interrupção: já estás dentro de casa, não a chegar. Desarma em vez
+        // de abrir. Cobre o caso de a morada ficar armada dentro de casa quando
+        // a abertura não chegou a acontecer (Shelly em baixo, pausa, cooldown,
+        // ou entraste pela garagem sem passar pelo raio).
+        //
+        // O critério é o TEMPO, não o simples "estar ligado". Quem chega a casa
+        // engata o router momentos antes de entrar — às vezes a 20-50 m da
+        // porta — e desarmar aí seria recriar o bug original de a porta nunca
+        // abrir. Quem está em casa está ligado há muito mais do que isto.
+        val wifiSteady = wifi.homeWifiSteadySeconds(door)
+        if (wifiSteady >= HOME_WIFI_SETTLED_S) {
+            door.armed = false
+            door.awaySinceAt = 0L
+            return silent(
+                door,
+                "Já em casa (Wi-Fi há %d min) — desarmada".format(wifiSteady / 60)
+            )
+        }
+
         // Precisão do GPS. Regra DELIBERADAMENTE permissiva: só recusamos quando
         // o fix é tão mau que não diz nada (±120 m por defeito). Ser estrito aqui
         // era voltar a criar o problema original — nas ruas estreitas o telemóvel
@@ -250,7 +270,7 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
                 if (door.armed) Condition.State.OK else Condition.State.BLOCKED,
                 when {
                     door.armed -> "sim"
-                    atHomeNow -> "não · estás no Wi-Fi de casa"
+                    atHomeNow -> "não · estás em casa (Wi-Fi de casa)"
                     door.awaySinceAt > 0L -> "não · longe há ${awayFor}s de ${awayNeedFor(door)}s"
                     distanceM > rearmAt -> "não · a contar a partir de agora"
                     else -> "não · estás a %.0f m (é preciso passar dos %.0f m)".format(distanceM, rearmAt)
@@ -322,12 +342,17 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
 
         // 10) Wi-Fi (só é condição se estiver ligada a opção)
         val atHome = wifi.isAtHome(door)
+        val steady = wifi.homeWifiSteadySeconds(door)
         c.add(
             if (!prefs.wifiBlocksWhenArmed) {
                 Condition(
                     "Wi-Fi de casa",
                     Condition.State.NOT_APPLICABLE,
-                    if (atHome) "ligado — impede armar (estás em casa)" else "fora de casa",
+                    when {
+                        steady >= HOME_WIFI_SETTLED_S -> "ligado há ${steady / 60} min — estás em casa"
+                        steady >= 0L -> "ligado há ${steady}s (a chegar, não bloqueia)"
+                        else -> "fora de casa"
+                    },
                     "não bloqueia a abertura",
                     if (atHome)
                         "Enquanto estiveres no Wi-Fi de casa a morada não arma, " +
@@ -392,6 +417,9 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
     }
 
     companion object {
+        /** Ligado ao Wi-Fi de casa mais tempo do que isto = estás mesmo dentro. */
+        private const val HOME_WIFI_SETTLED_S = 180L
+
         /** Distância (metros) entre uma localização e a porta de uma morada. */
         fun distanceTo(door: Door, location: Location): Float {
             val out = FloatArray(1)

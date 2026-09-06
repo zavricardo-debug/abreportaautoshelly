@@ -68,19 +68,49 @@ class WifiHomeChecker(
 
     /** Lê o SSID atual e atualiza o "última vez em casa" das moradas que batem certo. */
     fun recordIfHome() {
-        val cur = currentSsid() ?: return
+        val cur = currentSsid()
+        val now = System.currentTimeMillis()
         var changed = false
         val doors = store.all()
         doors.forEach { d ->
-            if (d.enabled && d.wifiKillEnabled && d.matchesHome(cur)) {
-                d.lastHomeWifiAt = System.currentTimeMillis()
+            val home = cur != null && d.enabled && d.wifiKillEnabled && d.matchesHome(cur)
+            if (home) {
+                d.lastHomeWifiAt = now
+                // Só marca o inicio na PRIMEIRA leitura ligada; enquanto se
+                // mantiver ligado, o instante original preserva-se.
+                if (d.homeWifiSinceAt == 0L) d.homeWifiSinceAt = now
+                changed = true
+            } else if (d.homeWifiSinceAt != 0L) {
+                // Saiu do Wi-Fi de casa: a contagem recomeça do zero.
+                d.homeWifiSinceAt = 0L
                 changed = true
             }
         }
         if (changed) store.updateAll(doors)
     }
 
+    /** Há quantos segundos está ligado, sem interrupção, ao Wi-Fi de casa. -1 = não está. */
+    fun homeWifiSteadySeconds(door: Door): Long {
+        if (!isConnectedToHomeNow(door)) return -1L
+        if (door.homeWifiSinceAt <= 0L) return 0L
+        return (System.currentTimeMillis() - door.homeWifiSinceAt) / 1000
+    }
+
     /** true = estamos (ou estivemos mesmo agora) no Wi-Fi de casa desta morada. */
+    /**
+     * Ligado AGORA ao Wi-Fi de casa desta morada? Sem janela de graça.
+     *
+     * Diferente de [isAtHome]: aqui não vale o "esteve ligado há pouco". Serve
+     * para distinguir "estou mesmo dentro de casa" de "vou a chegar e o
+     * telemóvel ainda agora engatou o router".
+     */
+    fun isConnectedToHomeNow(door: Door): Boolean {
+        if (!door.wifiKillEnabled) return false
+        if (door.homeSsid.isBlank()) return false
+        val cur = currentSsid() ?: return false
+        return door.matchesHome(cur)
+    }
+
     fun isAtHome(door: Door): Boolean {
         if (!door.wifiKillEnabled) return false
         if (door.homeSsid.isBlank()) return false   // sem SSID configurado não bloqueia nada
