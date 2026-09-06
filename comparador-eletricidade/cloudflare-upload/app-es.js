@@ -3,6 +3,7 @@
 // user clicks "No tengo PDF (España)". All strings of this flow are in Spanish, the
 // same words the bill uses (Potencia, Energía, Bono Social, Alquiler, Impuesto, IVA).
 import { simulateES, simulateAllES, splitConsumption, cnmcLink, PERIODS_ES, PERIOD_LABELS_ES, RULES_ES_2026 } from './lib/simulator-es.js';
+import { parseConsumptionCSV, sliceCurve, applyShare, shiftToValle, CALENDAR_TEXT_ES } from './lib/consumption-es.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -13,7 +14,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const signed = (v, d = 2) => `${v < 0 ? '−' : v > 0 ? '+' : ''}${fmtEur(Math.abs(v), d)}`;
 const r2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
 
-export const ES = { dataset: null, parsed: null, form: null, baseline: null, results: [], rawText: '' };
+export const ES = { dataset: null, parsed: null, form: null, baseline: null, results: [], rawText: '', curve: null, curveUsed: null, curveFile: '' };
 let ui = { show: () => {}, hide: () => {}, showError: () => {}, hideError: () => {} };
 const rules = () => ES.dataset?.rules || RULES_ES_2026;
 
@@ -22,6 +23,7 @@ export async function initES(hooks) {
   ui = { ...ui, ...hooks };
   bindForm();
   bindFilters();
+  bindCurve();
   try {
     const res = await fetch('data/ofertas-es.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -127,9 +129,132 @@ export function fillFormES(p, rawText) {
     w.appendChild(el);
   }
   toggleSingle();
+  if (ES.curve) applyCurveToForm();
   updateDerivedES();
 }
 const r3 = (v) => Math.round((v + Number.EPSILON) * 1000) / 1000;
+
+/* ------------------------------------------------------------------ hourly consumption curve (CSV) */
+function bindCurve() {
+  const input = $('#es-curve-input'), drop = $('#es-curve-drop');
+  if (!input) return;
+  input.addEventListener('change', () => input.files[0] && handleCurveFile(input.files[0]));
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); drop.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drag'); }));
+  drop.addEventListener('drop', (e) => { const f = e.dataTransfer.files?.[0]; if (f) handleCurveFile(f); });
+  $('#btn-curve-sample').addEventListener('click', async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    try {
+      const res = await fetch('samples/consumo-horario-ejemplo.csv');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      loadCurveText(await res.text(), 'consumo-horario-ejemplo.csv');
+    } catch (err) { curveError(`No se ha podido abrir la curva de ejemplo: ${err.message}`); }
+  });
+  $('#btn-curve-clear').addEventListener('click', () => { ES.curve = null; ES.curveUsed = null; ES.curveFile = ''; ES.curveText = ''; input.value = ''; $('#es-curve-result').classList.add('hidden'); $('#es-curve-error').classList.add('hidden'); fillFormES(ES.parsed, ES.rawText); });
+  for (const id of ['#es-curve-use', '#es-curve-period', '#es-curve-ceuta']) $(id).addEventListener('change', () => { if (id === '#es-curve-ceuta' && ES.curveText) loadCurveText(ES.curveText, ES.curveFile); else { applyCurveToForm(); updateDerivedES(); } });
+}
+function curveError(msg) { const el = $('#es-curve-error'); el.textContent = msg; el.classList.remove('hidden'); }
+
+async function handleCurveFile(file) {
+  $('#es-curve-error').classList.add('hidden');
+  if (/\.xlsx?$/i.test(file.name)) return curveError('Los ficheros Excel no se pueden leer directamente: ábralo y guárdelo como CSV (separado por punto y coma) o descargue la versión CSV desde Datadis / su distribuidora.');
+  if (file.size > 30 * 1024 * 1024) return curveError('El fichero es demasiado grande (máx. 30 MB).');
+  const buf = await file.arrayBuffer();
+  let text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+  if (/\uFFFD/.test(text)) text = new TextDecoder('windows-1252').decode(buf); // exports from Windows tools
+  loadCurveText(text, file.name);
+}
+
+/** Parse the CSV text, classify hours and apply to the form. Exposed for tests via window.__test_curve. */
+export function loadCurveText(text, fileName = 'consumos.csv') {
+  try {
+    const curve = parseConsumptionCSV(text, { ceutaMelilla: $('#es-curve-ceuta').checked });
+    ES.curve = curve; ES.curveText = text; ES.curveFile = fileName;
+    $('#es-curve-error').classList.add('hidden');
+    $('#es-curve-use').checked = true; // a freshly loaded curve is meant to be used
+    applyCurveToForm();
+    renderCurve();
+    updateDerivedES();
+    return curve;
+  } catch (e) {
+    ES.curve = null; ES.curveUsed = null;
+    $('#es-curve-result').classList.add('hidden');
+    curveError(`No se ha podido leer "${fileName}": ${e.message}`);
+    return null;
+  }
+}
+
+/** Curve restricted to the billing period when requested and available. */
+function curveForBill() {
+  if (!ES.curve) return null;
+  const p = ES.parsed;
+  const wantPeriod = $('#es-curve-period').checked;
+  if (wantPeriod && p?.period?.start && p?.period?.end) {
+    const sl = sliceCurve(ES.curve, p.period.start, p.period.end, { endExclusive: true, ceutaMelilla: $('#es-curve-ceuta').checked });
+    if (sl && sl.days >= 7) return { curve: sl, scope: 'period' };
+  }
+  return { curve: ES.curve, scope: 'all' };
+}
+
+/** Put the real punta/llano/valle kWh (scaled to the kWh of the bill) into the consumption inputs. */
+function applyCurveToForm() {
+  const sel = curveForBill();
+  ES.curveUsed = sel;
+  if (!sel || !$('#es-curve-use').checked) {
+    if (ES.parsed) { // back to the bill's own split
+      const p = ES.parsed; const total = p.energy?.kwh || 0;
+      if (p.energy?.single !== false) { const split = splitConsumption(total, p.energy?.readings, rules().defaultSplit); for (const k of PERIODS_ES) setVal(`#es-kwh-${k}`, r3(split[k]), true); }
+    }
+    return;
+  }
+  const { curve, scope } = sel;
+  const billKwh = ES.parsed?.energy?.kwh || null;
+  // if the curve covers exactly the bill period use its kWh; otherwise keep the bill's kWh and apply the real shares
+  const useCurveKwh = scope === 'period' && billKwh && Math.abs(curve.totalKwh - billKwh) / billKwh < 0.03;
+  const kwh = useCurveKwh || !billKwh ? curve.byPeriod : applyShare(billKwh, curve.share);
+  for (const k of PERIODS_ES) setVal(`#es-kwh-${k}`, r3(kwh[k]), true);
+  const src = scope === 'period' ? `las ${curve.hours.length} horas de la curva dentro del periodo de la factura (${fmtDate(curve.start)} → ${fmtDate(curve.end)})` : `la curva completa (${curve.days} días, ${fmtDate(curve.start)} → ${fmtDate(curve.end)})`;
+  $('#es-split-hint').textContent = `Reparto REAL según ${src}: punta ${fmtNum(100 * curve.share.punta, 1)} % · llano ${fmtNum(100 * curve.share.llano, 1)} % · valle ${fmtNum(100 * curve.share.valle, 1)} %` +
+    (billKwh && !useCurveKwh ? ` aplicado a los ${fmtNum(billKwh, 3)} kWh facturados.` : useCurveKwh ? ` (${fmtNum(curve.totalKwh, 3)} kWh, coincide con la factura).` : '.') +
+    ` ${CALENDAR_TEXT_ES}`;
+}
+
+/** Summary cards + two bar charts (average weekday / weekend profile coloured by period). */
+function renderCurve() {
+  const c = ES.curve; if (!c) return;
+  const sel = curveForBill(); const cu = sel?.curve || c;
+  $('#es-curve-result').classList.remove('hidden');
+  const g = $('#es-curve-summary'); g.innerHTML = '';
+  const bar = `<div class="period-bar" title="punta / llano / valle"><span class="punta" style="width:${(100 * cu.share.punta).toFixed(1)}%"></span><span class="llano" style="width:${(100 * cu.share.llano).toFixed(1)}%"></span><span class="valle" style="width:${(100 * cu.share.valle).toFixed(1)}%"></span></div>`;
+  g.appendChild(sumCard('Fichero', esc(ES.curveFile), `${esc(c.format)}${c.cups ? ' · ' + esc(c.cups) : ''} · ${c.days} días (${fmtDate(c.start)} → ${fmtDate(c.end)})`, ''));
+  g.appendChild(sumCard(sel?.scope === 'period' ? 'Consumo en el periodo de la factura' : 'Consumo de la curva', `${fmtNum(cu.totalKwh, 1)} kWh`, `${fmtNum(cu.totalKwh / Math.max(1, cu.days), 2)} kWh/día · ${cu.days} días${cu.estimatedShare ? ` · ${Math.round(cu.estimatedShare * 100)} % estimado` : ''}`, ''));
+  g.appendChild(sumCard('Reparto real por periodos', `${fmtNum(100 * cu.share.punta, 0)} / ${fmtNum(100 * cu.share.llano, 0)} / ${fmtNum(100 * cu.share.valle, 0)} %`, `punta ${fmtNum(cu.byPeriod.punta, 1)} · llano ${fmtNum(cu.byPeriod.llano, 1)} · valle ${fmtNum(cu.byPeriod.valle, 1)} kWh${bar}`, ''));
+  const billSplit = ES.parsed?.energy?.readings || null;
+  const R = rules();
+  const ref = billSplit ? splitConsumption(1, billSplit, R.defaultSplit) : R.defaultSplit;
+  const refLabel = billSplit ? 'según las lecturas de la factura' : 'perfil estimado por defecto';
+  g.appendChild(sumCard('Comparado con la factura', `${fmtNum(100 * ref.punta, 0)} / ${fmtNum(100 * ref.llano, 0)} / ${fmtNum(100 * ref.valle, 0)} %`, `${refLabel} · la curva ${cu.share.valle > ref.valle + 0.02 ? 'tiene MÁS consumo en valle: las tarifas con discriminación horaria le convienen más de lo que indicaba la factura' : cu.share.valle < ref.valle - 0.02 ? 'tiene MENOS consumo en valle: cuidado con las tarifas con discriminación horaria' : 'confirma el reparto de la factura'}`, cu.share.valle > ref.valle + 0.02 ? 'good' : cu.share.valle < ref.valle - 0.02 ? 'bad' : ''));
+  if (c.warnings.length) { const w = document.createElement('div'); w.className = 'alert warn'; w.style.gridColumn = '1/-1'; w.innerHTML = `<ul>${c.warnings.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`; g.appendChild(w); }
+  drawProfile($('#es-curve-weekday'), cu.profile.weekday, false);
+  drawProfile($('#es-curve-weekend'), cu.profile.weekend, true);
+}
+
+function drawProfile(svg, values, weekend) {
+  const W = 720, H = 200, padL = 34, padB = 22, padT = 8;
+  const max = Math.max(0.1, ...values);
+  const bw = (W - padL - 6) / 24;
+  const ceuta = $('#es-curve-ceuta').checked;
+  const per = (h) => weekend ? 'valle' : h < 8 ? 'valle' : ceuta ? (((h >= 11 && h < 15) || (h >= 19 && h < 23)) ? 'punta' : 'llano') : (((h >= 10 && h < 14) || (h >= 18 && h < 22)) ? 'punta' : 'llano');
+  const yOf = (v) => padT + (H - padB - padT) * (1 - v / max);
+  let out = '';
+  for (const t of [0.25, 0.5, 0.75, 1]) { const y = yOf(max * t); out += `<line class="grid" x1="${padL}" x2="${W}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"/><text x="2" y="${(y + 4).toFixed(1)}">${fmtNum(max * t, 2)}</text>`; }
+  values.forEach((v, h) => {
+    const x = padL + h * bw, y = yOf(v);
+    out += `<rect class="${per(h)}" x="${(x + 1).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${(H - padB - y).toFixed(1)}" rx="2"><title>${String(h).padStart(2, '0')}:00–${String(h + 1).padStart(2, '0')}:00 · ${fmtNum(v, 3)} kWh · ${per(h)}</title></rect>`;
+    if (h % 2 === 0) out += `<text x="${(x + bw / 2 - 6).toFixed(1)}" y="${H - 6}">${String(h).padStart(2, '0')}</text>`;
+  });
+  svg.innerHTML = out;
+}
 
 function bindForm() {
   const f = $('#values-form-es');
@@ -167,6 +292,7 @@ export function readFormES() {
     rentPerDay: num('#es-rent') ?? rules().meterRentPerDay,
     ieRate: (num('#es-ie') ?? rules().ieRate * 100) / 100,
     ivaRate: (num('#es-iva') ?? rules().iva * 100) / 100,
+    curve: ES.curveUsed && $('#es-curve-use').checked ? { file: ES.curveFile, scope: ES.curveUsed.scope, share: ES.curveUsed.curve.share, days: ES.curveUsed.curve.days } : null,
     otherAmount: num('#es-other') || 0,
     servicesAmount: num('#es-services') || 0,
     invoiceTotal: num('#es-total'),
@@ -262,7 +388,11 @@ function runComparisonES() {
 function computeResults() {
   const f = ES.form;
   const includePromo = $('#es-flt-promo').checked;
-  ES.results = simulateAllES(ES.dataset, profileOf(f), { includePromo, currentSupplierCode: f.supplierCode });
+  const shift = +($('#es-flt-shift')?.value || 0);
+  const profile = profileOf(f);
+  if (shift > 0) profile.kwh = shiftToValle(f.kwh, shift);
+  ES.shift = shift;
+  ES.results = simulateAllES(ES.dataset, profile, { includePromo, currentSupplierCode: f.supplierCode });
   // welcome discounts are for new customers: an existing customer of that supplier gets the post-promo price
   for (const r of ES.results) {
     if (r.isCurrentSupplier && r.simAfter && includePromo) { r.sim = r.simAfter; r.promoDenied = true; }
@@ -272,7 +402,7 @@ function computeResults() {
 function bindFilters() {
   $$('#step-results-es .filters input, #step-results-es .filters select').forEach((el) => el.addEventListener('change', () => {
     if (!ES.form) return;
-    if (el.id === 'es-flt-promo') computeResults();
+    if (el.id === 'es-flt-promo' || el.id === 'es-flt-shift') computeResults();
     renderResultsES();
   }));
 }
@@ -303,7 +433,9 @@ function renderResultsES() {
   const f = ES.form, base = ES.baseline;
   const rows = filteredResultsES();
   const totalKwh = base.totalKwh;
-  $('#es-results-sub').textContent = `Perfil: ${fmtNum(f.power.p1, 2)} kW punta / ${fmtNum(f.power.p2, 2)} kW valle · ${fmtNum(totalKwh, 0)} kWh en ${f.days} días (punta ${fmtNum(f.kwh.punta, 0)} · llano ${fmtNum(f.kwh.llano, 0)} · valle ${fmtNum(f.kwh.valle, 0)}) · ${ES.results.length} tarifas aplicables.`;
+  const shifted = ES.shift ? shiftToValle(f.kwh, ES.shift) : null;
+  $('#es-results-sub').textContent = `Perfil: ${fmtNum(f.power.p1, 2)} kW punta / ${fmtNum(f.power.p2, 2)} kW valle · ${fmtNum(totalKwh, 0)} kWh en ${f.days} días (punta ${fmtNum(f.kwh.punta, 0)} · llano ${fmtNum(f.kwh.llano, 0)} · valle ${fmtNum(f.kwh.valle, 0)}${f.curve ? ' – reparto REAL de su curva horaria' : ' – reparto estimado'})` +
+    (shifted ? ` · simulando trasladar el ${Math.round(ES.shift * 100)} % de punta y llano a valle (punta ${fmtNum(shifted.punta, 0)} · llano ${fmtNum(shifted.llano, 0)} · valle ${fmtNum(shifted.valle, 0)} kWh)` : '') + ` · ${ES.results.length} tarifas aplicables.`;
   $('#es-th-days').textContent = `${f.days} días, con impuestos`;
 
   const best = rows[0];
@@ -324,6 +456,33 @@ function renderResultsES() {
     tb.appendChild(rowEl({ rank: i + 1, name: `${x.offer.supplier} · ${x.offer.name}`, sub: priceSub(x), badges: badges(x), sim: x.sim, base, cls: (i === 0 ? 'best ' : '') + (x.isCurrentSupplier ? 'current-supplier-es' : ''), onDetail: () => openDetailES(x) }));
   });
   $('#es-results-count').textContent = `${rows.length} tarifas mostradas (de ${ES.results.length} aplicables a su perfil; ${ES.dataset.meta.offers} en la lista, actualizada el ${fmtDate(ES.dataset.meta.publishedAt)}).`;
+  renderPeriodTable(rows);
+}
+
+/** Energy cost per 2.0TD period for every shown tariff (kWh of each period × its price) – the "horas valle / punta" view. */
+function renderPeriodTable(rows) {
+  const box = $('#es-period-box'); if (!box) return;
+  const f = ES.form, base = ES.baseline;
+  box.classList.remove('hidden');
+  const kwh = ES.shift ? shiftToValle(f.kwh, ES.shift) : f.kwh;
+  const total = PERIODS_ES.reduce((a, k) => a + kwh[k], 0) || 1;
+  for (const k of PERIODS_ES) $(`#es-pt-${k}`).textContent = `${fmtNum(kwh[k], 0)} kWh · ${fmtNum(100 * kwh[k] / total, 0)} %`;
+  $('#es-period-sub').textContent = (f.curve ? `Reparto real de su curva horaria (${f.curve.scope === 'period' ? 'periodo de la factura' : f.curve.days + ' días'})` : 'Reparto estimado de la factura') +
+    (ES.shift ? ` con el ${Math.round(ES.shift * 100)} % de punta y llano trasladado a valle` : '') + ' · precios sin impuestos · las tarifas de precio único cobran lo mismo en todas las horas.';
+  const tb = $('#es-period-table tbody'); tb.innerHTML = '';
+  const priceOf = (pr, k) => pr.energy.punta != null ? pr.energy[k] : pr.energy.single;
+  const rowHtml = (rank, name, prices, cls, baseEnergy) => {
+    const amounts = PERIODS_ES.map((k) => kwh[k] * (priceOf(prices, k) || 0));
+    const sum = amounts.reduce((x, y) => x + y, 0);
+    return `<tr class="${cls}"><td class="rank">${rank}</td><td><div class="offer-name">${esc(name)}</div></td>` +
+      PERIODS_ES.map((k, i) => `<td class="num">${fmtEur(amounts[i])}<span class="p-price">${fmtNum(priceOf(prices, k) || 0, 4)} €/kWh</span></td>`).join('') +
+      `<td class="num"><b>${fmtEur(sum)}</b></td><td class="num">${fmtNum(sum / total, 4)}</td>` +
+      (baseEnergy === null ? '<td class="num">—</td>' : `<td class="num diff ${sum - baseEnergy < -0.005 ? 'good' : sum - baseEnergy > 0.005 ? 'bad' : ''}">${signed(r2(sum - baseEnergy))}</td>`) + '</tr>';
+  };
+  const basePrices = basePricesOf(f);
+  const baseEnergy = PERIODS_ES.reduce((a, k) => a + kwh[k] * (priceOf(basePrices, k) || 0), 0);
+  tb.insertAdjacentHTML('beforeend', rowHtml('', 'Su factura actual (precios de su tarifa)', basePrices, 'baseline', null));
+  rows.forEach((x, i) => tb.insertAdjacentHTML('beforeend', rowHtml(i + 1, `${x.offer.supplier} · ${x.offer.name}`, x.prices, (i === 0 ? 'best ' : '') + (x.isCurrentSupplier ? 'current-supplier-es' : ''), baseEnergy)));
 }
 
 function supplierName(code) { return ES.dataset.suppliers.find((s) => s.code === code)?.name || (code === 'PVPC' ? 'PVPC' : 'precios leídos de la factura'); }
@@ -343,6 +502,7 @@ function badges(x) {
   if (o.onlineOnly) b.push(['', 'contratación online']);
   if (o.priceFixedMonths) b.push(['fid', `precio fijo ${o.priceFixedMonths} meses`]);
   if (o.renewable) b.push(['green', '100 % renovable']);
+  if (ES.form?.curve && o.energy?.punta != null) b.push(['curve', 'energía con su consumo real por horas']);
   if (o.maxKwhYear) b.push(['', `hasta ${fmtNum(o.maxKwhYear, 0)} kWh/año`]);
   if (o.maxPower && o.maxPower < 15) b.push(['', `hasta ${o.maxPower} kW`]);
   return b;

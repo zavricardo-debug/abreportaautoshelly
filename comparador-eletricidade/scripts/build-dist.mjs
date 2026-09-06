@@ -27,6 +27,7 @@ const required = [
   ['public/data/ofertas.json', 'npm run data:build'],
   ['public/data/ofertas-es.json', 'git checkout public/data/ofertas-es.json'],
   ['public/samples/factura-ejemplo-endesa-es.pdf', 'npm run samples'],
+  ['public/samples/consumo-horario-ejemplo.csv', 'npm run samples:curve'],
 ];
 for (const [f, fix] of required) {
   if (!existsSync(resolve(ROOT, f))) { console.error(`missing ${f} – run "${fix}" first`); process.exit(1); }
@@ -63,8 +64,10 @@ writeFileSync(resolve(DIST, '_headers'), `# Cloudflare Pages headers (https://de
 /data/*
   Cache-Control: public, max-age=3600, must-revalidate
 
-/samples/*
+/samples/*.pdf
   Content-Type: application/pdf
+/samples/*.csv
+  Content-Type: text/csv; charset=utf-8
 `);
 
 writeFileSync(resolve(DIST, '_redirects'), `# Cloudflare Pages redirects (https://developers.cloudflare.com/pages/configuration/redirects/)

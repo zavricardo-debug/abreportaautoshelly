@@ -2,13 +2,13 @@ import { extractPdfText } from './lib/pdf-text.js';
 import { parseInvoiceText } from './lib/parser.js';
 import { parseInvoiceTextES, detectCountry } from './lib/parser-es.js';
 import { simulate, simulateAll, baselinePrices, nearestStandardPower, STANDARD_POWERS, PERIOD_KEYS, PERIOD_LABELS, RULES_2026 } from './lib/simulator.js';
-import { initES, fillFormES, showManualES } from './app-es.js';
+import { initES, fillFormES, showManualES, loadCurveText } from './app-es.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
-export const APP_VERSION = '1.3.1'; // shown in the footer + error messages (helps spot stale caches)
+export const APP_VERSION = '1.4.0'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
   country: 'PT',    // 'PT' (ERSE flow) or 'ES' (2.0TD flow, app-es.js)
@@ -120,6 +120,16 @@ function setCountry(country) {
 
 async function handleFile(file, password) {
   hideError();
+  if (/\.(csv|txt)$/i.test(file.name) || /text\/csv/.test(file.type)) {
+    // a consumption curve (CSV) dropped on the invoice dropzone: route it to the Spanish hourly-consumption reader
+    if (state.country !== 'ES') { setCountry('ES'); showManualES(); }
+    const buf = await file.arrayBuffer();
+    let text = new TextDecoder('utf-8').decode(buf);
+    if (/\uFFFD/.test(text)) text = new TextDecoder('windows-1252').decode(buf);
+    loadCurveText(text, file.name);
+    $('#es-curve-box').scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
   const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
   if (!isPdf) return showError(`"${file.name}" não parece ser um PDF (tipo: ${file.type || 'desconhecido'}). Escolha o PDF da fatura – imagens (JPG/PNG) e capturas de ecrã não são suportadas.`);
   if (file.size === 0) return showError('O ficheiro está vazio (0 bytes). Volte a descarregar a fatura do site do seu comercializador.');
@@ -192,6 +202,7 @@ async function handleFile(file, password) {
 // Hooks used by the automated UI test (test/app.test.mjs) to inject a parsed invoice / raw text without pdf.js.
 if (typeof window !== 'undefined') {
   window.__test_fill = (parsed) => { state.parsed = parsed; setCountry('PT'); fillForm(parsed); show('#step-values'); };
+  window.__test_curve = (csvText, name) => loadCurveText(csvText, name || 'consumos.csv');
   window.__test_text = (text) => {
     const { country } = detectCountry(text);
     if (country === 'ES') { const p = parseInvoiceTextES(text); state.parsed = p; setCountry('ES'); fillFormES(p, text); show('#step-values-es'); return p; }
@@ -347,8 +358,9 @@ function runComparison() {
 }
 
 function bindFilters() {
-  $$('.filters input, .filters select').forEach((el) => el.addEventListener('change', () => {
-    if (el.id === 'flt-newclient' && state.form) {
+  $$('#step-results .filters input, #step-results .filters select').forEach((el) => el.addEventListener('change', () => {
+    if (!state.form) return; // PT comparison not run yet
+    if (el.id === 'flt-newclient') {
       const f = state.form;
       const profile = { power: f.power, option: f.option, days: f.days, kwh: f.kwh, largeFamily: f.largeFamily, socialTariff: f.socialTariff };
       state.results = simulateAll(state.dataset, profile, { currentSupplierCode: f.supplierCode, includeNewClientDiscount: el.checked });

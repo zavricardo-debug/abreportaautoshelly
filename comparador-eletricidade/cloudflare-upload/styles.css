@@ -189,3 +189,33 @@ table.invoice.compact td.diff.good { color: var(--good, #15803d); }
 table.invoice.compact td.diff.bad { color: var(--bad, #b91c1c); }
 table.invoice.compact td.diff.zero { color: var(--muted, #6b7280); }
 #values-form-es .actions { display: flex; justify-content: flex-end; margin-top: .75rem; }
+
+/* ES – hourly consumption curve */
+.curve-box { grid-column: 1 / -1; border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; background: #fbfcfe; }
+.curve-head { display: grid; grid-template-columns: 1fr minmax(220px, 300px); gap: 14px; align-items: stretch; }
+@media (max-width: 760px) { .curve-head { grid-template-columns: 1fr; } }
+.curve-head p { margin: 4px 0 0; }
+.dropzone.mini { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 14px; min-height: 0; font-size: .9rem; text-align: center; }
+.curve-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
+.curve-summary .sum { padding: 10px 12px; }
+.curve-summary .sum .v { font-size: 1.15rem; }
+.curve-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.chart-wrap { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 4px; background: #fff; }
+.chart-title { font-size: .8rem; color: var(--muted); margin-bottom: 4px; }
+.chart-wrap svg { width: 100%; height: 170px; display: block; }
+.chart-wrap svg rect.punta { fill: #dc2626; } .chart-wrap svg rect.llano { fill: #f59e0b; } .chart-wrap svg rect.valle { fill: #16a34a; }
+.chart-wrap svg rect:hover { opacity: .75; }
+.chart-wrap svg text { font-size: 11px; fill: #64748b; }
+.chart-wrap svg line.grid { stroke: #e2e8f0; stroke-width: 1; }
+.curve-legend { font-size: .8rem; color: var(--muted); margin: 8px 0 4px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.curve-legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.curve-legend .sw.punta { background: #dc2626; } .curve-legend .sw.llano { background: #f59e0b; } .curve-legend .sw.valle { background: #16a34a; }
+.curve-actions { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-top: 8px; font-size: .9rem; }
+.curve-actions .btn { margin-left: auto; }
+.period-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; margin-top: 6px; }
+.period-bar span { display: block; height: 100%; }
+.period-bar .punta { background: #dc2626; } .period-bar .llano { background: #f59e0b; } .period-bar .valle { background: #16a34a; }
+.badge.curve { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+
+.sub-h { margin: 22px 0 4px; font-size: 1.05rem; }
+table.results.periods td .p-price { display: block; font-size: .72rem; color: var(--muted); }

@@ -29,6 +29,7 @@ const MIME = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.pdf': 'application/pdf',
+  '.csv': 'text/csv; charset=utf-8',
   '.woff2': 'font/woff2',
   '.map': 'application/json',
   '.txt': 'text/plain; charset=utf-8',

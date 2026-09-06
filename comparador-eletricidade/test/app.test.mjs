@@ -23,7 +23,7 @@ async function boot() {
   globalThis.fetch = async (url) => {
     const file = resolve(PUBLIC, String(url));
     if (!existsSync(file)) return { ok: false, status: 404 };
-    return { ok: true, status: 200, json: async () => JSON.parse(readFileSync(file, 'utf8')), blob: async () => new Blob([readFileSync(file)]) };
+    return { ok: true, status: 200, json: async () => JSON.parse(readFileSync(file, 'utf8')), text: async () => readFileSync(file, 'utf8'), blob: async () => new Blob([readFileSync(file)]) };
   };
   // expose globals for the app module
   for (const k of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'File', 'Blob', 'Intl', 'CustomEvent', 'Event']) {
@@ -268,4 +268,73 @@ test('Spanish manual mode: defaults, 3-period prices and reconstruction check', 
   d.querySelector('#btn-manual').click();
   assert.ok(d.querySelector('#step-values-es').classList.contains('hidden'));
   assert.ok(!d.querySelector('#step-values').classList.contains('hidden'));
+});
+
+test('Spanish flow with an hourly consumption CSV: real punta/llano/valle split drives the comparison', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  window.__test_text(readFileSync(resolve(__dirname, 'fixtures/endesa-es-2026.txt'), 'utf8'));
+  const v = (sel) => d.querySelector(sel).value;
+  // bill split (from the meter readings 97/60/119)
+  assert.ok(Math.abs(+v('#es-kwh-punta') - 97.43) < 0.01);
+
+  // a Datadis-format curve for the billing period: everything in valle except 2 kWh/day in punta
+  let csv = 'CUPS;Fecha;Hora;Consumo_kWh;Metodo_obtencion\n';
+  const start = new Date(2026, 6, 19);
+  for (let i = 0; i < 31; i++) {
+    const dt = new Date(2026, 6, 19 + i);
+    const dd = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/2026`;
+    for (let h = 1; h <= 24; h++) csv += `ES0031;${dd};${h};${h <= 8 ? '0,900' : (h === 12 || h === 20) && dt.getDay() % 6 !== 0 ? '1,000' : '0,050'};R\n`;
+  }
+  const curve = window.__test_curve(csv, 'consumos.csv');
+  assert.ok(curve, 'curve parsed');
+  assert.equal(curve.days, 31);
+  assert.equal(curve.format, 'Datadis / CNMC');
+  assert.ok(!d.querySelector('#es-curve-result').classList.contains('hidden'));
+  assert.ok(d.querySelector('#es-curve-error').classList.contains('hidden'));
+  assert.equal(d.querySelectorAll('#es-curve-weekday rect').length, 24);
+  assert.equal(d.querySelectorAll('#es-curve-weekday rect.punta').length, 8);
+  assert.equal(d.querySelectorAll('#es-curve-weekend rect.valle').length, 24);
+  assert.match(d.querySelector('#es-curve-summary').textContent, /31 días/);
+  assert.match(d.querySelector('#es-split-hint').textContent, /Reparto REAL/);
+  // real shares applied to the billed 277,224 kWh (the curve total differs from the bill)
+  const kwh = ['punta', 'llano', 'valle'].map((k) => +v(`#es-kwh-${k}`));
+  assert.ok(Math.abs(kwh[0] + kwh[1] + kwh[2] - 277.224) < 0.01, `sum ${kwh}`);
+  assert.ok(Math.abs(kwh[2] / 277.224 - curve.share.valle) < 1e-3, 'valle share from the curve');
+  assert.ok(curve.share.valle > 0.7, `mostly valle: ${curve.share.valle}`);
+  // the bill itself is still reconstructed exactly (single price: the split does not change the energy amount)
+  assert.match(d.querySelector('#es-check').textContent, /89,84/);
+
+  d.querySelector('#values-form-es').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.match(d.querySelector('#es-results-sub').textContent, /reparto REAL de su curva horaria/);
+  const rows = [...d.querySelectorAll('#es-results-table tbody tr')];
+  assert.ok(rows.length > 10);
+  // with 70 %+ of the consumption in valle a 3-period tariff must win and the row is flagged
+  assert.match(rows[1].querySelector('.offer-name').textContent, /3 Periodos|Noche|Programa|Octopus 3/);
+  assert.ok([...rows[1].querySelectorAll('.badge')].some((b) => /consumo real por horas/.test(b.textContent)));
+  // per-period energy table
+  const pt = d.querySelector('#es-period-table');
+  assert.ok(!d.querySelector('#es-period-box').classList.contains('hidden'));
+  assert.match(d.querySelector('#es-pt-valle').textContent, /kWh · \d+ %/);
+  const ptRows = [...pt.querySelectorAll('tbody tr')];
+  assert.ok(ptRows.length === rows.length, 'one row per shown tariff + baseline');
+  assert.match(ptRows[0].textContent, /Su factura actual/);
+  assert.match(ptRows[0].textContent, /46,37/);
+  // what-if: shift 25 % of punta+llano to valle -> cheaper 3-period totals
+  const before = Number(rows[1].children[7].textContent.replace(/[^\d,]/g, '').replace(',', '.'));
+  const sh = d.querySelector('#es-flt-shift'); sh.value = '0.25'; sh.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.match(d.querySelector('#es-results-sub').textContent, /trasladar el 25 %/);
+  const after = Number(d.querySelectorAll('#es-results-table tbody tr')[1].children[7].textContent.replace(/[^\d,]/g, '').replace(',', '.'));
+  assert.ok(after < before, `shift lowers the best total: ${after} < ${before}`);
+  // baseline row unchanged (the bill is what it is)
+  assert.match(d.querySelectorAll('#es-results-table tbody tr')[0].children[7].textContent, /89,84/);
+
+  // switch the curve off -> back to the bill's own split
+  const use = d.querySelector('#es-curve-use'); use.checked = false; use.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.ok(Math.abs(+v('#es-kwh-punta') - 97.43) < 0.01);
+  // unreadable file -> error, curve dropped
+  assert.equal(window.__test_curve('Nombre;Apellido\nAna;García', 'malo.csv'), null);
+  assert.ok(!d.querySelector('#es-curve-error').classList.contains('hidden'));
+  assert.match(d.querySelector('#es-curve-error').textContent, /malo\.csv/);
 });

@@ -23,5 +23,7 @@
 /data/*
   Cache-Control: public, max-age=3600, must-revalidate
 
-/samples/*
+/samples/*.pdf
   Content-Type: application/pdf
+/samples/*.csv
+  Content-Type: text/csv; charset=utf-8

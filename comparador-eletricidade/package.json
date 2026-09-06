@@ -14,7 +14,8 @@
     "pdf:text": "node scripts/pdf-to-text.mjs",
     "test": "node --test test/*.test.mjs",
     "data:cnmc": "node scripts/update-cnmc.mjs",
-    "data:check-es": "node --input-type=module -e \"import('./public/lib/simulator-es.js').then(async(m)=>{const ds=JSON.parse((await import('node:fs')).readFileSync('public/data/ofertas-es.json','utf8'));const p={days:31,power:{p1:4.6,p2:4.6},kwh:m.splitConsumption(277.224,{punta:97,llano:60,valle:119})};for(const r of m.simulateAllES(ds,p))console.log(r.sim.total.toFixed(2).padStart(7),r.offer.supplier,'–',r.offer.name)})\""
+    "data:check-es": "node --input-type=module -e \"import('./public/lib/simulator-es.js').then(async(m)=>{const ds=JSON.parse((await import('node:fs')).readFileSync('public/data/ofertas-es.json','utf8'));const p={days:31,power:{p1:4.6,p2:4.6},kwh:m.splitConsumption(277.224,{punta:97,llano:60,valle:119})};for(const r of m.simulateAllES(ds,p))console.log(r.sim.total.toFixed(2).padStart(7),r.offer.supplier,'–',r.offer.name)})\"",
+    "samples:curve": "node scripts/make-sample-curve.mjs"
   },
   "engines": {
     "node": ">=20"

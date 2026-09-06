@@ -36,7 +36,7 @@
       <div>
         <h1>Carregue a sua fatura de eletricidade (PDF)</h1>
         <p class="muted"><b>Portugal:</b> lemos o <b>Termo de Energia</b>, <b>Termo de Potência</b>, <b>Termo Fixo Acesso às Redes</b>, <b>Contribuição Audiovisual</b>, <b>Taxa DGEG</b> e <b>IEC</b> (Endesa, EDP, Iberdrola, Galp, Goldenergy, Repsol, SU Eletricidade…).<br>
-        <b>España:</b> leemos la <b>Potencia P1/P3</b> (kW × €/kW × días), el <b>Consumo</b> (kWh × €/kWh), la <b>Financiación del Bono Social</b>, el <b>Alquiler del contador</b>, el <b>Impuesto de electricidad</b>, el <b>IVA</b> y el <b>TOTAL</b> (Endesa, Iberdrola, Naturgy, Repsol, TotalEnergies, Octopus…). El país se detecta automáticamente.</p>
+        <b>España:</b> leemos la <b>Potencia P1/P3</b> (kW × €/kW × días), el <b>Consumo</b> (kWh × €/kWh), la <b>Financiación del Bono Social</b>, el <b>Alquiler del contador</b>, el <b>Impuesto de electricidad</b>, el <b>IVA</b> y el <b>TOTAL</b> (Endesa, Iberdrola, Naturgy, Repsol, TotalEnergies, Octopus…). El país se detecta automáticamente. Opcionalmente puede añadir el <b>CSV de consumo horario</b> (Datadis / distribuidora) para comparar las tarifas con discriminación horaria con su consumo real de cada hora.</p>
       </div>
     </div>
 
@@ -276,6 +276,38 @@
           </label>
         </div>
         <p class="hint" id="es-split-hint"></p>
+
+        <div class="curve-box" id="es-curve-box">
+          <div class="curve-head">
+            <div>
+              <b>Consumo real hora a hora (opcional, recomendado)</b>
+              <p class="muted small">Su factura sólo indica el total (o una estimación por periodos). Adjunte el fichero CSV de <b>consumo horario</b> que descarga gratis de
+                <a href="https://datadis.es" target="_blank" rel="noopener">Datadis</a>, de su distribuidora (<a href="https://www.edistribucion.com" target="_blank" rel="noopener">e-distribución</a>, <a href="https://www.i-de.es" target="_blank" rel="noopener">i-DE</a>, UFD, Viesgo…) o de la app de su comercializadora,
+                y clasificamos cada hora en <b>punta / llano / valle</b> según el calendario 2.0TD para comparar las tarifas con discriminación horaria con su consumo real.</p>
+            </div>
+            <label class="dropzone mini" id="es-curve-drop" for="es-curve-input">
+              <input type="file" id="es-curve-input" accept=".csv,text/csv,text/plain,.txt,.xls,.xlsx" hidden>
+              <span>📈 Arrastre el CSV aquí o pulse para elegir</span>
+              <button type="button" class="btn ghost small" id="btn-curve-sample">Probar con una curva de ejemplo</button>
+            </label>
+          </div>
+          <div class="alert error hidden" id="es-curve-error"></div>
+          <div id="es-curve-result" class="hidden">
+            <div class="curve-summary" id="es-curve-summary"></div>
+            <div class="curve-charts">
+              <div class="chart-wrap"><div class="chart-title">Perfil medio de un día laborable (kWh por hora)</div><svg id="es-curve-weekday" viewBox="0 0 720 200" preserveAspectRatio="none" role="img" aria-label="Consumo medio por hora en días laborables"></svg></div>
+              <div class="chart-wrap"><div class="chart-title">Perfil medio de sábados, domingos y festivos (todo valle)</div><svg id="es-curve-weekend" viewBox="0 0 720 200" preserveAspectRatio="none" role="img" aria-label="Consumo medio por hora en fines de semana"></svg></div>
+            </div>
+            <div class="curve-legend"><span class="sw punta"></span> punta 10–14 h y 18–22 h <span class="sw llano"></span> llano 8–10, 14–18 y 22–24 h <span class="sw valle"></span> valle 0–8 h y fines de semana / festivos</div>
+            <div class="curve-actions">
+              <label class="check"><input type="checkbox" id="es-curve-use" checked> Usar el reparto real punta / llano / valle de la curva en la comparación</label>
+              <label class="check"><input type="checkbox" id="es-curve-period" checked> Sólo las horas del periodo de la factura (si la curva lo cubre)</label>
+              <label class="check"><input type="checkbox" id="es-curve-ceuta"> Ceuta / Melilla (horario desplazado)</label>
+              <button type="button" class="btn ghost small" id="btn-curve-clear">Quitar curva</button>
+            </div>
+          </div>
+        </div>
+
         <div class="row3" id="es-single-row">
           <label>Precio único (€/kWh)
             <input type="number" name="ep_single" id="es-ep-single" step="0.000001" min="0">
@@ -373,6 +405,14 @@
           <option value="supplier">Comercializadora</option>
         </select>
       </label>
+      <label title="Simula que traslada parte de su consumo de punta y llano a las horas valle (noche, fines de semana y festivos): lavadora, lavavajillas, coche eléctrico…">Si trasladase a valle
+        <select id="es-flt-shift">
+          <option value="0">nada (consumo actual)</option>
+          <option value="0.1">10 % de punta y llano</option>
+          <option value="0.25">25 % de punta y llano</option>
+          <option value="0.5">50 % de punta y llano</option>
+        </select>
+      </label>
       <a class="btn ghost small" id="es-cnmc-link" href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener" title="Abre el comparador oficial de la CNMC con su potencia y consumo anualizado">Comprobar en el comparador oficial CNMC ↗</a>
     </div>
 
@@ -398,11 +438,34 @@
     </div>
     <p class="muted small" id="es-results-count"></p>
 
+    <div id="es-period-box" class="hidden">
+      <h3 class="sub-h">Energía por periodo horario con su consumo real</h3>
+      <p class="muted small" id="es-period-sub"></p>
+      <div class="table-wrap">
+        <table class="results es periods" id="es-period-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Tarifa</th>
+              <th class="num">Punta<br><small id="es-pt-punta"></small></th>
+              <th class="num">Llano<br><small id="es-pt-llano"></small></th>
+              <th class="num">Valle<br><small id="es-pt-valle"></small></th>
+              <th class="num">Energía total<br><small>sin impuestos</small></th>
+              <th class="num">Precio medio<br><small>€/kWh</small></th>
+              <th class="num">vs. su factura<br><small>energía</small></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="alert info">
       <b>Cómo comparamos:</b> aplicamos su potencia, su consumo y sus días facturados a los precios de cada tarifa y reconstruimos la factura completa con las mismas reglas que su comercializadora:
       potencia (kW × €/kW·día × días), energía (kWh × €/kWh), financiación del bono social (0,024688 €/día) y alquiler del contador (idénticos en todas las tarifas), impuesto de electricidad (5,11269632 % sobre potencia + energía + bono social) e IVA 21 % sobre todo lo anterior.
       Debajo de cada importe se muestra la diferencia con la misma línea de su factura; el botón «Detalle» abre la comparación línea a línea (cantidad, precio unitario e importe de su factura frente a la tarifa).
       Los descuentos y cuotas de su tarifa actual se incluyen en su factura; los servicios adicionales (mantenimiento, seguros…) no forman parte de la tarifa eléctrica y quedan fuera de la comparación.
+      Si ha adjuntado su <b>curva de consumo horario</b>, la energía de cada tarifa con discriminación horaria se calcula con los kWh reales de cada periodo (punta / llano / valle según el calendario 2.0TD: laborables 10–14 h y 18–22 h punta, 8–10, 14–18 y 22–24 h llano, 0–8 h valle; sábados, domingos y festivos nacionales valle las 24 h).
       Los precios proceden de las webs de las comercializadoras y de comparadores públicos (fecha indicada en cada tarifa) y <b>pueden cambiar</b>: el comparador oficial es el de la
       <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">CNMC</a> (botón de arriba, ya con sus datos).
     </div>
@@ -452,6 +515,6 @@
   <span id="app-version" title="Versão da aplicação"></span>
 </footer>
 
-<script type="module" src="app.js?v=1.3.1"></script>
+<script type="module" src="app.js?v=1.4.0"></script>
 </body>
 </html>

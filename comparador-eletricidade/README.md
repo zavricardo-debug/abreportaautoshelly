@@ -142,6 +142,28 @@ energía); los servicios adicionales (mantenimiento, seguros…) sólo llevan IV
 comparación con las tarifas. `npm run pdf:text -- factura.pdf --parse` detecta el país y ejecuta el
 parser correspondiente.
 
+### Curva de consumo horario (CSV)
+
+La factura sólo da el total de kWh (o, en el mejor de los casos, las lecturas por periodo), así que
+para las tarifas con discriminación horaria el reparto punta/llano/valle es una estimación. En el paso 2
+se puede adjuntar el **CSV de consumo horario** que se descarga gratis de [Datadis](https://datadis.es)
+o del área de cliente de la distribuidora (e-distribución, i-DE, UFD, Viesgo, E-Redes…).
+`public/lib/consumption-es.js` lee los formatos habituales (`CUPS;Fecha;Hora;Consumo_kWh;Metodo_obtencion`
+de Datadis/CNMC, `AE_kWh;AS_KWh;…` de e-distribución, `FECHA-HORA;…;CONSUMO Wh` de i-DE, ficheros sin
+cabecera, cuartohorarios 1..96 o `HH:MM`, valores en Wh o kWh, coma o punto decimal) y clasifica cada hora
+según el calendario 2.0TD de la Circular 3/2020 (laborables: punta 10–14 h y 18–22 h, llano 8–10, 14–18 y
+22–24 h, valle 0–8 h; sábados, domingos, 6 de enero y festivos nacionales de fecha fija valle las 24 h;
+Ceuta y Melilla con la punta desplazada a 11–15 h y 19–23 h). La columna `Hora` 1..24 de las
+distribuidoras es la hora *final* del intervalo (hora 1 = 00:00–01:00).
+
+Con la curva cargada: se muestran el reparto real por periodos (comparado con el de la factura), el perfil
+medio de un día laborable y de fin de semana (barras coloreadas por periodo), y los kWh de punta/llano/valle
+del formulario se sustituyen por los reales (recortados al periodo de la factura si la curva lo cubre y
+escalados a los kWh facturados). En los resultados aparece una tabla adicional con la energía de cada
+tarifa por periodo (kWh × precio de punta, llano y valle) y un selector «si trasladase a valle» para
+simular el ahorro de mover parte del consumo a las horas valle. `npm run samples:curve` genera
+`public/samples/consumo-horario-ejemplo.csv` (744 horas coherentes con la factura de ejemplo).
+
 ## Como é feita a comparação (Portugal)
 
 Para cada oferta reconstruímos a fatura completa com o perfil do utilizador (kVA, opção horária,
@@ -214,3 +236,6 @@ aplicação aparece no rodapé (`APP_VERSION` em `app.js`) e nas mensagens de er
 * España: la lista de tarifas es manual (fecha en cada tarifa) y no incluye PVPC ni tarifas
   planas/flexibles; IGIC/IPSI se aplican sólo si la factura los indica. Confirme siempre en el
   comparador oficial de la CNMC (botón con sus datos ya cargados) antes de cambiar.
+* Curva horaria: los ficheros Excel (.xls/.xlsx) deben guardarse como CSV; las tarifas indexadas se
+  simulan con su precio medio (no hora a hora con el precio OMIE de cada hora); los excedentes de
+  autoconsumo no se compensan.
