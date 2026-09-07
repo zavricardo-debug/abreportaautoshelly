@@ -36,15 +36,16 @@
       <div>
         <h1>Carregue a sua fatura de eletricidade (PDF)</h1>
         <p class="muted"><b>Portugal:</b> lemos o <b>Termo de Energia</b>, <b>Termo de Potência</b>, <b>Termo Fixo Acesso às Redes</b>, <b>Contribuição Audiovisual</b>, <b>Taxa DGEG</b> e <b>IEC</b> (Endesa, EDP, Iberdrola, Galp, Goldenergy, Repsol, SU Eletricidade…).<br>
-        <b>España:</b> leemos la <b>Potencia P1/P3</b> (kW × €/kW × días), el <b>Consumo</b> (kWh × €/kWh), la <b>Financiación del Bono Social</b>, el <b>Alquiler del contador</b>, el <b>Impuesto de electricidad</b>, el <b>IVA</b> y el <b>TOTAL</b> (Endesa, Iberdrola, Naturgy, Repsol, TotalEnergies, Octopus…). El país se detecta automáticamente. Opcionalmente puede añadir el <b>CSV de consumo horario</b> (Datadis / distribuidora) para comparar las tarifas con discriminación horaria con su consumo real de cada hora.</p>
+        <b>España:</b> leemos la <b>Potencia P1/P3</b> (kW × €/kW × días), el <b>Consumo</b> (kWh × €/kWh), la <b>Financiación del Bono Social</b>, el <b>Alquiler del contador</b>, el <b>Impuesto de electricidad</b>, el <b>IVA</b> y el <b>TOTAL</b> (Endesa, Iberdrola, Naturgy, Repsol, TotalEnergies, Octopus…). El país se detecta automáticamente. Opcionalmente puede añadir el <b>CSV/Excel de consumo horario</b> (Datadis / distribuidora) para comparar las tarifas con discriminación horaria con su consumo real de cada hora.<br>
+        <b>Consumo por hora (PT):</b> junte o <b>Excel/CSV de consumos da E-Redes</b> (15 em 15 minutos) para saber o seu consumo real em <b>vazio / cheias / ponta</b> e comparar também com as ofertas bi-horárias e tri-horárias, mesmo que a fatura só mostre o total.</p>
       </div>
     </div>
 
     <label class="dropzone" id="dropzone" for="file-input">
-      <input type="file" id="file-input" accept="application/pdf,.pdf" hidden>
+      <input type="file" id="file-input" accept="application/pdf,.pdf,.xlsx,.xls,.csv" hidden>
       <div class="dz-inner">
         <div class="dz-icon">📄</div>
-        <div><b>Arraste o PDF para aqui</b> ou clique para escolher</div>
+        <div><b>Arraste o PDF para aqui</b> ou clique para escolher <span class="muted small">(também aceita o Excel/CSV de consumos da E-Redes ou da distribuidora)</span></div>
         <div class="muted small">O ficheiro nunca sai do seu computador – toda a leitura é feita no browser.</div>
         <div class="dz-actions">
           <button type="button" class="btn ghost small" id="btn-sample">Experimentar com uma fatura de exemplo (PT)</button>
@@ -98,6 +99,50 @@
         <legend>Termo de Energia (Real)</legend>
         <div class="period-rows" id="energy-rows"></div>
         <div class="line-total"><span>Valor faturado na fatura (s/ IVA)</span><output id="o-energy-total">—</output></div>
+        <p class="hint" id="pt-split-hint"></p>
+
+        <div class="curve-box" id="pt-curve-box">
+          <div class="curve-head">
+            <div>
+              <b>Consumo real por hora / 15 minutos (opcional, recomendado)</b>
+              <p class="muted small">A fatura nem sempre mostra o consumo repartido por <b>vazio, cheias e ponta</b> (ou mostra apenas o total). Junte o ficheiro <b>Excel (.xlsx) ou CSV</b> do
+                <a href="https://balcaodigital.e-redes.pt" target="_blank" rel="noopener">Balcão Digital da E-Redes</a> (Consumos → <i>Consultar consumos detalhados</i> → Exportar) – ou qualquer ficheiro com data, hora e consumo –
+                e classificamos cada quarto de hora com os horários da ERSE (ciclo diário ou semanal) para saber quanto gastaria em <b>bi-horário</b> e <b>tri-horário</b> com o seu consumo real.</p>
+            </div>
+            <label class="dropzone mini" id="pt-curve-drop" for="pt-curve-input">
+              <input type="file" id="pt-curve-input" accept=".xlsx,.xls,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
+              <span>📈 Arraste o Excel/CSV da E-Redes para aqui ou clique para escolher</span>
+              <button type="button" class="btn ghost small" id="btn-pt-curve-sample">Experimentar com um ficheiro de exemplo</button>
+            </label>
+          </div>
+          <div class="alert error hidden" id="pt-curve-error"></div>
+          <div id="pt-curve-result" class="hidden">
+            <div class="curve-summary" id="pt-curve-summary"></div>
+            <div class="curve-actions">
+              <label>Ciclo horário
+                <select id="pt-curve-cycle">
+                  <option value="diario">Ciclo diário (o mais comum)</option>
+                  <option value="semanal">Ciclo semanal</option>
+                </select>
+              </label>
+              <label class="check"><input type="checkbox" id="pt-curve-use" checked> Usar a repartição real do ficheiro nos consumos por período</label>
+              <label class="check"><input type="checkbox" id="pt-curve-period" checked> Só os dias do período da fatura (se o ficheiro os incluir)</label>
+              <button type="button" class="btn ghost small" id="btn-pt-curve-clear">Retirar ficheiro</button>
+            </div>
+            <div class="table-wrap">
+              <table class="results periods compact" id="pt-curve-table">
+                <thead><tr><th>Opção horária</th><th class="num">Ponta</th><th class="num">Cheias</th><th class="num">Vazio</th><th class="num">Fora de Vazio</th><th class="num">Total</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="curve-charts">
+              <div class="chart-wrap"><div class="chart-title" id="pt-chart-util-title">Dia útil médio (kWh por hora)</div><svg id="pt-curve-util" viewBox="0 0 720 200" preserveAspectRatio="none" role="img" aria-label="Consumo médio por hora em dias úteis"></svg></div>
+              <div class="chart-wrap"><div class="chart-title" id="pt-chart-sab-title">Sábado médio</div><svg id="pt-curve-sabado" viewBox="0 0 720 200" preserveAspectRatio="none" role="img" aria-label="Consumo médio por hora ao sábado"></svg></div>
+              <div class="chart-wrap"><div class="chart-title" id="pt-chart-dom-title">Domingo médio</div><svg id="pt-curve-domingo" viewBox="0 0 720 200" preserveAspectRatio="none" role="img" aria-label="Consumo médio por hora ao domingo"></svg></div>
+            </div>
+            <div class="curve-legend" id="pt-curve-legend"><span class="sw ponta"></span> ponta <span class="sw cheias"></span> cheias <span class="sw vazio"></span> vazio <span id="pt-curve-legend-text"></span></div>
+          </div>
+        </div>
       </fieldset>
 
       <fieldset>
@@ -170,6 +215,23 @@
       <label><input type="checkbox" id="flt-newclient" checked> Sou novo cliente noutros comercializadores (inclui ofertas e descontos de boas-vindas)</label>
       <label><input type="checkbox" id="flt-noexpired" checked> Ocultar ofertas já terminadas</label>
       <label><input type="checkbox" id="flt-best" checked> Só a melhor oferta de cada fornecedor</label>
+      <label>Opção horária a comparar
+        <select id="flt-option" title="Com o ficheiro de consumos da E-Redes podemos calcular quanto pagaria em simples, bi-horário e tri-horário com o seu consumo real">
+          <option value="fatura">Só a da fatura</option>
+          <option value="all">Todas (simples, bi e tri-horário)</option>
+          <option value="1">Simples</option>
+          <option value="2">Bi-horária</option>
+          <option value="3">Tri-horária</option>
+        </select>
+      </label>
+      <label>E se passar consumo para o vazio?
+        <select id="flt-shift" title="Simula a transferência de parte do consumo de ponta/cheias (fora de vazio) para o vazio – máquinas de lavar à noite, carregamento do carro, etc.">
+          <option value="0">Não – consumo tal como está</option>
+          <option value="0.1">Transferir 10 % para o vazio</option>
+          <option value="0.25">Transferir 25 % para o vazio</option>
+          <option value="0.5">Transferir 50 % para o vazio</option>
+        </select>
+      </label>
       <label>Fornecedor
         <select id="flt-supplier"><option value="">Todos</option></select>
       </label>
@@ -281,13 +343,13 @@
           <div class="curve-head">
             <div>
               <b>Consumo real hora a hora (opcional, recomendado)</b>
-              <p class="muted small">Su factura sólo indica el total (o una estimación por periodos). Adjunte el fichero CSV de <b>consumo horario</b> que descarga gratis de
+              <p class="muted small">Su factura sólo indica el total (o una estimación por periodos). Adjunte el fichero CSV o Excel (.xlsx) de <b>consumo horario</b> que descarga gratis de
                 <a href="https://datadis.es" target="_blank" rel="noopener">Datadis</a>, de su distribuidora (<a href="https://www.edistribucion.com" target="_blank" rel="noopener">e-distribución</a>, <a href="https://www.i-de.es" target="_blank" rel="noopener">i-DE</a>, UFD, Viesgo…) o de la app de su comercializadora,
                 y clasificamos cada hora en <b>punta / llano / valle</b> según el calendario 2.0TD para comparar las tarifas con discriminación horaria con su consumo real.</p>
             </div>
             <label class="dropzone mini" id="es-curve-drop" for="es-curve-input">
               <input type="file" id="es-curve-input" accept=".csv,text/csv,text/plain,.txt,.xls,.xlsx" hidden>
-              <span>📈 Arrastre el CSV aquí o pulse para elegir</span>
+              <span>📈 Arrastre el CSV / Excel aquí o pulse para elegir</span>
               <button type="button" class="btn ghost small" id="btn-curve-sample">Probar con una curva de ejemplo</button>
             </label>
           </div>
@@ -515,6 +577,6 @@
   <span id="app-version" title="Versão da aplicação"></span>
 </footer>
 
-<script type="module" src="app.js?v=1.4.0"></script>
+<script type="module" src="app.js?v=1.5.0"></script>
 </body>
 </html>

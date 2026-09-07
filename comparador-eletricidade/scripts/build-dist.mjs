@@ -28,6 +28,8 @@ const required = [
   ['public/data/ofertas-es.json', 'git checkout public/data/ofertas-es.json'],
   ['public/samples/factura-ejemplo-endesa-es.pdf', 'npm run samples'],
   ['public/samples/consumo-horario-ejemplo.csv', 'npm run samples:curve'],
+  ['public/samples/consumos-eredes-exemplo.xlsx', 'npm run samples:eredes'],
+  ['public/samples/consumos-eredes-exemplo.csv', 'npm run samples:eredes'],
 ];
 for (const [f, fix] of required) {
   if (!existsSync(resolve(ROOT, f))) { console.error(`missing ${f} – run "${fix}" first`); process.exit(1); }
@@ -68,6 +70,8 @@ writeFileSync(resolve(DIST, '_headers'), `# Cloudflare Pages headers (https://de
   Content-Type: application/pdf
 /samples/*.csv
   Content-Type: text/csv; charset=utf-8
+/samples/*.xlsx
+  Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 `);
 
 writeFileSync(resolve(DIST, '_redirects'), `# Cloudflare Pages redirects (https://developers.cloudflare.com/pages/configuration/redirects/)
@@ -97,7 +101,7 @@ const walk = (dir) => {
 };
 walk(DIST);
 console.log(`${relative(ROOT, DIST)}/: ${count} files, ${(total / 1024 / 1024).toFixed(2)} MB (uncompressed)`);
-for (const f of ['index.html', 'app.js', 'styles.css', 'lib', 'vendor', 'data', 'samples', '_headers', '_redirects', '404.html']) {
+for (const f of ['index.html', 'app.js', 'app-es.js', 'app-curve-pt.js', 'styles.css', 'lib', 'vendor', 'data', 'samples', '_headers', '_redirects', '404.html']) {
   console.log('  ' + (existsSync(resolve(DIST, f)) ? '✓' : '✗'), f);
 }
 

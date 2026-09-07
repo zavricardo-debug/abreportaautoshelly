@@ -186,6 +186,14 @@ function detectPower(text, lines) {
   return [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
+/** Ciclo horário (ciclo diário / ciclo semanal) mentioned on the bill – needed to classify a consumption curve. */
+export function detectCycle(text) {
+  const n = norm(text);
+  if (/ciclo\s*semanal/.test(n)) return 'semanal';
+  if (/ciclo\s*diario/.test(n)) return 'diario';
+  return null;
+}
+
 function detectOption(text) {
   const n = norm(text);
   if (/tri-?horari/.test(n)) return 3;
@@ -275,6 +283,7 @@ export function parseInvoiceText(text) {
   const days = period ? daysBetween(period.start, period.end) + 1 : null;
   const power = detectPower(text, lines) ?? items.find((x) => x.kva)?.kva ?? null;
   const optionTxt = detectOption(text);
+  const cycle = detectCycle(text);
 
   const energyItems = items.filter((x) => x.id === 'energy');
   const energy = {
@@ -317,7 +326,7 @@ export function parseInvoiceText(text) {
   if (!power) warnings.push('Não foi possível determinar a potência contratada (kVA).');
 
   return {
-    supplier, period, days, billedDays, power, option,
+    supplier, period, days, billedDays, power, option, cycle,
     energy,
     power_term: powerItem ? pick(powerItem) : null,
     tar: tarItem ? pick(tarItem) : null,

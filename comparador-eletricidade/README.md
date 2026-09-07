@@ -36,6 +36,11 @@ Conceptos leídos de la factura española (Endesa, Iberdrola, Naturgy, Repsol, �
 
 Tudo corre **no browser** (pdf.js) – o PDF nunca sai do computador do utilizador.
 
+Além da fatura, é possível juntar o **ficheiro de consumos por hora / 15 minutos** (Excel `.xlsx` ou
+CSV da E-Redes em Portugal, CSV/Excel da Datadis ou da distribuidora em Espanha) para que a comparação
+use o consumo **real** de cada período horário – ver [Consumos por hora (E-Redes)](#consumos-por-hora-e-redes--ficheiro-excel-ou-csv)
+e [Curva de consumo horario (CSV)](#curva-de-consumo-horario-csv-o-excel).
+
 ## Como correr
 
 ```bash
@@ -142,12 +147,14 @@ energía); los servicios adicionales (mantenimiento, seguros…) sólo llevan IV
 comparación con las tarifas. `npm run pdf:text -- factura.pdf --parse` detecta el país y ejecuta el
 parser correspondiente.
 
-### Curva de consumo horario (CSV)
+### Curva de consumo horario (CSV o Excel)
 
 La factura sólo da el total de kWh (o, en el mejor de los casos, las lecturas por periodo), así que
 para las tarifas con discriminación horaria el reparto punta/llano/valle es una estimación. En el paso 2
-se puede adjuntar el **CSV de consumo horario** que se descarga gratis de [Datadis](https://datadis.es)
-o del área de cliente de la distribuidora (e-distribución, i-DE, UFD, Viesgo, E-Redes…).
+se puede adjuntar el **CSV o Excel (.xlsx) de consumo horario** que se descarga gratis de [Datadis](https://datadis.es)
+o del área de cliente de la distribuidora (e-distribución, i-DE, UFD, Viesgo…). Los `.xlsx` se leen en el
+navegador con `public/lib/xlsx-lite.js` (fechas/horas en texto o en números de serie de Excel); los `.xls`
+binarios antiguos deben guardarse como `.xlsx` o CSV.
 `public/lib/consumption-es.js` lee los formatos habituales (`CUPS;Fecha;Hora;Consumo_kWh;Metodo_obtencion`
 de Datadis/CNMC, `AE_kWh;AS_KWh;…` de e-distribución, `FECHA-HORA;…;CONSUMO Wh` de i-DE, ficheros sin
 cabecera, cuartohorarios 1..96 o `HH:MM`, valores en Wh o kWh, coma o punto decimal) y clasifica cada hora
@@ -163,6 +170,56 @@ escalados a los kWh facturados). En los resultados aparece una tabla adicional c
 tarifa por periodo (kWh × precio de punta, llano y valle) y un selector «si trasladase a valle» para
 simular el ahorro de mover parte del consumo a las horas valle. `npm run samples:curve` genera
 `public/samples/consumo-horario-ejemplo.csv` (744 horas coherentes con la factura de ejemplo).
+
+## Consumos por hora (E-Redes) – ficheiro Excel ou CSV
+
+A fatura portuguesa nem sempre mostra o consumo repartido por **vazio / cheias / ponta** – numa
+tarifa simples só aparece o total e, mesmo em bi-horário, não há forma de saber quanto se pagaria em
+tri-horário (ou noutro ciclo). Por isso o passo 2 aceita um segundo ficheiro: o **diagrama de carga**
+que qualquer cliente com contador inteligente descarrega gratuitamente no
+[Balcão Digital da E-Redes](https://balcaodigital.e-redes.pt)
+(**Consumos → Consultar consumos detalhados → Exportar**, dados desde 01/01/2024; tem de ser o ficheiro
+de *Consumos/Diagrama de carga*, não o de *Leituras*). O ficheiro pode ser largado na caixa própria do
+passo 2 ou diretamente na zona de upload do passo 1 (o site percebe que não é um PDF).
+
+O que é lido (`public/lib/consumption-pt.js`):
+
+* **Excel `.xlsx`** diretamente no browser, sem bibliotecas externas – `public/lib/xlsx-lite.js` é um
+  leitor mínimo de OOXML (inflate RFC 1951 + diretório ZIP + `sharedStrings.xml`/`sheetN.xml`), com
+  datas/horas em texto ou em números de série do Excel. Ficheiros `.xls` binários (Excel 97-2003) não
+  são suportados – guardar como `.xlsx` ou CSV.
+* **CSV/TXT** com `;`, `,` ou tabulações, vírgula ou ponto decimal, com ou sem linhas de título antes do
+  cabeçalho (`Data | Hora | Consumo registado, Ativa (kW) | [Injeção registada…] | [Estado]`).
+* Formato E-Redes: um registo por **15 minutos**, hora = **fim** do intervalo (`00:15` = 00:00–00:15,
+  `00:00` = último quarto do dia anterior) e valores em **kW médios** → kWh = kW ÷ 4. Também aceita
+  ficheiros horários genéricos (`Data;Hora;Consumo (kWh)`, hora `HH:MM` ou índice 1..24, valores em
+  Wh/kWh, timestamps UTC de contadores tipo Shelly), colunas de injeção (ignoradas) e `Estado`
+  (Real/Estimado). Ficheiros só com totais diários são recusados com explicação.
+* Cada quarto de hora é classificado com os **períodos horários da ERSE** para Portugal Continental,
+  hora legal de Inverno/Verão (último domingo de março → último domingo de outubro), nos dois ciclos:
+  * **Ciclo diário** (igual todos os dias): vazio 22–08 h; Inverno ponta 09:00–10:30 e 18:00–20:30,
+    Verão ponta 10:30–13:00 e 19:30–21:00; restante cheias.
+  * **Ciclo semanal**: dias úteis vazio 00–07 h, Inverno ponta 09:30–12:00 e 18:30–21:00, Verão ponta
+    09:15–12:15, restante cheias; sábado sem ponta (Inverno cheias 09:30–13:00 e 18:30–22:00, Verão
+    09:00–14:00 e 20:00–22:00, resto vazio); domingo vazio todo o dia.
+  * Bi-horário: fora de vazio = ponta + cheias. O ciclo é lido da fatura quando lá aparece («ciclo
+    diário»/«ciclo semanal») e pode ser mudado no próprio painel.
+
+Com o ficheiro carregado o passo 2 mostra: ficheiro/período/nº de dias, consumo total (recortado ao
+período da fatura quando o ficheiro o cobre), repartição real em **tri-horário** e **bi-horário** para
+os dois ciclos (tabela + barras), **potência máxima registada** (média de 15 min, comparada com a
+potência contratada – útil para avaliar uma descida de potência), avisos (valores estimados, injeção)
+e três perfis médios (dia útil, sábado, domingo) em quartos de hora coloridos por período. Os kWh por
+período do formulário passam a ser os reais (escalados ao total faturado) e no passo 3 o seletor
+**«Opção horária a comparar»** permite ver as ofertas em **simples, bi-horário e tri-horário** com o
+mesmo consumo real (cada linha indica a opção); **«E se passar consumo para o vazio?»** transfere
+10/25/50 % do consumo fora de vazio para o vazio para medir o interesse de mudar hábitos. Sem
+ficheiro só é possível simular a opção da fatura e a simples (esta só precisa do total).
+
+`npm run samples:eredes` gera `public/samples/consumos-eredes-exemplo.xlsx` (+ `.csv`): 38 dias de
+quartos de hora no layout da E-Redes, coerentes com as faturas de exemplo (botão «Experimentar com um
+ficheiro de exemplo»). Os testes (`test/consumption-pt.test.mjs`, `test/app.test.mjs`) cobrem os
+horários da ERSE, o leitor xlsx, ficheiros com datas em série do Excel e o fluxo completo na interface.
 
 ## Como é feita a comparação (Portugal)
 
@@ -194,14 +251,19 @@ public/
   lib/parser.js                      parser das rubricas da fatura (PT)
   lib/simulator.js                   motor de cálculo da fatura / IVA / comparação (PT)
   app-es.js, lib/parser-es.js, lib/simulator-es.js   fluxo espanhol (deteção de país, parser 2.0TD, modelo de fatura)
+  lib/consumption-es.js              curva horaria ES (CSV Datadis/distribuidoras, calendario 2.0TD)
+  app-curve-pt.js, lib/consumption-pt.js   consumos E-Redes (PT): leitura, horários ERSE (ciclo diário/semanal), repartição por período
+  lib/xlsx-lite.js                   leitor .xlsx sem dependências (inflate + zip + OOXML) usado pelos dois fluxos
   data/ofertas.json                  ofertas ERSE (gerado)
   data/ofertas-es.json               tarifas españolas (curadas a mano, com fonte e data)
   vendor/pdfjs/                      pdf.js (gerado por npm run vendor)
-  samples/                           faturas de exemplo fictícias (Endesa simples, EDP bi-horária, Endesa España 2.0TD)
+  samples/                           faturas de exemplo fictícias (Endesa simples, EDP bi-horária, Endesa España 2.0TD),
+                                     curva horaria ES (CSV) e diagrama de carga E-Redes (xlsx + csv)
 scripts/
   update-erse.mjs, lib/erse-parse.mjs  download + conversão dos CSV da ERSE
   vendor-pdfjs.mjs                     copia pdf.js
   make-sample-pdf.mjs                  gera os PDFs de exemplo (pdfkit)
+  make-sample-curve.mjs, make-sample-eredes.mjs   geram a curva ES e o Excel/CSV E-Redes de exemplo
   pdf-to-text.mjs                      debug: `node scripts/pdf-to-text.mjs fatura.pdf --parse`
   update-cnmc.mjs                      consulta a API do comparador da CNMC (npm run data:cnmc)
   build-dist.mjs                       cria cloudflare-upload/ + zip para Cloudflare Pages (npm run build)
@@ -236,6 +298,8 @@ aplicação aparece no rodapé (`APP_VERSION` em `app.js`) e nas mensagens de er
 * España: la lista de tarifas es manual (fecha en cada tarifa) y no incluye PVPC ni tarifas
   planas/flexibles; IGIC/IPSI se aplican sólo si la factura los indica. Confirme siempre en el
   comparador oficial de la CNMC (botón con sus datos ya cargados) antes de cambiar.
-* Curva horaria: los ficheros Excel (.xls/.xlsx) deben guardarse como CSV; las tarifas indexadas se
-  simulan con su precio medio (no hora a hora con el precio OMIE de cada hora); los excedentes de
-  autoconsumo no se compensan.
+* Curva horaria / consumos E-Redes: los `.xls` binarios (Excel 97-2003) deben guardarse como `.xlsx`
+  o CSV; las tarifas indexadas se simulan con su precio medio (no hora a hora con el precio OMIE de
+  cada hora); los excedentes de autoconsumo no se compensan. Em Portugal os horários implementados
+  são os do Continente (Açores/Madeira têm ciclos próprios) e os do Regulamento Tarifário em vigor
+  (os novos períodos anunciados pela ERSE para 2027 ainda não estão incluídos).

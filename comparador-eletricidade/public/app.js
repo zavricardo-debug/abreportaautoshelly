@@ -2,13 +2,16 @@ import { extractPdfText } from './lib/pdf-text.js';
 import { parseInvoiceText } from './lib/parser.js';
 import { parseInvoiceTextES, detectCountry } from './lib/parser-es.js';
 import { simulate, simulateAll, baselinePrices, nearestStandardPower, STANDARD_POWERS, PERIOD_KEYS, PERIOD_LABELS, RULES_2026 } from './lib/simulator.js';
-import { initES, fillFormES, showManualES, loadCurveText } from './app-es.js';
+import { initES, fillFormES, showManualES, loadCurveText, loadCurveBufferES } from './app-es.js';
+import { initCurvePT, loadCurveBufferPT, loadCurvePT, activeCurvePT, applyCurveToFormPT, syncCycleFromBill, PT_CURVE } from './app-curve-pt.js';
+import { kwhForOption, shiftToVazio } from './lib/consumption-pt.js';
+import { isZip, isOle, readXlsxRows } from './lib/xlsx-lite.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
-export const APP_VERSION = '1.4.0'; // shown in the footer + error messages (helps spot stale caches)
+export const APP_VERSION = '1.5.0'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
   country: 'PT',    // 'PT' (ERSE flow) or 'ES' (2.0TD flow, app-es.js)
@@ -17,6 +20,10 @@ const state = {
   form: null,       // current profile & prices
   results: [],
   baseline: null,
+  resultOptions: [],   // tariff options simulated in the last comparison (1/2/3)
+  skippedOptions: [],  // options requested but not simulable (no consumption curve)
+  shift: 0,            // fraction of fora-de-vazio consumption moved to vazio (what-if)
+  curveInfo: null,     // { file, scope, cycle, days } when the E-Redes curve drives the split
 };
 
 const fmtEur = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v)) ? '—' : new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
@@ -39,6 +46,13 @@ async function init() {
   bindFilters();
   $('#modal-close').addEventListener('click', () => $('#detail-modal').close());
   initES({ show, hide, showError, hideError }); // Spanish flow (loads data/ofertas-es.json in parallel)
+  initCurvePT({ // Portuguese consumption curve (E-Redes Excel/CSV)
+    getParsed: () => state.parsed,
+    getOption: () => +$('#f-option').value || 1,
+    setRowsKwh: (kwh) => { $$('#energy-rows .period-row').forEach((row, i) => { if (kwh[i] != null) { const el = $('.kwh', row); el.value = Math.round(kwh[i] * 1000) / 1000; el.classList.add('auto'); } }); },
+    restoreBillKwh, updateDerived, fmtNum, fmtDate, sumCard, esc,
+    onCurveChanged: onCurveChangedPT,
+  });
   try {
     const res = await fetch('data/ofertas.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -120,15 +134,10 @@ function setCountry(country) {
 
 async function handleFile(file, password) {
   hideError();
-  if (/\.(csv|txt)$/i.test(file.name) || /text\/csv/.test(file.type)) {
-    // a consumption curve (CSV) dropped on the invoice dropzone: route it to the Spanish hourly-consumption reader
-    if (state.country !== 'ES') { setCountry('ES'); showManualES(); }
+  if (/\.(csv|txt|xlsx|xls)$/i.test(file.name) || /text\/csv|spreadsheetml|ms-excel/.test(file.type)) {
+    // a consumption curve (E-Redes Excel/CSV, Datadis CSV…) dropped on the invoice dropzone
     const buf = await file.arrayBuffer();
-    let text = new TextDecoder('utf-8').decode(buf);
-    if (/\uFFFD/.test(text)) text = new TextDecoder('windows-1252').decode(buf);
-    loadCurveText(text, file.name);
-    $('#es-curve-box').scrollIntoView({ behavior: 'smooth' });
-    return;
+    return routeCurveFile(buf, file.name);
   }
   const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
   if (!isPdf) return showError(`"${file.name}" não parece ser um PDF (tipo: ${file.type || 'desconhecido'}). Escolha o PDF da fatura – imagens (JPG/PNG) e capturas de ecrã não são suportadas.`);
@@ -199,10 +208,57 @@ async function handleFile(file, password) {
   }
 }
 
+/** Decide whether a consumption file belongs to the Portuguese (E-Redes) or the Spanish (Datadis / distribuidora) flow and load it. */
+function routeCurveFile(buf, name) {
+  // decode once: Excel -> rows, otherwise text
+  let rows = null, text = null, sheet = '';
+  if (buf.byteLength >= 8 && isOle(buf)) { const el = $('#pt-curve-error'); setCountry('PT'); if (!state.parsed) fillForm(null); show('#step-values'); el.textContent = `"${name}" é um Excel antigo (.xls binário) que o browser não consegue ler: abra-o no Excel/LibreOffice e guarde como .xlsx ou CSV.`; el.classList.remove('hidden'); $('#pt-curve-box').scrollIntoView({ behavior: 'smooth' }); return; }
+  try {
+    if (buf.byteLength > 4 && isZip(buf)) ({ rows, sheet } = readXlsxRows(buf));
+    else { text = new TextDecoder('utf-8', { fatal: false }).decode(buf); if (/\uFFFD/.test(text)) text = new TextDecoder('windows-1252').decode(buf); }
+  } catch (e) { console.error(e); }
+  const sample = (rows ? rows.slice(0, 60).map((r) => r.join(';')).join('\n') : (text || '').slice(0, 8000)).toLowerCase();
+  let country = /consumo registado|consumo medido na ic|e-redes|\bcpe\b|injec|injeç/.test(sample) ? 'PT'
+    : /\bcups\b|consumo_kwh|ae_kwh|metodo_obtencion|\bfecha\b|consumo wh/.test(sample) ? 'ES'
+    : (state.parsed ? state.country : 'PT');
+  if (country === 'ES') {
+    if (state.country !== 'ES' || $('#step-values-es').classList.contains('hidden')) { setCountry('ES'); if (!state.parsed || state.country !== 'ES') showManualES(); else show('#step-values-es'); }
+    loadCurveBufferES(buf, name);
+    $('#es-curve-box').scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+  if (state.country !== 'PT' || $('#step-values').classList.contains('hidden')) { setCountry('PT'); if (!state.parsed || state.country !== 'PT') { state.parsed = null; fillForm(null); } show('#step-values'); }
+  if (rows) loadCurvePT(rows, name, `folha "${sheet}"`);
+  else if (text !== null) loadCurvePT(text, name);
+  else { const el = $('#pt-curve-error'); el.textContent = `Não foi possível ler "${name}" (ficheiro ilegível ou Excel antigo .xls – guarde como .xlsx ou CSV).`; el.classList.remove('hidden'); }
+  $('#pt-curve-box').scrollIntoView({ behavior: 'smooth' });
+}
+
+/** Called by app-curve-pt.js when the curve is loaded / removed / re-configured. */
+function onCurveChangedPT(mode) {
+  const c = PT_CURVE.curve;
+  if (mode === 'cleared') { fillForm(state.parsed); $('#flt-option').value = 'fatura'; }
+  if (mode === 'loaded' && c) {
+    if (!state.parsed) { $('#f-days').value = c.days; $('#f-period').value = `${fmtDate(c.start)} a ${fmtDate(c.end)}`; }
+    if ($('#flt-option').value === 'fatura') $('#flt-option').value = 'all'; // the point of the file: see bi/tri-horário too
+  }
+  if (state.form && !$('#step-results').classList.contains('hidden')) runComparison({ scroll: false });
+}
+
+/** Back to the kWh printed on the invoice for the current option (curve switched off). */
+function restoreBillKwh() {
+  const p = state.parsed; if (!p?.energy?.byPeriod) return;
+  const keys = PERIOD_KEYS[+$('#f-option').value] || PERIOD_KEYS[1];
+  const rows = $$('#energy-rows .period-row');
+  keys.forEach((k, i) => { const v = p.energy.byPeriod[k]?.kwh; if (v != null && rows[i]) { const el = $('.kwh', rows[i]); el.value = v; el.classList.add('auto'); } });
+}
+
 // Hooks used by the automated UI test (test/app.test.mjs) to inject a parsed invoice / raw text without pdf.js.
 if (typeof window !== 'undefined') {
   window.__test_fill = (parsed) => { state.parsed = parsed; setCountry('PT'); fillForm(parsed); show('#step-values'); };
   window.__test_curve = (csvText, name) => loadCurveText(csvText, name || 'consumos.csv');
+  window.__test_curve_pt = (input, name) => loadCurvePT(input, name || 'consumos.csv');
+  window.__test_curve_buffer = (buf, name) => routeCurveFile(buf, name || 'consumos.xlsx');
   window.__test_text = (text) => {
     const { country } = detectCountry(text);
     if (country === 'ES') { const p = parseInvoiceTextES(text); state.parsed = p; setCountry('ES'); fillFormES(p, text); show('#step-values-es'); return p; }
@@ -265,6 +321,11 @@ function fillForm(p) {
   }
   renderEnergyRows(option, byPeriod, !!p);
   markAuto(!!p);
+  $('#pt-split-hint').textContent = '';
+  if (PT_CURVE.curve) {
+    if (!p) { const c = PT_CURVE.curve; $('#f-days').value = c.days; $('#f-period').value = `${fmtDate(c.start)} a ${fmtDate(c.end)}`; }
+    syncCycleFromBill(p); applyCurveToFormPT();
+  }
 
   // warnings
   const w = $('#parse-warnings'); w.innerHTML = '';
@@ -302,6 +363,7 @@ function bindForm() {
     if (e.target.id === 'f-option') {
       const cur = readEnergyRows();
       renderEnergyRows(+e.target.value, cur.map((r) => ({ kwh: r.kwh, price: r.price })));
+      if (PT_CURVE.curve) applyCurveToFormPT(); // real kWh per period of the new option
     }
     updateDerived();
   });
@@ -341,30 +403,59 @@ function readForm() {
     supplierCode: $('#f-supplier').value || null,
     largeFamily: $('#f-largefamily').checked,
     socialTariff: $('#f-social').checked,
+    curve: activeCurvePT() ? { file: PT_CURVE.file, cycle: PT_CURVE.cycle } : null,
   };
 }
 
 /* ------------------------------------------------------------------ compare */
-function runComparison() {
+function runComparison({ scroll = true } = {}) {
   if (!state.dataset) return showError('A lista de ofertas ainda não está carregada.');
   const form = readForm();
   state.form = form;
   const profile = { power: form.power, option: form.option, days: form.days, kwh: form.kwh, largeFamily: form.largeFamily, socialTariff: form.socialTariff };
   state.baseline = simulate(profile, baselinePrices(form));
-  state.results = simulateAll(state.dataset, profile, { currentSupplierCode: form.supplierCode, includeNewClientDiscount: $('#flt-newclient').checked });
+  computeResults();
   show('#step-results');
   renderResults();
-  $('#step-results').scrollIntoView({ behavior: 'smooth' });
+  if (scroll) $('#step-results').scrollIntoView({ behavior: 'smooth' });
+}
+
+/**
+ * Simulate every offer for the requested tariff option(s). The bill's own option uses the kWh of the form;
+ * other options need the real split of the consumption curve (E-Redes file) – except "simples", which only needs the total.
+ */
+function computeResults() {
+  const f = state.form; if (!f) return;
+  const ac = activeCurvePT();
+  const optSel = $('#flt-option').value;
+  const shift = +$('#flt-shift').value || 0;
+  const options = optSel === 'all' ? [1, 2, 3] : optSel === 'fatura' ? [f.option] : [+optSel];
+  const total = f.kwh.reduce((a, b) => a + b, 0);
+  const results = [], skipped = [];
+  // without a consumption curve only "simples" and the bill's own option can be simulated
+  if (!ac && !options.some((o) => o === 1 || o === f.option)) options.push(f.option);
+  for (const opt of options) {
+    let kwh;
+    if (opt === f.option) kwh = f.kwh.slice();
+    else if (ac) kwh = kwhForOption(ac.curve, ac.cycle, opt, total);
+    else if (opt === 1) kwh = [total];
+    else { skipped.push(opt); continue; }
+    if (shift > 0 && opt > 1) kwh = shiftToVazio(kwh, opt, shift);
+    const profile = { power: f.power, option: opt, days: f.days, kwh, largeFamily: f.largeFamily, socialTariff: f.socialTariff };
+    for (const r of simulateAll(state.dataset, profile, { currentSupplierCode: f.supplierCode, includeNewClientDiscount: $('#flt-newclient').checked })) results.push({ ...r, option: opt, kwh });
+  }
+  results.sort((a, b) => a.sim.total - b.sim.total);
+  state.results = results;
+  state.resultOptions = options.filter((o) => !skipped.includes(o));
+  state.skippedOptions = skipped;
+  state.shift = shift;
+  state.curveInfo = ac ? { file: ac.file, scope: ac.scope, cycle: ac.cycle, days: ac.curve.days } : null;
 }
 
 function bindFilters() {
   $$('#step-results .filters input, #step-results .filters select').forEach((el) => el.addEventListener('change', () => {
     if (!state.form) return; // PT comparison not run yet
-    if (el.id === 'flt-newclient') {
-      const f = state.form;
-      const profile = { power: f.power, option: f.option, days: f.days, kwh: f.kwh, largeFamily: f.largeFamily, socialTariff: f.socialTariff };
-      state.results = simulateAll(state.dataset, profile, { currentSupplierCode: f.supplierCode, includeNewClientDiscount: el.checked });
-    }
+    if (['flt-newclient', 'flt-option', 'flt-shift'].includes(el.id)) computeResults();
     renderResults();
   }));
 }
@@ -399,8 +490,13 @@ function renderResults() {
   const f = state.form, base = state.baseline;
   const rows = filteredResults();
   const kwhTotal = f.kwh.reduce((a, b) => a + b, 0);
-  const optName = { 1: 'simples', 2: 'bi-horária', 3: 'tri-horária' }[f.option];
-  $('#results-sub').textContent = `Perfil: ${fmtNum(f.power, 2)} kVA · ${optName} · ${kwhTotal} kWh em ${f.days} dias · ${state.results.length} ofertas com preços para este perfil.`;
+  const OPT = { 1: 'simples', 2: 'bi-horária', 3: 'tri-horária' };
+  const multi = state.resultOptions.length > 1 || (state.resultOptions.length === 1 && state.resultOptions[0] !== f.option);
+  let sub = `Perfil: ${fmtNum(f.power, 2)} kVA · fatura ${OPT[f.option]} · ${fmtNum(kwhTotal, 0)} kWh em ${f.days} dias · ${state.results.length} ${multi ? 'simulações (ofertas × opções horárias)' : 'ofertas com preços para este perfil'}.`;
+  if (multi) sub += ` Opções comparadas: ${state.resultOptions.map((o) => OPT[o]).join(', ')}${state.curveInfo ? ` – consumo por período REAL do ficheiro de consumos (${state.curveInfo.cycle === 'semanal' ? 'ciclo semanal' : 'ciclo diário'}, ${state.curveInfo.scope === 'period' ? 'período da fatura' : state.curveInfo.days + ' dias'})` : ''}.`;
+  if (state.skippedOptions.length) sub += ` ${state.skippedOptions.map((o) => OPT[o]).join(' e ')}: não simulável sem o ficheiro de consumos da E-Redes (a fatura não indica o consumo por período).`;
+  if (state.shift > 0) sub += ` Cenário: ${Math.round(state.shift * 100)} % do consumo fora de vazio transferido para o vazio (a sua fatura atual mantém-se como está).`;
+  $('#results-sub').textContent = sub;
   $('#th-days').textContent = `${f.days} dias, c/ IVA`;
 
   const best = rows[0];
@@ -411,7 +507,7 @@ function renderResults() {
   sg.appendChild(sumCard('A sua fatura (simulada)', fmtEur(base.total), `${fmtEur(base.totalPerYear, 0)}/ano · ${fmtNum(base.avgEnergyPrice, 4)} €/kWh · ${fmtNum(base.powerTerm.unitPrice, 4)} €/dia` + (measuredTotal ? ` · real: ${fmtEur(measuredTotal)}` : ''), ''));
   if (best) {
     const saving = base.total - best.sim.total;
-    sg.appendChild(sumCard('Melhor oferta', `${best.offer.supplier}`, `${best.offer.name}${best.offer.variant ? ' – ' + best.offer.variant : ''}`, ''));
+    sg.appendChild(sumCard('Melhor oferta', `${best.offer.supplier}`, `${best.offer.name}${best.offer.variant ? ' – ' + best.offer.variant : ''}${multi ? ` · ${OPT[best.option]}` : ''}`, ''));
     sg.appendChild(sumCard(saving >= 0 ? 'Poupança estimada' : 'Já está numa boa tarifa', `${saving >= 0 ? '−' : '+'}${fmtEur(Math.abs(saving))}`, `${saving >= 0 ? '−' : '+'}${fmtEur(Math.abs(saving) * 365 / f.days, 0)} por ano · ${cheaper} ofertas mais baratas que a sua`, saving > 0.5 ? 'good' : saving < -0.5 ? 'bad' : ''));
   }
   const reg = state.results.find((x) => x.offer.id === 'TUR');
@@ -424,13 +520,13 @@ function renderResults() {
   rows.forEach((x, i) => {
     const diff = x.sim.total - base.total;
     tb.appendChild(rowEl({
-      rank: i + 1, name: `${x.offer.supplier} · ${x.offer.name}`, sub: x.offer.variant, badges: badges(x.offer),
+      rank: i + 1, name: `${x.offer.supplier} · ${x.offer.name}`, sub: x.offer.variant, badges: [...(multi ? [['opt', OPT[x.option]]] : []), ...(state.curveInfo && x.option > 1 ? [['curve', 'consumo real por período']] : []), ...badges(x.offer)],
       energy: x.sim.avgEnergyPrice, power: x.prices.tf, total: x.sim.total, diff, year: x.sim.totalPerYear,
       cls: (i === 0 ? 'best ' : '') + (x.isCurrentSupplier ? 'current-supplier' : ''),
       onDetail: () => openDetail(x, base),
     }));
   });
-  $('#results-count').textContent = `${rows.length} ofertas apresentadas (de ${state.results.length} aplicáveis ao seu perfil; ${state.dataset.meta.offers} no total na lista ERSE).`;
+  $('#results-count').textContent = `${rows.length} ${multi ? 'linhas apresentadas' : 'ofertas apresentadas'} (de ${state.results.length} ${multi ? 'simulações' : 'aplicáveis ao seu perfil'}; ${state.dataset.meta.offers} ofertas no total na lista ERSE).`;
 }
 
 function supplierName(code) { return state.dataset.suppliers.find((s) => s.code === code)?.name || code; }

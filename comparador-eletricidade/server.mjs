@@ -30,6 +30,7 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.pdf': 'application/pdf',
   '.csv': 'text/csv; charset=utf-8',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   '.woff2': 'font/woff2',
   '.map': 'application/json',
   '.txt': 'text/plain; charset=utf-8',

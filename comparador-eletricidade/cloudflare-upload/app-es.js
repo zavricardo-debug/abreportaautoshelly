@@ -4,6 +4,7 @@
 // same words the bill uses (Potencia, Energía, Bono Social, Alquiler, Impuesto, IVA).
 import { simulateES, simulateAllES, splitConsumption, cnmcLink, PERIODS_ES, PERIOD_LABELS_ES, RULES_ES_2026 } from './lib/simulator-es.js';
 import { parseConsumptionCSV, sliceCurve, applyShare, shiftToValle, CALENDAR_TEXT_ES } from './lib/consumption-es.js';
+import { readXlsxRows, sheetRowsToCsv, isZip, isOle } from './lib/xlsx-lite.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -157,12 +158,26 @@ function curveError(msg) { const el = $('#es-curve-error'); el.textContent = msg
 
 async function handleCurveFile(file) {
   $('#es-curve-error').classList.add('hidden');
-  if (/\.xlsx?$/i.test(file.name)) return curveError('Los ficheros Excel no se pueden leer directamente: ábralo y guárdelo como CSV (separado por punto y coma) o descargue la versión CSV desde Datadis / su distribuidora.');
-  if (file.size > 30 * 1024 * 1024) return curveError('El fichero es demasiado grande (máx. 30 MB).');
+  if (file.size > 40 * 1024 * 1024) return curveError('El fichero es demasiado grande (máx. 40 MB).');
   const buf = await file.arrayBuffer();
-  let text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
-  if (/\uFFFD/.test(text)) text = new TextDecoder('windows-1252').decode(buf); // exports from Windows tools
-  loadCurveText(text, file.name);
+  loadCurveBufferES(buf, file.name);
+}
+
+/** CSV / TXT / XLSX bytes -> curve (Excel is read in the browser with lib/xlsx-lite.js, first sheet). */
+export function loadCurveBufferES(buf, fileName = 'consumos.csv') {
+  try {
+    if (buf.byteLength >= 8 && isOle(buf)) throw new Error('es un Excel antiguo (.xls binario): ábralo en Excel/LibreOffice y guárdelo como .xlsx o CSV.');
+    if (buf.byteLength >= 4 && isZip(buf)) { const { rows } = readXlsxRows(buf); return loadCurveText(sheetRowsToCsv(rows), fileName); }
+    let text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+    if (/\uFFFD/.test(text)) text = new TextDecoder('windows-1252').decode(buf); // exports from Windows tools
+    return loadCurveText(text, fileName);
+  } catch (e) {
+    console.error(e);
+    ES.curve = null; ES.curveUsed = null;
+    $('#es-curve-result').classList.add('hidden');
+    curveError(`No se ha podido leer "${fileName}": ${e.message}`);
+    return null;
+  }
 }
 
 /** Parse the CSV text, classify hours and apply to the form. Exposed for tests via window.__test_curve. */

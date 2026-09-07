@@ -23,7 +23,8 @@ async function boot() {
   globalThis.fetch = async (url) => {
     const file = resolve(PUBLIC, String(url));
     if (!existsSync(file)) return { ok: false, status: 404 };
-    return { ok: true, status: 200, json: async () => JSON.parse(readFileSync(file, 'utf8')), text: async () => readFileSync(file, 'utf8'), blob: async () => new Blob([readFileSync(file)]) };
+    const bytes = () => { const b = readFileSync(file); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
+    return { ok: true, status: 200, json: async () => JSON.parse(readFileSync(file, 'utf8')), text: async () => readFileSync(file, 'utf8'), blob: async () => new Blob([readFileSync(file)]), arrayBuffer: async () => bytes() };
   };
   // expose globals for the app module
   for (const k of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'File', 'Blob', 'Intl', 'CustomEvent', 'Event']) {
@@ -337,4 +338,114 @@ test('Spanish flow with an hourly consumption CSV: real punta/llano/valle split 
   assert.equal(window.__test_curve('Nombre;Apellido\nAna;García', 'malo.csv'), null);
   assert.ok(!d.querySelector('#es-curve-error').classList.contains('hidden'));
   assert.match(d.querySelector('#es-curve-error').textContent, /malo\.csv/);
+});
+
+test('Portuguese flow with the E-Redes consumption Excel: real vazio/cheias/ponta split, bi/tri-horário comparison, cycle switch, what-if', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  const v = (sel) => d.querySelector(sel).value;
+  const kwhRows = () => [...d.querySelectorAll('#energy-rows input.kwh')].map((i) => +i.value);
+  // bi-horária EDP invoice (ciclo diário, 245 + 168 kWh, 05/08 → 04/09/2026)
+  const p = window.__test_text(readFileSync(resolve(__dirname, 'fixtures/edp-bihoraria-extracted.txt'), 'utf8'));
+  assert.equal(p.option, 2); assert.equal(p.cycle, 'diario');
+  assert.deepEqual(kwhRows(), [245, 168]);
+
+  // drop the E-Redes Excel on the main dropzone -> routed to the PT curve box
+  const b = readFileSync(resolve(PUBLIC, 'samples/consumos-eredes-exemplo.xlsx'));
+  window.__test_curve_buffer(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength), 'consumos-eredes-exemplo.xlsx');
+  assert.equal(d.body.dataset.country, 'PT');
+  assert.ok(d.querySelector('#pt-curve-error').classList.contains('hidden'), d.querySelector('#pt-curve-error').textContent);
+  assert.ok(!d.querySelector('#pt-curve-result').classList.contains('hidden'));
+  assert.equal(v('#pt-curve-cycle'), 'diario', 'cycle taken from the invoice');
+  assert.match(d.querySelector('#pt-curve-summary').textContent, /38 dias/);
+  assert.match(d.querySelector('#pt-curve-summary').textContent, /Consumo no período da fatura/);
+  assert.match(d.querySelector('#pt-curve-summary').textContent, /Potência máxima registada/);
+  assert.equal(d.querySelectorAll('#pt-curve-table tbody tr').length, 5);
+  assert.equal(d.querySelectorAll('#pt-curve-util rect').length, 96);
+  assert.ok(d.querySelectorAll('#pt-curve-util rect.ponta').length > 0);
+  assert.equal(d.querySelectorAll('#pt-curve-domingo rect.vazio').length, 40, 'ciclo diário: Sunday still has 10 h vazio (22-08)');
+  // real split applied to the 413 kWh of the invoice
+  const kw = kwhRows();
+  assert.ok(Math.abs(kw[0] + kw[1] - 413) < 0.01, `sum ${kw}`);
+  assert.ok(kw[1] < 168, 'the household uses less vazio than the invoice split suggested');
+  assert.match(d.querySelector('#pt-split-hint').textContent, /Repartição REAL .* ciclo diário/);
+  assert.equal(v('#flt-option'), 'all', 'loading a curve switches the comparison to all options');
+
+  // comparison over simples + bi + tri with the real split
+  d.querySelector('#values-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  const sub = () => d.querySelector('#results-sub').textContent;
+  assert.match(sub(), /Opções comparadas: simples, bi-horária, tri-horária/);
+  assert.match(sub(), /consumo por período REAL/);
+  const rows = () => [...d.querySelectorAll('#results-table tbody tr')];
+  assert.ok(rows().length > 10);
+  const optBadges = new Set(rows().slice(1).map((r) => r.querySelector('.badge.opt')?.textContent));
+  assert.ok(optBadges.has('simples') && (optBadges.has('bi-horária') || optBadges.has('tri-horária')), `options shown: ${[...optBadges]}`);
+  const total = (tr) => Number(tr.children[4].textContent.replace(/[^\d,]/g, '').replace(',', '.'));
+  assert.ok(Math.abs(total(rows()[0]) - 105.97) < 0.01, 'baseline reconstructed from the invoice prices');
+
+  // only tri-horária
+  const fo = d.querySelector('#flt-option'); fo.value = '3'; fo.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.match(sub(), /Opções comparadas: tri-horária/);
+  assert.ok(rows().slice(1).every((r) => r.querySelector('.badge.opt')?.textContent === 'tri-horária'));
+  assert.ok(rows().slice(1).every((r) => [...r.querySelectorAll('.badge')].some((x) => /consumo real por período/.test(x.textContent))));
+  const bestTri = total(rows()[1]);
+  // what-if: 25 % to vazio lowers the best tri-horária total, baseline unchanged
+  const sh = d.querySelector('#flt-shift'); sh.value = '0.25'; sh.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.match(sub(), /25 % do consumo fora de vazio/);
+  assert.ok(total(rows()[1]) < bestTri, `${total(rows()[1])} < ${bestTri}`);
+  assert.ok(Math.abs(total(rows()[0]) - 105.97) < 0.01);
+  sh.value = '0'; sh.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+  // switch to ciclo semanal -> different split, comparison re-run
+  const cy = d.querySelector('#pt-curve-cycle'); cy.value = 'semanal'; cy.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.match(d.querySelector('#pt-split-hint').textContent, /ciclo semanal/);
+  assert.notDeepEqual(kwhRows(), kw);
+  assert.match(sub(), /ciclo semanal/);
+  // form option -> tri-horária: three real kWh rows
+  const fopt = d.querySelector('#f-option'); fopt.value = '3'; fopt.dispatchEvent(new window.Event('input', { bubbles: true }));
+  const k3 = kwhRows();
+  assert.equal(k3.length, 3); assert.ok(Math.abs(k3[0] + k3[1] + k3[2] - 413) < 0.01);
+  fopt.value = '2'; fopt.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+  // curve off -> invoice kWh back; tri-horária no longer simulable without the file
+  const use = d.querySelector('#pt-curve-use'); use.checked = false; use.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.deepEqual(kwhRows(), [245, 168]);
+  assert.match(sub(), /tri-horária: não simulável sem o ficheiro/);
+  use.checked = true; use.dispatchEvent(new window.Event('change', { bubbles: true }));
+  // remove the file
+  d.querySelector('#btn-pt-curve-clear').click();
+  assert.ok(d.querySelector('#pt-curve-result').classList.contains('hidden'));
+  assert.deepEqual(kwhRows(), [245, 168]);
+  assert.equal(v('#flt-option'), 'fatura');
+
+  // a "simples" invoice + the CSV twin: the split hint explains bi/tri shares and the comparison covers all options
+  window.__test_text(readFileSync(resolve(__dirname, 'fixtures/endesa-sample-extracted.txt'), 'utf8'));
+  const curve = window.__test_curve_pt(readFileSync(resolve(PUBLIC, 'samples/consumos-eredes-exemplo.csv'), 'utf8'), 'consumos.csv');
+  assert.ok(curve && curve.days === 38);
+  assert.deepEqual(kwhRows(), [157], 'simples: the invoice kWh stay');
+  assert.match(d.querySelector('#pt-split-hint').textContent, /A fatura é simples/);
+  d.querySelector('#values-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.match(sub(), /Opções comparadas: simples, bi-horária, tri-horária/);
+  assert.ok(Math.abs(total(rows()[0]) - 40.87) < 0.01);
+  // unreadable file -> error in the box, curve dropped
+  assert.equal(window.__test_curve_pt('foo;bar\n1;2\n', 'x.csv'), null);
+  assert.match(d.querySelector('#pt-curve-error').textContent, /Não foi possível ler "x.csv"/);
+  assert.ok(d.querySelector('#pt-curve-result').classList.contains('hidden'));
+});
+
+test('Spanish flow accepts an Excel consumption file (Datadis layout) and a Spanish CSV dropped on the main dropzone is routed to the ES flow', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  const b = readFileSync(resolve(__dirname, 'fixtures/datadis-ejemplo.xlsx'));
+  window.__test_curve_buffer(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength), 'consumo.xlsx');
+  assert.equal(d.body.dataset.country, 'ES');
+  assert.ok(!d.querySelector('#step-values-es').classList.contains('hidden'));
+  assert.ok(d.querySelector('#es-curve-error').classList.contains('hidden'), d.querySelector('#es-curve-error').textContent);
+  assert.match(d.querySelector('#es-curve-summary').textContent, /Datadis/);
+  assert.match(d.querySelector('#es-curve-summary').textContent, /2 días/);
+  // an old binary .xls is refused with a helpful message
+  const ole = new Uint8Array(600); ole.set([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+  window.__test_curve_buffer(ole.buffer, 'antiguo.xls');
+  assert.match(d.querySelector('#pt-curve-error').textContent + d.querySelector('#es-curve-error').textContent, /\.xls/);
 });
