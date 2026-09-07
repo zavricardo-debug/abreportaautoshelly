@@ -202,3 +202,49 @@ test('generic CSV files: hourly kWh with HH:MM, 1..24 index, Wh (Shelly UTC expo
   assert.throws(() => parseConsumptionPT(''), /vazio/);
   assert.equal(csvToRows('a;b\n1;"x;y"\n')[1][1], 'x;y');
 });
+
+test('xls-lite: legacy Excel 97-2003 (.xls / BIFF8) – text cells, date/time cells, SST with CONTINUE records, HTML and SpreadsheetML tables', async () => {
+  const { readXlsRows, tableTextToRows, rkValue } = await import('../public/lib/xls-lite.js');
+  const ab = (f) => { const b = readFileSync(resolve(__dirname, 'fixtures', f)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
+  // RK encodings: integer, integer/100, double, double/100
+  assert.equal(rkValue((5 << 2) | 2), 5);
+  assert.equal(rkValue((125 << 2) | 3), 1.25);
+  assert.equal(rkValue(0x3FF00000), 1);            // 1.0 truncated double
+  assert.equal(rkValue(0x40590000 | 1), 1);        // 100.0 / 100
+  // E-Redes layout written with text cells + 4 title rows
+  let { rows, sheet } = readXlsRows(ab('eredes-3dias.xls'));
+  assert.equal(sheet, 'Consumos');
+  assert.deepEqual(rows[5], ['Data', 'Hora', 'Consumo registado, Ativa (kW)', 'Estado']);
+  assert.equal(rows[6][0], '2026/07/30'); assert.equal(rows[6][1], '00:15'); assert.equal(typeof rows[6][2], 'number');
+  let c = parseConsumptionPT(rows);
+  assert.equal(c.step, 15); assert.equal(c.days, 3); assert.ok(Math.abs(c.totalKwh - 58.082) < 0.001, `${c.totalKwh}`);
+  assert.equal(c.start, '2026-07-29', '00:15 of 30/07 is the first quarter of 30/07, 00:00 belongs to 29/07');
+  // date + time cells (Excel serials), injection + Estado + a long unique-text column (SST spills into CONTINUE records)
+  ({ rows } = readXlsRows(ab('eredes-datas-serial.xls')));
+  assert.equal(rows.length, 289);
+  assert.equal(typeof rows[1][0], 'number'); assert.ok(rows[1][0] > 46000, 'date serial');
+  assert.ok(Math.abs(rows[1][1] - 15 / 1440) < 1e-9, 'time fraction 00:15');
+  assert.equal(rows[288][5], rows[288][5] && String(rows[288][5]).startsWith('nota única 3-95') ? rows[288][5] : 'BAD', 'last shared string intact');
+  c = parseConsumptionPT(rows);
+  assert.equal(c.days, 3); assert.equal(c.totalKwh, 72); assert.deepEqual(c.split.diario[3], { ponta: 12, cheias: 30, vazio: 30 });
+  assert.ok(c.estimatedShare > 0.14 && c.estimatedShare < 0.15);
+  // Spanish Datadis layout in .xls -> rows usable by the ES parser through sheetRowsToCsv
+  const { sheetRowsToCsv } = await import('../public/lib/xlsx-lite.js');
+  const { parseConsumptionCSV } = await import('../public/lib/consumption-es.js');
+  ({ rows, sheet } = readXlsRows(ab('datadis-ejemplo.xls')));
+  assert.equal(sheet, 'Hoja1');
+  const es = parseConsumptionCSV(sheetRowsToCsv(rows));
+  assert.equal(es.days, 2); assert.equal(es.totalKwh, 12); assert.match(es.format, /Datadis/);
+  // "fake" .xls files: HTML table and SpreadsheetML 2003
+  const html = tableTextToRows(readFileSync(resolve(__dirname, 'fixtures/eredes-tabela-html.xls'), 'utf8'));
+  assert.deepEqual(html[0], ['Data', 'Hora', 'Consumo registado, Ativa (kW)']);
+  assert.deepEqual(html[1], ['2026-03-02', '00:00', '0,5']);
+  assert.equal(parseConsumptionPT(html).totalKwh, 24);
+  const xml = tableTextToRows(readFileSync(resolve(__dirname, 'fixtures/eredes-spreadsheetml.xls'), 'utf8'));
+  assert.deepEqual(xml[1], ['2026-03-02', '00:00', 0.5]);
+  assert.equal(parseConsumptionPT(xml).totalKwh, 24);
+  assert.equal(tableTextToRows('Data;Hora;Consumo\n2026-03-02;00:00;0,5'), null, 'plain CSV is not markup');
+  // not a workbook
+  const ole = new Uint8Array(600); ole.set([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+  assert.throws(() => readXlsRows(ole.buffer), /não contém um livro Excel/);
+});

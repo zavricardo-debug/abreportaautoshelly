@@ -232,3 +232,11 @@ table.results.compact td .pct { display: block; font-size: .72rem; color: var(--
 .badge.opt { background: #f5f3ff; color: #5b21b6; border-color: #ddd6fe; }
 .badge.curve { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
 #pt-curve-box .curve-charts { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+/* step 1: PDF + consumption file side by side */
+.upload-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.upload-grid .dropzone { display: flex; flex-direction: column; justify-content: center; }
+.dropzone.secondary { border-style: dashed; border-color: #cfd9e3; background: #fbfcfe; }
+.dropzone.secondary:hover, .dropzone.secondary.drag { border-color: var(--brand); background: #f0faf8; }
+.dz-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 6px; }
+@media (max-width: 820px) { .upload-grid { grid-template-columns: 1fr; } }

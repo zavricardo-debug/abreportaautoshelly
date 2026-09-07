@@ -3,6 +3,7 @@
 // the ERSE schedules (ciclo diário / semanal) and feeds the real kWh per period into step 2 so the
 // comparison (step 3) can be run for simples, bi-horário and tri-horário with the household's real profile.
 import { readXlsxRows, isZip, isOle } from './lib/xlsx-lite.js';
+import { readXlsRows, tableTextToRows } from './lib/xls-lite.js';
 import { parseConsumptionPT, sliceCurvePT, kwhForOption, periodFor, scheduleText, TRI_PERIODS, BI_PERIODS, PERIOD_LABELS_PT } from './lib/consumption-pt.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -16,6 +17,8 @@ export function initCurvePT(c) {
   ctx = c;
   const input = $('#pt-curve-input'), drop = $('#pt-curve-drop');
   if (!input) return;
+  // start clean and in sync with the DOM (the module may outlive a document, e.g. in tests)
+  Object.assign(PT_CURVE, { curve: null, used: null, file: '', cycle: $('#pt-curve-cycle')?.value || 'diario', cycleFromBill: null });
   input.addEventListener('change', () => input.files[0] && handleCurveFilePT(input.files[0]));
   ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); drop.classList.add('drag'); }));
   ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('drag'); }));
@@ -56,14 +59,30 @@ export async function handleCurveFilePT(file) {
 
 /** ArrayBuffer -> parsed curve (xlsx via xlsx-lite, otherwise text). Exposed for app.js (main dropzone) and tests. */
 export function loadCurveBufferPT(buf, fileName = 'consumos.xlsx') {
-  if (buf.byteLength >= 8 && isOle(buf)) throw new Error('é um Excel antigo (.xls binário). Abra-o no Excel/LibreOffice e guarde como .xlsx ou CSV.');
-  if (buf.byteLength >= 4 && isZip(buf)) {
-    const { rows, sheet } = readXlsxRows(buf);
-    return loadCurvePT(rows, fileName, `folha "${sheet}"`);
+  try {
+    const dec = decodeCurveBuffer(buf);
+    return dec.rows ? loadCurvePT(dec.rows, fileName, dec.source) : loadCurvePT(dec.text, fileName);
+  } catch (e) {
+    console.error(e);
+    PT_CURVE.curve = null; PT_CURVE.used = null;
+    $('#pt-curve-result').classList.add('hidden');
+    curveError(`Não foi possível ler "${fileName}": ${e.message}`);
+    return null;
   }
+}
+
+/**
+ * Bytes of any supported consumption file -> { rows, source } (Excel .xlsx / .xls, HTML or SpreadsheetML
+ * tables saved as .xls) or { text } (CSV / TXT). Shared with app.js (main dropzone) and app-es.js.
+ */
+export function decodeCurveBuffer(buf) {
+  if (buf.byteLength >= 8 && isOle(buf)) { const { rows, sheet } = readXlsRows(buf); return { rows, source: `Excel 97-2003, folha "${sheet}"` }; }
+  if (buf.byteLength >= 4 && isZip(buf)) { const { rows, sheet } = readXlsxRows(buf); return { rows, source: `folha "${sheet}"` }; }
   let text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
   if (/\uFFFD/.test(text)) text = new TextDecoder('windows-1252').decode(buf);
-  return loadCurvePT(text, fileName);
+  const rows = tableTextToRows(text); // web portals often export an HTML/XML table under the name "ficheiro.xls"
+  if (rows) return { rows, source: /<(?:ss:)?Workbook\b/i.test(text.slice(0, 4000)) ? 'Excel XML 2003' : 'tabela HTML' };
+  return { text };
 }
 
 /** Parse rows/text, apply to the form and render. Returns the curve or null (error shown in the box). */

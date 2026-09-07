@@ -3,15 +3,14 @@ import { parseInvoiceText } from './lib/parser.js';
 import { parseInvoiceTextES, detectCountry } from './lib/parser-es.js';
 import { simulate, simulateAll, baselinePrices, nearestStandardPower, STANDARD_POWERS, PERIOD_KEYS, PERIOD_LABELS, RULES_2026 } from './lib/simulator.js';
 import { initES, fillFormES, showManualES, loadCurveText, loadCurveBufferES } from './app-es.js';
-import { initCurvePT, loadCurveBufferPT, loadCurvePT, activeCurvePT, applyCurveToFormPT, syncCycleFromBill, PT_CURVE } from './app-curve-pt.js';
+import { initCurvePT, loadCurvePT, decodeCurveBuffer, activeCurvePT, applyCurveToFormPT, syncCycleFromBill, PT_CURVE } from './app-curve-pt.js';
 import { kwhForOption, shiftToVazio } from './lib/consumption-pt.js';
-import { isZip, isOle, readXlsxRows } from './lib/xlsx-lite.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
-export const APP_VERSION = '1.5.0'; // shown in the footer + error messages (helps spot stale caches)
+export const APP_VERSION = '1.6.0'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
   country: 'PT',    // 'PT' (ERSE flow) or 'ES' (2.0TD flow, app-es.js)
@@ -90,6 +89,20 @@ function bindUpload() {
   ['dragleave', 'drop'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('drag'); }));
   dz.addEventListener('drop', (e) => { const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); });
   document.addEventListener('paste', (e) => { const f = [...(e.clipboardData?.files || [])][0]; if (f && /pdf/i.test(f.type + f.name)) handleFile(f); });
+  // second dropzone of step 1: the hourly / quarter-hourly consumption file (CSV, XLS, XLSX) – PT (E-Redes) or ES (Datadis)
+  const cdz = $('#curve-dropzone'), cinput = $('#curve-file-input');
+  cinput.addEventListener('change', () => cinput.files[0] && handleCurveUpload(cinput.files[0]));
+  ['dragenter', 'dragover'].forEach((ev) => cdz.addEventListener(ev, (e) => { e.preventDefault(); cdz.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach((ev) => cdz.addEventListener(ev, (e) => { e.preventDefault(); cdz.classList.remove('drag'); }));
+  cdz.addEventListener('drop', (e) => { const f = e.dataTransfer.files?.[0]; if (f) handleCurveUpload(f); });
+  $('#btn-curve-sample-main').addEventListener('click', async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    try {
+      const res = await fetch('samples/consumos-eredes-exemplo.xlsx');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      routeCurveFile(await res.arrayBuffer(), 'consumos-eredes-exemplo.xlsx');
+    } catch (err) { showError(`Não foi possível abrir o ficheiro de exemplo: ${err.message}`); }
+  });
 
   $('#btn-sample').addEventListener('click', async (e) => {
     e.preventDefault();
@@ -132,12 +145,21 @@ function setCountry(country) {
   else { hide('#step-values-es'); hide('#step-results-es'); }
 }
 
+/** Consumption file (CSV / XLS / XLSX) chosen in step 1 – a PDF dropped there by mistake goes to the invoice reader. */
+async function handleCurveUpload(file) {
+  hideError();
+  if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') return handleFile(file);
+  if (file.size === 0) return showError(`"${file.name}" está vazio (0 bytes).`);
+  if (file.size > 40 * 1024 * 1024) return showError('O ficheiro de consumos é demasiado grande (máx. 40 MB).');
+  try { routeCurveFile(await file.arrayBuffer(), file.name); }
+  catch (e) { console.error(e); showError(`Não foi possível ler "${file.name}": ${e.message}`); }
+}
+
 async function handleFile(file, password) {
   hideError();
-  if (/\.(csv|txt|xlsx|xls)$/i.test(file.name) || /text\/csv|spreadsheetml|ms-excel/.test(file.type)) {
+  if (/\.(csv|txt|xlsx|xls|xlsm)$/i.test(file.name) || /text\/csv|text\/plain|spreadsheetml|ms-excel/.test(file.type)) {
     // a consumption curve (E-Redes Excel/CSV, Datadis CSV…) dropped on the invoice dropzone
-    const buf = await file.arrayBuffer();
-    return routeCurveFile(buf, file.name);
+    return handleCurveUpload(file);
   }
   const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
   if (!isPdf) return showError(`"${file.name}" não parece ser um PDF (tipo: ${file.type || 'desconhecido'}). Escolha o PDF da fatura – imagens (JPG/PNG) e capturas de ecrã não são suportadas.`);
@@ -210,15 +232,11 @@ async function handleFile(file, password) {
 
 /** Decide whether a consumption file belongs to the Portuguese (E-Redes) or the Spanish (Datadis / distribuidora) flow and load it. */
 function routeCurveFile(buf, name) {
-  // decode once: Excel -> rows, otherwise text
-  let rows = null, text = null, sheet = '';
-  if (buf.byteLength >= 8 && isOle(buf)) { const el = $('#pt-curve-error'); setCountry('PT'); if (!state.parsed) fillForm(null); show('#step-values'); el.textContent = `"${name}" é um Excel antigo (.xls binário) que o browser não consegue ler: abra-o no Excel/LibreOffice e guarde como .xlsx ou CSV.`; el.classList.remove('hidden'); $('#pt-curve-box').scrollIntoView({ behavior: 'smooth' }); return; }
-  try {
-    if (buf.byteLength > 4 && isZip(buf)) ({ rows, sheet } = readXlsxRows(buf));
-    else { text = new TextDecoder('utf-8', { fatal: false }).decode(buf); if (/\uFFFD/.test(text)) text = new TextDecoder('windows-1252').decode(buf); }
-  } catch (e) { console.error(e); }
-  const sample = (rows ? rows.slice(0, 60).map((r) => r.join(';')).join('\n') : (text || '').slice(0, 8000)).toLowerCase();
-  let country = /consumo registado|consumo medido na ic|e-redes|\bcpe\b|injec|injeç/.test(sample) ? 'PT'
+  // decode once: Excel (.xlsx / .xls / HTML-XML table) -> rows, otherwise text
+  let dec = null, err = null;
+  try { dec = decodeCurveBuffer(buf); } catch (e) { console.error(e); err = e; }
+  const sample = (dec?.rows ? dec.rows.slice(0, 60).map((r) => r.join(';')).join('\n') : (dec?.text || '')).slice(0, 8000).toLowerCase();
+  const country = /consumo registado|consumo medido na ic|e-redes|\bcpe\b|injec|injeç/.test(sample) ? 'PT'
     : /\bcups\b|consumo_kwh|ae_kwh|metodo_obtencion|\bfecha\b|consumo wh/.test(sample) ? 'ES'
     : (state.parsed ? state.country : 'PT');
   if (country === 'ES') {
@@ -228,9 +246,9 @@ function routeCurveFile(buf, name) {
     return;
   }
   if (state.country !== 'PT' || $('#step-values').classList.contains('hidden')) { setCountry('PT'); if (!state.parsed || state.country !== 'PT') { state.parsed = null; fillForm(null); } show('#step-values'); }
-  if (rows) loadCurvePT(rows, name, `folha "${sheet}"`);
-  else if (text !== null) loadCurvePT(text, name);
-  else { const el = $('#pt-curve-error'); el.textContent = `Não foi possível ler "${name}" (ficheiro ilegível ou Excel antigo .xls – guarde como .xlsx ou CSV).`; el.classList.remove('hidden'); }
+  if (err) { const el = $('#pt-curve-error'); el.textContent = `Não foi possível ler "${name}": ${err.message}`; el.classList.remove('hidden'); $('#pt-curve-result').classList.add('hidden'); }
+  else if (dec.rows) loadCurvePT(dec.rows, name, dec.source);
+  else loadCurvePT(dec.text, name);
   $('#pt-curve-box').scrollIntoView({ behavior: 'smooth' });
 }
 

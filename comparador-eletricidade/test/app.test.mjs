@@ -444,8 +444,49 @@ test('Spanish flow accepts an Excel consumption file (Datadis layout) and a Span
   assert.ok(d.querySelector('#es-curve-error').classList.contains('hidden'), d.querySelector('#es-curve-error').textContent);
   assert.match(d.querySelector('#es-curve-summary').textContent, /Datadis/);
   assert.match(d.querySelector('#es-curve-summary').textContent, /2 días/);
-  // an old binary .xls is refused with a helpful message
+  // legacy .xls (Excel 97-2003) with the Datadis layout is read too
+  const x = readFileSync(resolve(__dirname, 'fixtures/datadis-ejemplo.xls'));
+  window.__test_curve_buffer(x.buffer.slice(x.byteOffset, x.byteOffset + x.byteLength), 'consumo.xls');
+  assert.equal(d.body.dataset.country, 'ES');
+  assert.ok(d.querySelector('#es-curve-error').classList.contains('hidden'), d.querySelector('#es-curve-error').textContent);
+  assert.match(d.querySelector('#es-curve-summary').textContent, /2 días/);
+  // a corrupt OLE container is refused with a clear message
   const ole = new Uint8Array(600); ole.set([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
-  window.__test_curve_buffer(ole.buffer, 'antiguo.xls');
-  assert.match(d.querySelector('#pt-curve-error').textContent + d.querySelector('#es-curve-error').textContent, /\.xls/);
+  window.__test_curve_buffer(ole.buffer, 'estranho.xls');
+  assert.match(d.querySelector('#pt-curve-error').textContent, /Não foi possível ler "estranho.xls"/);
+});
+
+test('step 1 has a dedicated upload for the consumption file: .xls (Excel 97-2003) and HTML-table "xls" from E-Redes fill vazio/cheias/ponta before any invoice', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  const kwhRows = () => [...d.querySelectorAll('#energy-rows input.kwh')].map((i) => +i.value);
+  assert.ok(d.querySelector('#curve-dropzone'), 'second dropzone present');
+  assert.ok(d.querySelector('#curve-file-input').accept.includes('.xls'));
+  // legacy .xls with E-Redes layout dropped BEFORE any invoice -> PT manual form pre-filled from the curve
+  const x = readFileSync(resolve(__dirname, 'fixtures/eredes-datas-serial.xls'));
+  window.__test_curve_buffer(x.buffer.slice(x.byteOffset, x.byteOffset + x.byteLength), 'consumos.xls');
+  assert.equal(d.body.dataset.country, 'PT');
+  assert.ok(!d.querySelector('#step-values').classList.contains('hidden'));
+  assert.ok(d.querySelector('#pt-curve-error').classList.contains('hidden'), d.querySelector('#pt-curve-error').textContent);
+  assert.ok(!d.querySelector('#pt-curve-result').classList.contains('hidden'));
+  assert.match(d.querySelector('#pt-curve-summary').textContent, /3 dias/);
+  assert.match(d.querySelector('#pt-curve-summary').textContent, /Excel 97-2003/);
+  assert.equal(d.querySelector('#f-days').value, '3');
+  // no invoice: the file's own kWh drive the form (simples -> total 72 kWh)
+  assert.deepEqual(kwhRows(), [72]);
+  const fopt = d.querySelector('#f-option'); fopt.value = '3'; fopt.dispatchEvent(new window.Event('input', { bubbles: true }));
+  assert.deepEqual(kwhRows(), [12, 30, 30], 'flat 1 kW in February, ciclo diário: ponta 2 h, cheias 12 h, vazio 10 h per day');
+  d.querySelector('#values-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.ok(d.querySelectorAll('#results-table tbody tr').length > 10);
+  assert.match(d.querySelector('#results-sub').textContent, /consumo por período REAL/);
+  // HTML table saved as .xls (portal export) via the step-1 input
+  const html = readFileSync(resolve(__dirname, 'fixtures/eredes-tabela-html.xls'));
+  window.__test_curve_buffer(html.buffer.slice(html.byteOffset, html.byteOffset + html.byteLength), 'export.xls');
+  assert.ok(d.querySelector('#pt-curve-error').classList.contains('hidden'), d.querySelector('#pt-curve-error').textContent);
+  assert.match(d.querySelector('#pt-curve-summary').textContent, /tabela HTML/);
+  assert.match(d.querySelector('#pt-curve-summary').textContent, /2 dias/);
+  // the sample button of step 1 loads the E-Redes example
+  d.querySelector('#btn-curve-sample-main').click();
+  for (let i = 0; i < 50 && !/38 dias/.test(d.querySelector('#pt-curve-summary').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  assert.match(d.querySelector('#pt-curve-summary').textContent, /38 dias/);
 });

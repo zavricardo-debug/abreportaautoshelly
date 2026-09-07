@@ -223,12 +223,12 @@ function parseSheet(xml, sst) {
  * @returns {{ rows: any[][], sheet: string, sheets: string[] }}
  */
 export function readXlsxRows(buf, { sheetIndex = 0 } = {}) {
-  if (isOle(buf)) throw new Error('formato Excel antigo (.xls binário) não suportado – abra o ficheiro no Excel/LibreOffice e guarde como .xlsx ou CSV');
+  if (isOle(buf)) throw new Error('formato Excel 97-2003 (.xls) – use readXlsRows() de xls-lite.js');
   if (!isZip(buf)) throw new Error('o ficheiro não é um .xlsx válido (não é um pacote ZIP)');
   const entries = zipEntries(buf);
   const text = (name) => { const e = entries.get(name); return e ? new TextDecoder('utf-8').decode(zipRead(buf, e)) : null; };
   const wb = text('xl/workbook.xml');
-  if (!wb) throw new Error('xl/workbook.xml em falta – o ficheiro não é um livro Excel (.xlsx)');
+  if (!wb) throw new Error(entries.has('content.xml') ? 'é uma folha OpenDocument (.ods) – guarde como .xlsx ou CSV' : 'xl/workbook.xml em falta – o ficheiro não é um livro Excel (.xlsx)');
   const rels = text('xl/_rels/workbook.xml.rels') || '';
   const relMap = new Map();
   for (const m of rels.matchAll(/<Relationship\b([^>]*)\/?>/g)) { const id = attr(m[1], 'Id'), target = attr(m[1], 'Target'); if (id && target) relMap.set(id, target); }

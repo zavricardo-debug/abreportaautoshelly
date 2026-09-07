@@ -37,24 +37,39 @@
         <h1>Carregue a sua fatura de eletricidade (PDF)</h1>
         <p class="muted"><b>Portugal:</b> lemos o <b>Termo de Energia</b>, <b>Termo de Potência</b>, <b>Termo Fixo Acesso às Redes</b>, <b>Contribuição Audiovisual</b>, <b>Taxa DGEG</b> e <b>IEC</b> (Endesa, EDP, Iberdrola, Galp, Goldenergy, Repsol, SU Eletricidade…).<br>
         <b>España:</b> leemos la <b>Potencia P1/P3</b> (kW × €/kW × días), el <b>Consumo</b> (kWh × €/kWh), la <b>Financiación del Bono Social</b>, el <b>Alquiler del contador</b>, el <b>Impuesto de electricidad</b>, el <b>IVA</b> y el <b>TOTAL</b> (Endesa, Iberdrola, Naturgy, Repsol, TotalEnergies, Octopus…). El país se detecta automáticamente. Opcionalmente puede añadir el <b>CSV/Excel de consumo horario</b> (Datadis / distribuidora) para comparar las tarifas con discriminación horaria con su consumo real de cada hora.<br>
-        <b>Consumo por hora (PT):</b> junte o <b>Excel/CSV de consumos da E-Redes</b> (15 em 15 minutos) para saber o seu consumo real em <b>vazio / cheias / ponta</b> e comparar também com as ofertas bi-horárias e tri-horárias, mesmo que a fatura só mostre o total.</p>
+        <b>Consumo por hora (PT):</b> junte o <b>ficheiro de consumos da E-Redes</b> (CSV, XLS ou XLSX, 15 em 15 minutos) para saber o seu consumo real em <b>vazio / cheias / ponta</b> e comparar também com as ofertas bi-horárias e tri-horárias, mesmo que a fatura só mostre o total.</p>
       </div>
     </div>
 
-    <label class="dropzone" id="dropzone" for="file-input">
-      <input type="file" id="file-input" accept="application/pdf,.pdf,.xlsx,.xls,.csv" hidden>
-      <div class="dz-inner">
-        <div class="dz-icon">📄</div>
-        <div><b>Arraste o PDF para aqui</b> ou clique para escolher <span class="muted small">(também aceita o Excel/CSV de consumos da E-Redes ou da distribuidora)</span></div>
-        <div class="muted small">O ficheiro nunca sai do seu computador – toda a leitura é feita no browser.</div>
-        <div class="dz-actions">
-          <button type="button" class="btn ghost small" id="btn-sample">Experimentar com uma fatura de exemplo (PT)</button>
-          <button type="button" class="btn ghost small" id="btn-sample-es">Probar con una factura de ejemplo (ES)</button>
-          <button type="button" class="btn ghost small" id="btn-manual">Não tenho PDF – introduzir valores à mão (PT)</button>
-          <button type="button" class="btn ghost small" id="btn-manual-es">No tengo PDF – introducir valores a mano (ES)</button>
+    <div class="upload-grid">
+      <label class="dropzone" id="dropzone" for="file-input">
+        <input type="file" id="file-input" accept="application/pdf,.pdf,.xlsx,.xls,.csv,.txt" hidden>
+        <div class="dz-inner">
+          <div class="dz-icon">📄</div>
+          <div class="dz-title">1. Fatura em PDF</div>
+          <div><b>Arraste o PDF para aqui</b> ou clique para escolher</div>
+          <div class="muted small">O ficheiro nunca sai do seu computador – toda a leitura é feita no browser.</div>
+          <div class="dz-actions">
+            <button type="button" class="btn ghost small" id="btn-sample">Experimentar com uma fatura de exemplo (PT)</button>
+            <button type="button" class="btn ghost small" id="btn-sample-es">Probar con una factura de ejemplo (ES)</button>
+            <button type="button" class="btn ghost small" id="btn-manual">Não tenho PDF – introduzir valores à mão (PT)</button>
+            <button type="button" class="btn ghost small" id="btn-manual-es">No tengo PDF – introducir valores a mano (ES)</button>
+          </div>
         </div>
-      </div>
-    </label>
+      </label>
+      <label class="dropzone secondary" id="curve-dropzone" for="curve-file-input">
+        <input type="file" id="curve-file-input" accept=".csv,.txt,.xls,.xlsx,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+        <div class="dz-inner">
+          <div class="dz-icon">📈</div>
+          <div class="dz-title">2. Consumos por hora <span class="muted">(opcional)</span></div>
+          <div><b>Arraste o CSV / XLS / XLSX de consumos para aqui</b> ou clique para escolher</div>
+          <div class="muted small">Ficheiro de consumos a cada 15 min / hora do <b>Balcão Digital da E-Redes</b> (Consumos → Consultar consumos detalhados → Exportar) ou de <b>Datadis</b> / la distribuidora (ES). Serve para saber o consumo real em <b>vazio, cheias e ponta</b> quando a fatura não o mostra – pode juntá-lo antes ou depois da fatura.</div>
+          <div class="dz-actions">
+            <button type="button" class="btn ghost small" id="btn-curve-sample-main">Experimentar com um ficheiro de exemplo (E-Redes)</button>
+          </div>
+        </div>
+      </label>
+    </div>
 
     <div class="progress hidden" id="progress"><div class="bar"></div><span class="ptext">A ler o PDF…</span></div>
     <div class="alert error hidden" id="upload-error"></div>
@@ -105,13 +120,13 @@
           <div class="curve-head">
             <div>
               <b>Consumo real por hora / 15 minutos (opcional, recomendado)</b>
-              <p class="muted small">A fatura nem sempre mostra o consumo repartido por <b>vazio, cheias e ponta</b> (ou mostra apenas o total). Junte o ficheiro <b>Excel (.xlsx) ou CSV</b> do
+              <p class="muted small">A fatura nem sempre mostra o consumo repartido por <b>vazio, cheias e ponta</b> (ou mostra apenas o total). Junte o ficheiro <b>CSV, XLS ou XLSX</b> do
                 <a href="https://balcaodigital.e-redes.pt" target="_blank" rel="noopener">Balcão Digital da E-Redes</a> (Consumos → <i>Consultar consumos detalhados</i> → Exportar) – ou qualquer ficheiro com data, hora e consumo –
                 e classificamos cada quarto de hora com os horários da ERSE (ciclo diário ou semanal) para saber quanto gastaria em <b>bi-horário</b> e <b>tri-horário</b> com o seu consumo real.</p>
             </div>
             <label class="dropzone mini" id="pt-curve-drop" for="pt-curve-input">
               <input type="file" id="pt-curve-input" accept=".xlsx,.xls,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
-              <span>📈 Arraste o Excel/CSV da E-Redes para aqui ou clique para escolher</span>
+              <span>📈 Arraste o CSV / XLS / XLSX da E-Redes para aqui ou clique para escolher</span>
               <button type="button" class="btn ghost small" id="btn-pt-curve-sample">Experimentar com um ficheiro de exemplo</button>
             </label>
           </div>
@@ -343,7 +358,7 @@
           <div class="curve-head">
             <div>
               <b>Consumo real hora a hora (opcional, recomendado)</b>
-              <p class="muted small">Su factura sólo indica el total (o una estimación por periodos). Adjunte el fichero CSV o Excel (.xlsx) de <b>consumo horario</b> que descarga gratis de
+              <p class="muted small">Su factura sólo indica el total (o una estimación por periodos). Adjunte el fichero CSV o Excel (.xls / .xlsx) de <b>consumo horario</b> que descarga gratis de
                 <a href="https://datadis.es" target="_blank" rel="noopener">Datadis</a>, de su distribuidora (<a href="https://www.edistribucion.com" target="_blank" rel="noopener">e-distribución</a>, <a href="https://www.i-de.es" target="_blank" rel="noopener">i-DE</a>, UFD, Viesgo…) o de la app de su comercializadora,
                 y clasificamos cada hora en <b>punta / llano / valle</b> según el calendario 2.0TD para comparar las tarifas con discriminación horaria con su consumo real.</p>
             </div>
@@ -577,6 +592,6 @@
   <span id="app-version" title="Versão da aplicação"></span>
 </footer>
 
-<script type="module" src="app.js?v=1.5.0"></script>
+<script type="module" src="app.js?v=1.6.0"></script>
 </body>
 </html>

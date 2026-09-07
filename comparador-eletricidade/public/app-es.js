@@ -4,7 +4,8 @@
 // same words the bill uses (Potencia, Energía, Bono Social, Alquiler, Impuesto, IVA).
 import { simulateES, simulateAllES, splitConsumption, cnmcLink, PERIODS_ES, PERIOD_LABELS_ES, RULES_ES_2026 } from './lib/simulator-es.js';
 import { parseConsumptionCSV, sliceCurve, applyShare, shiftToValle, CALENDAR_TEXT_ES } from './lib/consumption-es.js';
-import { readXlsxRows, sheetRowsToCsv, isZip, isOle } from './lib/xlsx-lite.js';
+import { sheetRowsToCsv } from './lib/xlsx-lite.js';
+import { decodeCurveBuffer } from './app-curve-pt.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -166,11 +167,8 @@ async function handleCurveFile(file) {
 /** CSV / TXT / XLSX bytes -> curve (Excel is read in the browser with lib/xlsx-lite.js, first sheet). */
 export function loadCurveBufferES(buf, fileName = 'consumos.csv') {
   try {
-    if (buf.byteLength >= 8 && isOle(buf)) throw new Error('es un Excel antiguo (.xls binario): ábralo en Excel/LibreOffice y guárdelo como .xlsx o CSV.');
-    if (buf.byteLength >= 4 && isZip(buf)) { const { rows } = readXlsxRows(buf); return loadCurveText(sheetRowsToCsv(rows), fileName); }
-    let text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
-    if (/\uFFFD/.test(text)) text = new TextDecoder('windows-1252').decode(buf); // exports from Windows tools
-    return loadCurveText(text, fileName);
+    const dec = decodeCurveBuffer(buf); // .xlsx / .xls (Excel 97-2003) / HTML-XML tables -> rows; otherwise text (UTF-8 or Windows-1252)
+    return loadCurveText(dec.rows ? sheetRowsToCsv(dec.rows) : dec.text, fileName);
   } catch (e) {
     console.error(e);
     ES.curve = null; ES.curveUsed = null;

@@ -36,9 +36,10 @@ Conceptos leídos de la factura española (Endesa, Iberdrola, Naturgy, Repsol, �
 
 Tudo corre **no browser** (pdf.js) – o PDF nunca sai do computador do utilizador.
 
-Além da fatura, é possível juntar o **ficheiro de consumos por hora / 15 minutos** (Excel `.xlsx` ou
-CSV da E-Redes em Portugal, CSV/Excel da Datadis ou da distribuidora em Espanha) para que a comparação
-use o consumo **real** de cada período horário – ver [Consumos por hora (E-Redes)](#consumos-por-hora-e-redes--ficheiro-excel-ou-csv)
+Além da fatura, é possível juntar o **ficheiro de consumos por hora / 15 minutos** (CSV, `.xls` ou
+`.xlsx` da E-Redes em Portugal, CSV/Excel da Datadis ou da distribuidora em Espanha) – há uma segunda
+zona de upload logo no passo 1 e outra no passo 2 – para que a comparação use o consumo **real** de
+cada período horário – ver [Consumos por hora (E-Redes)](#consumos-por-hora-e-redes--ficheiro-excel-ou-csv)
 e [Curva de consumo horario (CSV)](#curva-de-consumo-horario-csv-o-excel).
 
 ## Como correr
@@ -153,8 +154,8 @@ La factura sólo da el total de kWh (o, en el mejor de los casos, las lecturas p
 para las tarifas con discriminación horaria el reparto punta/llano/valle es una estimación. En el paso 2
 se puede adjuntar el **CSV o Excel (.xlsx) de consumo horario** que se descarga gratis de [Datadis](https://datadis.es)
 o del área de cliente de la distribuidora (e-distribución, i-DE, UFD, Viesgo…). Los `.xlsx` se leen en el
-navegador con `public/lib/xlsx-lite.js` (fechas/horas en texto o en números de serie de Excel); los `.xls`
-binarios antiguos deben guardarse como `.xlsx` o CSV.
+navegador con `public/lib/xlsx-lite.js` (fechas/horas en texto o en números de serie de Excel) y los `.xls`
+antiguos (Excel 97-2003, o tablas HTML/XML guardadas como `.xls`) con `public/lib/xls-lite.js`.
 `public/lib/consumption-es.js` lee los formatos habituales (`CUPS;Fecha;Hora;Consumo_kWh;Metodo_obtencion`
 de Datadis/CNMC, `AE_kWh;AS_KWh;…` de e-distribución, `FECHA-HORA;…;CONSUMO Wh` de i-DE, ficheros sin
 cabecera, cuartohorarios 1..96 o `HH:MM`, valores en Wh o kWh, coma o punto decimal) y clasifica cada hora
@@ -179,15 +180,20 @@ tri-horário (ou noutro ciclo). Por isso o passo 2 aceita um segundo ficheiro: o
 que qualquer cliente com contador inteligente descarrega gratuitamente no
 [Balcão Digital da E-Redes](https://balcaodigital.e-redes.pt)
 (**Consumos → Consultar consumos detalhados → Exportar**, dados desde 01/01/2024; tem de ser o ficheiro
-de *Consumos/Diagrama de carga*, não o de *Leituras*). O ficheiro pode ser largado na caixa própria do
-passo 2 ou diretamente na zona de upload do passo 1 (o site percebe que não é um PDF).
+de *Consumos/Diagrama de carga*, não o de *Leituras*). O ficheiro pode ser largado na segunda zona de
+upload do passo 1 («Consumos por hora»), na caixa própria do passo 2 ou até na zona do PDF (o site
+percebe que não é um PDF) – antes ou depois da fatura.
 
 O que é lido (`public/lib/consumption-pt.js`):
 
 * **Excel `.xlsx`** diretamente no browser, sem bibliotecas externas – `public/lib/xlsx-lite.js` é um
   leitor mínimo de OOXML (inflate RFC 1951 + diretório ZIP + `sharedStrings.xml`/`sheetN.xml`), com
-  datas/horas em texto ou em números de série do Excel. Ficheiros `.xls` binários (Excel 97-2003) não
-  são suportados – guardar como `.xlsx` ou CSV.
+  datas/horas em texto ou em números de série do Excel.
+* **Excel `.xls`** (97-2003, BIFF8/BIFF5) – `public/lib/xls-lite.js` percorre o contentor OLE2 (FAT,
+  mini-FAT, diretório) e os registos BIFF (`LABELSST`/`SST`+`CONTINUE`, `NUMBER`, `RK`, `MULRK`,
+  `LABEL`, `FORMULA` com resultado em cache, formatos de data, sistema 1904). Também lê os «falsos» `.xls`
+  que muitos portais exportam: uma **tabela HTML** ou um documento **SpreadsheetML 2003** com extensão
+  `.xls`. Ficheiros `.ods` devem ser guardados como `.xlsx`/CSV.
 * **CSV/TXT** com `;`, `,` ou tabulações, vírgula ou ponto decimal, com ou sem linhas de título antes do
   cabeçalho (`Data | Hora | Consumo registado, Ativa (kW) | [Injeção registada…] | [Estado]`).
 * Formato E-Redes: um registo por **15 minutos**, hora = **fim** do intervalo (`00:15` = 00:00–00:15,
@@ -219,7 +225,8 @@ ficheiro só é possível simular a opção da fatura e a simples (esta só prec
 `npm run samples:eredes` gera `public/samples/consumos-eredes-exemplo.xlsx` (+ `.csv`): 38 dias de
 quartos de hora no layout da E-Redes, coerentes com as faturas de exemplo (botão «Experimentar com um
 ficheiro de exemplo»). Os testes (`test/consumption-pt.test.mjs`, `test/app.test.mjs`) cobrem os
-horários da ERSE, o leitor xlsx, ficheiros com datas em série do Excel e o fluxo completo na interface.
+horários da ERSE, os leitores xlsx/xls (fixtures `.xls` gerados com xlwt, tabela HTML e SpreadsheetML),
+ficheiros com datas em série do Excel e o fluxo completo na interface.
 
 ## Como é feita a comparação (Portugal)
 
@@ -254,6 +261,7 @@ public/
   lib/consumption-es.js              curva horaria ES (CSV Datadis/distribuidoras, calendario 2.0TD)
   app-curve-pt.js, lib/consumption-pt.js   consumos E-Redes (PT): leitura, horários ERSE (ciclo diário/semanal), repartição por período
   lib/xlsx-lite.js                   leitor .xlsx sem dependências (inflate + zip + OOXML) usado pelos dois fluxos
+  lib/xls-lite.js                    leitor .xls (OLE2 + BIFF8/5) e de tabelas HTML / SpreadsheetML guardadas como .xls
   data/ofertas.json                  ofertas ERSE (gerado)
   data/ofertas-es.json               tarifas españolas (curadas a mano, com fonte e data)
   vendor/pdfjs/                      pdf.js (gerado por npm run vendor)
@@ -298,8 +306,9 @@ aplicação aparece no rodapé (`APP_VERSION` em `app.js`) e nas mensagens de er
 * España: la lista de tarifas es manual (fecha en cada tarifa) y no incluye PVPC ni tarifas
   planas/flexibles; IGIC/IPSI se aplican sólo si la factura los indica. Confirme siempre en el
   comparador oficial de la CNMC (botón con sus datos ya cargados) antes de cambiar.
-* Curva horaria / consumos E-Redes: los `.xls` binarios (Excel 97-2003) deben guardarse como `.xlsx`
-  o CSV; las tarifas indexadas se simulan con su precio medio (no hora a hora con el precio OMIE de
-  cada hora); los excedentes de autoconsumo no se compensan. Em Portugal os horários implementados
+* Curva horaria / consumos E-Redes: se lee la primera hoja del libro (`.xls`/`.xlsx`); los ficheros
+  `.ods` y los `.xls` protegidos con contraseña deben guardarse como `.xlsx` o CSV; las tarifas
+  indexadas se simulan con su precio medio (no hora a hora con el precio OMIE de cada hora); los
+  excedentes de autoconsumo no se compensan. Em Portugal os horários implementados
   são os do Continente (Açores/Madeira têm ciclos próprios) e os do Regulamento Tarifário em vigor
   (os novos períodos anunciados pela ERSE para 2027 ainda não estão incluídos).
