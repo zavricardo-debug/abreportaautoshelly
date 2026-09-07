@@ -10,7 +10,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
-export const APP_VERSION = '1.6.1'; // shown in the footer + error messages (helps spot stale caches)
+export const APP_VERSION = '1.6.2'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
   country: 'PT',    // 'PT' (ERSE flow) or 'ES' (2.0TD flow, app-es.js)
@@ -237,7 +237,7 @@ function routeCurveFile(buf, name) {
   try { dec = decodeCurveBuffer(buf); } catch (e) { console.error(e); err = e; }
   const sample = (dec?.rows ? (dec.sheets || [{ rows: dec.rows }]).map((sh) => (sh.rows || []).slice(0, 60).map((r) => r.join(';')).join('\n')).join('\n') : (dec?.text || '')).slice(0, 16000).toLowerCase();
   const country = /consumo registado|consumo medido na ic|e-redes|\bcpe\b|injec|injeç/.test(sample) ? 'PT'
-    : /\bcups\b|consumo_kwh|ae_kwh|metodo_obtencion|\bfecha\b|consumo wh/.test(sample) ? 'ES'
+    : /\bcups\b|consumo_kwh|ae_kwh|metodo_obtencion|\bfecha\b|consumo wh|coste por hora|precio \(|\bendesa\b|\btarifa:/.test(sample) ? 'ES'
     : (state.parsed ? state.country : 'PT');
   if (country === 'ES') {
     if (state.country !== 'ES' || $('#step-values-es').classList.contains('hidden')) { setCountry('ES'); if (!state.parsed || state.country !== 'ES') showManualES(); else show('#step-values-es'); }

@@ -333,7 +333,13 @@ export function cellToText(v, header = '', timeCol = false) {
 
 /** Convert sheet rows to a ";"-separated CSV text (header-aware rendering of dates/times). */
 export function sheetRowsToCsv(rows, { headerRow = null } = {}) {
-  const hIdx = headerRow ?? rows.findIndex((r) => r && r.filter((c) => typeof c === 'string' && c.trim()).length >= 2);
+  // header = first row (within 60) with ≥ 2 column names that look like date / hour / consumption headers; metadata rows such as
+  // "CUPS: | ES00…" or "Fecha inicio: | 18/04/2026" (Endesa área de clientes) are skipped. Fallback: first row with ≥ 2 texts.
+  const KEY = /fecha|data|date|\bdia\b|hora|hour|time|consumo|kwh|\bwh\b|energ|cups|periodo|metodo|obtencion|estado|potencia/;
+  const looksHeader = (r) => r && !r.some((c) => typeof c === 'number' && c > 20000 && c < 80000) && r.filter((c) => typeof c === 'string' && KEY.test(c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()) && !/\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(c)).length >= 2;
+  const firstTexts = rows.findIndex((r) => r && r.filter((c) => typeof c === 'string' && c.trim()).length >= 2);
+  const keyed = rows.slice(0, 60).findIndex(looksHeader);
+  const hIdx = headerRow ?? (keyed >= 0 ? keyed : firstTexts);
   const headers = hIdx >= 0 ? rows[hIdx].map((c) => (c === null || c === undefined ? '' : String(c))) : [];
   // columns made of Excel time fractions (0 < v < 1) – e.g. "Hora" 00:15 … 23:45 – so their 0 / 1 values are 00:00 / 24:00
   const timeCols = new Set();

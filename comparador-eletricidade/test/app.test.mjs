@@ -527,3 +527,30 @@ test('unreadable consumption file: the error box shows what was decoded (diagnos
   assert.match(perr.querySelector('pre').textContent, /CPE \| PT0002000000000000AA/);
   assert.ok(X.length > 0);
 });
+
+test('Endesa "área de clientes" consumption .xls dropped in step 1 is routed to the Spanish flow; with the Endesa bill the real split replaces the estimate', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  // curve first (no invoice yet): the metadata rows ("Tarifa:", "Coste por hora") identify a Spanish file
+  const b = readFileSync(resolve(__dirname, 'fixtures/endesa-clientes.xls'));
+  window.__test_curve_buffer(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength), 'consumos.xls');
+  assert.equal(d.body.dataset.country, 'ES');
+  assert.ok(!d.querySelector('#step-values-es').classList.contains('hidden'));
+  const err = d.querySelector('#es-curve-error');
+  assert.ok(err.classList.contains('hidden'), err.textContent);
+  const sum = d.querySelector('#es-curve-summary').textContent;
+  assert.match(sum, /Endesa \(área de clientes\)/);
+  assert.match(sum, /ES0031600000000000AB0F/);
+  assert.match(sum, /3 días/);
+  assert.match(sum, /72,0 kWh/);
+  // then the Endesa bill: the curve is outside the billing period -> its real shares are applied to the billed kWh
+  window.__test_text(readFileSync(resolve(__dirname, 'fixtures/endesa-es-2026.txt'), 'utf8'));
+  const c2 = readFileSync(resolve(__dirname, 'fixtures/endesa-clientes.csv'));
+  window.__test_curve_buffer(c2.buffer.slice(c2.byteOffset, c2.byteOffset + c2.byteLength), 'consumos.csv');
+  assert.ok(d.querySelector('#es-curve-error').classList.contains('hidden'), d.querySelector('#es-curve-error').textContent);
+  assert.match(d.querySelector('#es-split-hint').textContent, /Reparto REAL/);
+  const v = (sel) => +d.querySelector(sel).value;
+  assert.ok(Math.abs(v('#es-kwh-punta') + v('#es-kwh-llano') + v('#es-kwh-valle') - 277.224) < 0.01);
+  assert.ok(Math.abs(v('#es-kwh-valle') - 277.224 * 40 / 72) < 0.01, `valle ${v('#es-kwh-valle')}`);
+});

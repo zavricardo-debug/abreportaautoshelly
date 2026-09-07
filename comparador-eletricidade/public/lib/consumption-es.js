@@ -8,6 +8,9 @@
 //   e-distribución (Endesa)         CUPS;Fecha;Hora;AE_kWh;AS_KWh;AE_AUTOCONS_kWh;REAL/ESTIMADO
 //   i-DE (Iberdrola)                CUPS;FECHA-HORA;INV / VER;CONSUMO Wh;GENERACION Wh
 //   UFD (Naturgy) / Viesgo / others  Fecha;Hora;Consumo (kWh)  – any file with date, hour and consumption columns
+//   Endesa (área de clientes)       6 metadata rows (CUPS:, Fecha inicio:, Fecha fin:, Fecha y hora de extracción:, Tarifa:)
+//                                   then Fecha,Hora,Consumo (Wh),Precio (€/kWh),Coste por hora (€) with ISO dates, hour ranges
+//                                   "00:00-01:00" and a final ",Total (Wh):,…" row (legacy: Fecha;Hora 0..23;Consumo;Precio (€);Coste por hora)
 //   Quarter-hourly files (Fecha, Hora 1..96 or HH:MM, kWh/Wh) are aggregated to hours.
 //
 // 2.0TD calendar (CNMC Circular 3/2020, art. 7.3): Monday-Friday punta 10-14 h and 18-22 h,
@@ -48,13 +51,25 @@ const num = (s) => {
 const strip = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 function detectSeparator(lines) {
-  const sample = lines.slice(0, 5).join('\n');
+  // sample enough lines to get past metadata / title rows (Endesa área de clientes: 6 rows without any ";")
+  const sample = lines.slice(0, 40).join('\n');
   const counts = { ';': (sample.match(/;/g) || []).length, ',': (sample.match(/,/g) || []).length, '\t': (sample.match(/\t/g) || []).length };
-  if (counts['\t'] > 0 && counts['\t'] >= counts[';']) return '\t';
-  if (counts[';'] > 0) return ';';
+  if (counts['\t'] > 0 && counts['\t'] >= counts[';'] && counts['\t'] >= counts[',']) return '\t';
+  if (counts[';'] > 0 && counts[';'] >= counts[','] / 3) return ';'; // ";" files carry decimal commas ("0,143") in every row
   return ',';
 }
-const splitLine = (line, sep) => line.split(sep).map((c) => c.trim().replace(/^"|"$/g, ''));
+const splitLine = (line, sep) => {
+  if (!line.includes('"')) return line.split(sep).map((c) => c.trim());
+  const out = []; let cur = ''; let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { if (q && line[i + 1] === '"') { cur += '"'; i++; } else q = !q; }
+    else if (ch === sep && !q) { out.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur.trim());
+  return out;
+};
 
 /** Parse "DD/MM/YYYY", "YYYY-MM-DD", "YYYY/MM/DD", "DD-MM-YYYY" (optionally followed by a time). */
 function parseDate(s) {
@@ -66,12 +81,19 @@ function parseDate(s) {
   if (m) return { y: +m[3], mo: +m[2], d: +m[1], h: m[4] !== undefined ? +m[4] : null, mi: m[5] !== undefined ? +m[5] : null };
   return null;
 }
-/** Hour column: "1".."24" (hour ending), "00:00".."23:00" (hour starting), "0".."23" when a 0 appears (hour starting), or 1..96 quarter-hours. */
+/**
+ * Hour column: "1".."24" (hour ending), "00:00".."23:00" (hour starting), "0".."23" when a 0 appears (hour starting),
+ * 1..96 quarter-hours, or a range "00:00-01:00" / "0-1" / "00h-01h" (Endesa área de clientes) = the interval START.
+ */
 function parseHourToken(s) {
   if (s === undefined || s === null || s === '') return null;
   const t = String(s).trim();
   let m = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
   if (m) return { kind: 'clock', h: +m[1], mi: +m[2] };
+  m = t.match(/^(?:de\s+)?(\d{1,2})(?:[:h.](\d{2}))?\s*h?\s*(?:[-–—]|\ba\b|\bto\b)\s*(\d{1,2})(?:[:h.](\d{2}))?\s*h?$/i);
+  if (m) return { kind: 'clock', h: +m[1], mi: m[2] ? +m[2] : 0, range: true };
+  m = t.match(/^(\d{1,2})\s*h$/i);
+  if (m) return { kind: 'clock', h: +m[1], mi: 0 };
   m = t.match(/^(\d{1,3})$/);
   if (m) return { kind: 'index', v: +m[1] };
   return null;
@@ -84,7 +106,8 @@ const COL = {
   export: [/^as[ _-]?kwh$/, /vertid/, /excedent/, /generaci/, /^export/],
   method: [/metodo/, /real\s*\/\s*estimad/, /^tipo$/, /obtencion/, /^estimad/, /^calidad/],
 };
-const findCol = (headers, res) => headers.findIndex((h) => res.some((re) => re.test(h)));
+const NOT_ENERGY = /precio|coste|cost\b|importe|€|eur\b|tarifa|peaje|impuesto|iva\b/; // money columns next to the kWh (Endesa área de clientes)
+const findCol = (headers, res, exclude = null) => headers.findIndex((h) => (!exclude || !exclude.test(h)) && res.some((re) => re.test(h)));
 
 /**
  * @param {string} text CSV content
@@ -109,6 +132,9 @@ export function parseConsumptionCSV(text, { ceutaMelilla = false } = {}) {
     const hits = cells.filter((c) => /fecha|data|date|dia|hora|hour|consumo|kwh|\bwh\b|energ|cups|periodo|metodo|obtencion/.test(c)).length;
     if (hits >= 2 || (hits >= 1 && cells.filter(Boolean).length >= 3 && cells.some((c) => /^\d{1,2}h?$|^\d{1,2}:\d{2}$/.test(c)))) { headerIdx = i; headers = cells; start = i + 1; break; }
   }
+  // metadata rows above the header (Endesa área de clientes: "CUPS:,ES00…", "Tarifa:,…", "Fecha y hora de extracción:,…")
+  const meta = strip(lines.slice(0, Math.max(0, headerIdx)).join('\n'));
+  const metaCups = lines.slice(0, Math.max(0, headerIdx)).join('\n').match(/\bES\d{16}[A-Z0-9]{2,4}\b/i);
   // pivot layout (one row per day, one column per hour): flatten to date;hour;kwh rows
   if (headers) {
     const hourCols = headers.map((h, j) => ({ h, j })).filter(({ h }) => /^(h|hora )?\d{1,2}(h|:00)?$/.test(h) || /^\d{1,2}[-–]\d{1,2}h?$/.test(h) || /^\d{1,2}:\d{2}[-–]\d{1,2}:\d{2}$/.test(h));
@@ -125,14 +151,16 @@ export function parseConsumptionCSV(text, { ceutaMelilla = false } = {}) {
       if (flat.length > 1) { const c = parseConsumptionCSV(flat.join('\n'), { ceutaMelilla }); c.format = 'tabla por horas (una fila por día)'; c.warnings.unshift('Fichero con una fila por día y una columna por hora: convertido a formato horario.'); return c; }
     }
   }
-  let cDate, cHour, cKwh, cExp, cMet, cups = null, format = 'genérico';
+  let cDate, cHour, cKwh, cExp, cMet, cups = metaCups ? metaCups[0].toUpperCase() : null, format = 'genérico';
   if (headers) {
-    cDate = findCol(headers, COL.date); cHour = findCol(headers, COL.hour); cKwh = findCol(headers, COL.kwh); cExp = findCol(headers, COL.export); cMet = findCol(headers, COL.method);
+    cDate = findCol(headers, COL.date); cHour = findCol(headers, COL.hour); cKwh = findCol(headers, COL.kwh, NOT_ENERGY); cExp = findCol(headers, COL.export, NOT_ENERGY); cMet = findCol(headers, COL.method);
     // "CONSUMO Wh" (i-DE) and a header that includes the unit
     if (headers.some((h) => /^consumo[ _-]?kwh$/.test(h)) && headers.some((h) => /^metodo/.test(h))) format = 'Datadis / CNMC';
     else if (headers.some((h) => /^ae[ _-]?kwh$/.test(h))) format = 'e-distribución';
     else if (headers.some((h) => /^fecha[ _-]?hora$/.test(h)) && headers.some((h) => /wh$/.test(h))) format = 'i-DE';
+    else if (headers.some((h) => /coste por hora|^precio/.test(h)) && headers.some((h) => /^consumo/.test(h))) format = /extracci|tarifa:/.test(meta) ? 'Endesa (área de clientes)' : 'comercializadora (consumo + precio)';
     else if (headers.some((h) => /^cups$/.test(h))) format = 'distribuidora';
+    if (cKwh < 0) { cKwh = headers.findIndex((h, i) => i !== cDate && i !== cHour && !NOT_ENERGY.test(h) && /kwh|wh|consum|energ/.test(h)); }
     if (cKwh < 0) { cKwh = headers.findIndex((h, i) => i !== cDate && i !== cHour && /kwh|wh|consum|energ/.test(h)); }
   } else {
     // no header: guess by content of the first data row -> [CUPS?] date hour kwh …
@@ -154,7 +182,7 @@ export function parseConsumptionCSV(text, { ceutaMelilla = false } = {}) {
     const cells = splitLine(lines[i], sep);
     if (cells.length < 2) continue;
     const dt = parseDate(cells[cDate]);
-    if (!dt) { bad++; continue; }
+    if (!dt) { if (cells[cDate] && !cells.some((c) => /^total\b/i.test(c))) bad++; continue; } // ",Total (Wh):,…" footers and blank-date rows are not errors
     const ht = cHour >= 0 ? parseHourToken(cells[cHour]) : null;
     const kwhRaw = num(cells[cKwh]);
     if (kwhRaw === null) { bad++; continue; }

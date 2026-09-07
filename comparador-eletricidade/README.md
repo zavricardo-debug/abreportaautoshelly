@@ -158,7 +158,10 @@ navegador con `public/lib/xlsx-lite.js` (fechas/horas en texto o en números de 
 antiguos (Excel 97-2003, o tablas HTML/XML guardadas como `.xls`) con `public/lib/xls-lite.js`; también
 `.ods`, tablas «pivot» (una fila por día y una columna por hora) y ficheros con varias hojas.
 `public/lib/consumption-es.js` lee los formatos habituales (`CUPS;Fecha;Hora;Consumo_kWh;Metodo_obtencion`
-de Datadis/CNMC, `AE_kWh;AS_KWh;…` de e-distribución, `FECHA-HORA;…;CONSUMO Wh` de i-DE, ficheros sin
+de Datadis/CNMC, `AE_kWh;AS_KWh;…` de e-distribución, `FECHA-HORA;…;CONSUMO Wh` de i-DE, el fichero del
+**área de clientes de Endesa** – 6 filas de metadatos `CUPS:`, `Fecha inicio:`, `Tarifa:`… y después
+`Fecha,Hora,Consumo (Wh),Precio (€/kWh),Coste por hora (€)` con horas `00:00-01:00` y una fila `Total (Wh):`
+al final, o la variante antigua `Fecha;Hora 0..23;Consumo;Precio (€);Coste por hora` – ficheros sin
 cabecera, cuartohorarios 1..96 o `HH:MM`, valores en Wh o kWh, coma o punto decimal) y clasifica cada hora
 según el calendario 2.0TD de la Circular 3/2020 (laborables: punta 10–14 h y 18–22 h, llano 8–10, 14–18 y
 22–24 h, valle 0–8 h; sábados, domingos, 6 de enero y festivos nacionales de fecha fija valle las 24 h;

@@ -122,3 +122,42 @@ test('sample curve matches the sample invoice: 744 hours, 277,2 kWh, 19/07 → 1
   assert.ok(c.share.valle > 0.35 && c.share.valle < 0.5, `valle share ${c.share.valle}`);
   assert.deepEqual(c.warnings, []);
 });
+
+test('Endesa "área de clientes" export (metadata rows, ISO dates, hour ranges 00:00-01:00, Wh, € columns, Total row): CSV, legacy CSV, .xls and HTML-xls', async () => {
+  const { readXlsRows, tableTextToRows } = await import('../public/lib/xls-lite.js');
+  const { sheetRowsToCsv } = await import('../public/lib/xlsx-lite.js');
+  const expect = (c, label) => {
+    assert.equal(c.format, 'Endesa (área de clientes)', label);
+    assert.equal(c.cups, 'ES0031600000000000AB0F', label);
+    assert.equal(c.days, 3, label);
+    assert.equal(c.totalKwh, 72, label);                                    // the € columns are never mistaken for the consumption
+    assert.deepEqual(c.byPeriod, { punta: 16, llano: 16, valle: 40 }, label); // Mon + Tue: 8/8/8 each; Saturday 25: 24 valle
+    assert.equal(c.start, '2026-07-20'); assert.equal(c.end, '2026-07-25');
+    assert.equal(c.hours[0].hour, 0, label);                                // "00:00-01:00" = hour starting at 0 (not hour ending)
+    assert.ok(!c.warnings.some((w) => /ignorado/.test(w)), `${label}: ${c.warnings}`); // metadata + Total rows are not "unreadable rows"
+  };
+  // current export: comma separated, ISO dates, Wh
+  const cur = parseConsumptionCSV(readFileSync(resolve(__dirname, 'fixtures/endesa-clientes.csv'), 'utf8'));
+  expect(cur, 'csv');
+  assert.ok(cur.warnings.some((w) => /Wh convertidos/.test(w)));
+  // legacy export: 5 info lines + title, ";" separated, DD/MM/YYYY, hour 0..23, kWh with decimal comma, Windows-1252
+  const legacy = parseConsumptionCSV(new TextDecoder('windows-1252').decode(readFileSync(resolve(__dirname, 'fixtures/endesa-clientes-legacy.csv'))));
+  expect(legacy, 'legacy');
+  assert.deepEqual(legacy.warnings, []);
+  // Excel 97-2003 with real date cells and the metadata rows on top
+  const x = readFileSync(resolve(__dirname, 'fixtures/endesa-clientes.xls'));
+  const xls = readXlsRows(x.buffer.slice(x.byteOffset, x.byteOffset + x.byteLength));
+  assert.equal(xls.sheet, 'Consumo');
+  const csvFromXls = sheetRowsToCsv(xls.rows);
+  assert.match(csvFromXls.split('\n')[5], /^Fecha;Hora;Consumo \(Wh\)/);        // header row detected below the metadata (blank row dropped)
+  assert.match(csvFromXls.split('\n')[6], /^2026-07-20;00:00-01:00;1000;/);     // date serial rendered as a date
+  expect(parseConsumptionCSV(csvFromXls), 'xls');
+  // HTML table saved as .xls (layout table + data table)
+  const all = tableTextToRows(readFileSync(resolve(__dirname, 'fixtures/endesa-clientes-html.xls'), 'utf8'), { all: true });
+  expect(parseConsumptionCSV(sheetRowsToCsv(all[0].rows)), 'html');
+  // hour-range spellings and a "Precio" column placed BEFORE the consumption
+  const odd = 'Fecha;Precio (€/kWh);Hora;Consumo\n20/07/2026;0,20;de 00:00 a 01:00;2\n20/07/2026;0,20;01h - 02h;2\n20/07/2026;0,20;2-3;2\n20/07/2026;0,20;3 h;2';
+  const o = parseConsumptionCSV(odd);
+  assert.equal(o.totalKwh, 8);
+  assert.deepEqual(o.hours.map((h) => h.hour), [0, 1, 2, 3]);
+});

@@ -157,9 +157,15 @@ function parseHourCell(v, fractional = false) {
     if (v > 1 && v < 24) return { min: Math.round(v * 60) }; // 9.5 = 09:30
     return null;
   }
-  const t = String(v).trim().replace(/h/i, ':');
-  let m = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  const raw = String(v).trim();
+  // interval "00:00-01:00" / "0-1" / "00h - 01h" / "de 00:00 a 01:00" (Endesa área de clientes, ES) -> the interval START
+  let m = raw.match(/^(?:de\s+)?(\d{1,2})(?:[:h.](\d{2}))?\s*h?\s*(?:[-–—]|\ba\b|\bto\b)\s*(\d{1,2})(?:[:h.](\d{2}))?\s*h?$/i);
+  if (m) return { min: +m[1] * 60 + (m[2] ? +m[2] : 0), range: true };
+  const t = raw.replace(/h/i, ':');
+  m = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (m) return { min: +m[1] * 60 + +m[2] };
+  m = t.match(/^(\d{1,2}):$/);
+  if (m) return { min: +m[1] * 60 };
   m = t.match(/^(\d{1,3})$/);
   if (m) return { index: +m[1] };
   return null;
@@ -245,9 +251,11 @@ export function parseConsumptionPT(input, opts = {}) {
     cInj = findCol(headers, HEAD.injection, skip);
     cSt = findCol(headers, HEAD.status, new Set([...skip, cInj].filter((x) => x >= 0)));
     if (headers.some((x) => /leitura/.test(x)) && !headers.some((x) => /consumo|energia|kwh|\bwh\b/.test(x) && !/leitura/.test(x))) throw new Error('Este ficheiro contém LEITURAS do contador e não o diagrama de carga. No Balcão Digital da E-Redes escolha "Consumos" → "Consultar consumos detalhados" (não "Leituras") e exporte para Excel.');
-    if (cVal < 0) { // first numeric-looking column that is not a date/hour/injection/status column
+    if (cVal < 0) { // first numeric-looking column that is not a date/hour/injection/status/money column
       const probe = rows.slice(start, start + 20);
-      cVal = headers.findIndex((x, j) => !skip.has(j) && j !== cInj && j !== cSt && probe.some((r) => num(r?.[j]) !== null));
+      const money = /precio|preco|preço|coste|custo|cost\b|importe|€|eur\b|tarifa|iva\b/;
+      cVal = headers.findIndex((x, j) => !skip.has(j) && j !== cInj && j !== cSt && !money.test(x) && probe.some((r) => num(r?.[j]) !== null));
+      if (cVal < 0) cVal = headers.findIndex((x, j) => !skip.has(j) && j !== cInj && j !== cSt && probe.some((r) => num(r?.[j]) !== null));
     }
     if (headers.some((x) => /consumo registado|consumo medido na ic|consumo fornecido/.test(x))) format = 'E-Redes (diagrama de carga)';
     else if (headers.some((x) => /date\/time utc|active energy/.test(x))) format = 'Shelly / contador de energia';
@@ -277,7 +285,7 @@ export function parseConsumptionPT(input, opts = {}) {
   for (let i = start; i < rows.length; i++) {
     const r = rows[i]; if (!r || r.length < 2) continue;
     const dc = parseDateCell(cDT >= 0 ? r[cDT] : r[cDate]);
-    if (!dc) { if (num(r[cVal]) !== null) bad++; continue; } // titles / totals / blank rows are not errors
+    if (!dc) { if (num(r[cVal]) !== null && r[cDT >= 0 ? cDT : cDate] && !r.some((c) => /^total\b/i.test(String(c ?? '').trim()))) bad++; continue; } // titles / totals / blank rows are not errors
     let min = dc.min, index = null;
     if (cHour >= 0) {
       const hc = parseHourCell(r[cHour], hourFrac);
