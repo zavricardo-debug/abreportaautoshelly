@@ -248,3 +248,62 @@ test('xls-lite: legacy Excel 97-2003 (.xls / BIFF8) – text cells, date/time ce
   const ole = new Uint8Array(600); ole.set([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
   assert.throws(() => readXlsRows(ole.buffer), /não contém um livro Excel/);
 });
+
+test('more real-world containers: two-sheet .xls, .ods (LibreOffice), pivot table (one row per day), nested HTML tables, SYLK, UTF-16 text, password-protected', async () => {
+  const { readXlsRows, tableTextToRows, sylkToRows, difToRows } = await import('../public/lib/xls-lite.js');
+  const { readXlsxRows: readX } = await import('../public/lib/xlsx-lite.js');
+  const { parseConsumptionCSV: parseES } = await import('../public/lib/consumption-es.js');
+  const ab = (f) => { const b = readFileSync(resolve(__dirname, 'fixtures', f)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
+  // workbook whose first sheet is an info sheet -> `all` exposes every sheet, the second holds the data
+  let r = readXlsRows(ab('eredes-duas-folhas.xls'), { sheetIndex: 'all' });
+  assert.deepEqual(r.sheets, ['Info', 'Consumos']);
+  assert.equal(r.all.length, 2); assert.equal(r.all[0].rows.length, 2); assert.equal(r.all[1].rows.length, 294);
+  assert.throws(() => parseConsumptionPT(r.all[0].rows), /Não foi possível reconhecer/);
+  let c = parseConsumptionPT(r.all[1].rows);
+  assert.equal(c.days, 4); assert.ok(Math.abs(c.totalKwh - 57.6) < 0.01);
+  // OpenDocument spreadsheet
+  r = readX(ab('eredes-3dias.ods'), { sheetIndex: 'all' });
+  assert.equal(r.sheet, 'Consumos');
+  assert.deepEqual(r.rows[5], ['Data', 'Hora', 'Consumo registado, Ativa (kW)', 'Estado']);
+  assert.equal(typeof r.rows[6][2], 'number');
+  c = parseConsumptionPT(r.rows);
+  assert.equal(c.step, 15); assert.ok(Math.abs(c.totalKwh - 57.6) < 0.01);
+  // pivot .xls: metadata rows + "Fecha | 0h … 23h" + one row per day (Spanish customer-area style) -> both parsers
+  r = readXlsRows(ab('consumo-pivot-horas.xls'));
+  assert.equal(r.rows[4][0], 'Fecha'); assert.equal(r.rows[4][24], '23h');
+  const es = parseES(sheetRowsToCsv(r.rows));
+  assert.equal(es.days, 3); assert.equal(es.totalKwh, 36); assert.match(es.format, /una fila por día/);
+  assert.equal(es.hours.filter((h) => h.date === '2026-08-03').length, 24);
+  c = parseConsumptionPT(r.rows);
+  assert.equal(c.days, 3); assert.equal(c.totalKwh, 36); assert.equal(c.step, 60);
+  assert.match(c.warnings.join(' '), /uma linha por dia/);
+  // PT pivot with 24 "HH:00" columns and a 0h-based labelling: 0h = 00:00-01:00
+  let csv = 'Data;' + Array.from({ length: 24 }, (_, h) => `${h}h`).join(';') + '\n2026-01-05;' + Array(24).fill('1').join(';') + '\n';
+  c = parseConsumptionPT(csv);
+  assert.equal(c.totalKwh, 24); assert.equal(c.quarters[0].min, 0); assert.deepEqual(c.split.diario[3], { ponta: 4, cheias: 10, vazio: 10 });
+  // nested HTML tables saved as .xls: the data table is the longest leaf table
+  const all = tableTextToRows(readFileSync(resolve(__dirname, 'fixtures/consumo-tabela-aninhada.xls'), 'utf8'), { all: true });
+  assert.equal(all.length, 2);
+  assert.deepEqual(all[0].rows[0], ['Fecha', 'Hora', 'Consumo (kWh)']);
+  assert.equal(parseES(sheetRowsToCsv(all[0].rows)).totalKwh, 24);
+  // SYLK / DIF text exports and UTF-16 "Unicode text"
+  const sylk = sylkToRows(readFileSync(resolve(__dirname, 'fixtures/eredes-sylk.xls'), 'utf8'));
+  assert.deepEqual(sylk[5], ['Data', 'Hora', 'Consumo registado, Ativa (kW)', 'Estado']);
+  assert.ok(Math.abs(parseConsumptionPT(sylk).totalKwh - 57.6) < 0.01);
+  assert.equal(difToRows('TABLE\r\n0,1\r\n"x"\r\nVECTORS\r\n0,2\r\n""\r\nTUPLES\r\n0,2\r\n""\r\nDATA\r\n0,0\r\n""\r\n-1,0\r\nBOT\r\n1,0\r\n"Data"\r\n1,0\r\n"Hora"\r\n-1,0\r\nBOT\r\n1,0\r\n"2026-01-05"\r\n0,1.5\r\nV\r\n-1,0\r\nEOD\r\n')[1][1], 1.5);
+  const { decodeText } = await import('../public/app-curve-pt.js');
+  const utf16 = decodeText(ab('eredes-utf16.txt'));
+  assert.ok(utf16.startsWith('Consumos'), utf16.slice(0, 20));
+  assert.ok(Math.abs(parseConsumptionPT(utf16).totalKwh - 57.6) < 0.01);
+  // ES parser: header row deep in the file (after 6 title lines) and "Hora" 0..23
+  csv = 'Consumo por horas\nCUPS: ES0031000000000001AB\n\n\n\n\nFecha;Hora;Consumo (kWh)\n';
+  for (let d = 1; d <= 2; d++) for (let h = 0; h < 24; h++) csv += `0${d}/08/2026;${h};0,5\n`;
+  const e2 = parseES(csv); assert.equal(e2.days, 2); assert.equal(e2.totalKwh, 24); assert.equal(e2.hours[0].hour, 0);
+  // password-protected workbook: a FILEPASS record (0x002F) early in the workbook stream -> explicit message
+  const src = new Uint8Array(ab('eredes-duas-folhas.xls'));
+  const idx = (() => { for (let i = 512; i + 4 < src.length; i++) if (src[i] === 0x09 && src[i + 1] === 0x08 && src[i + 2] === 0x10 && src[i + 3] === 0x00) return i; return -1; })(); // BOF (0x0809, len 16)
+  assert.ok(idx > 0, 'BOF found');
+  const prot = src.slice(); // overwrite the record after BOF with a FILEPASS header (keeps the length so the record walk still works)
+  const next = idx + 4 + 16; prot[next] = 0x2F; prot[next + 1] = 0x00;
+  assert.throws(() => readXlsRows(prot.buffer), /palavra-passe/);
+});

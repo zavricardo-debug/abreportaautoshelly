@@ -99,14 +99,31 @@ export function parseConsumptionCSV(text, { ceutaMelilla = false } = {}) {
   const warnings = [];
   if (!lines.length) throw new Error('El fichero está vacío.');
   const sep = detectSeparator(lines);
-  // i-DE / Naturgy sometimes prepend "CUPS: ES00…" or a title row: find the header row (first row with a date-like or hour-like column name)
-  let headerIdx = lines.findIndex((l) => { const s = strip(l); return /fecha|data|date|hora|consumo|kwh/.test(s) && !/^cups\s*:/.test(s); });
-  let headers = null;
-  let start = 0;
-  if (headerIdx >= 0 && headerIdx < 5) {
-    const cells = splitLine(lines[headerIdx], sep).map(strip);
-    // it's a header only if the cells are not data (no numbers/dates)
-    if (!cells.some((c) => /^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(c) || /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(c))) { headers = cells; start = headerIdx + 1; }
+  // i-DE / Naturgy sometimes prepend "CUPS: ES00…" or title rows: find the header row = first row (within the first 40)
+  // with at least two cells whose names look like date / hour / consumption columns and no data values.
+  const isDataCell = (c) => /^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/.test(c) || /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(c);
+  let headerIdx = -1, headers = null, start = 0;
+  for (let i = 0; i < Math.min(lines.length, 40); i++) {
+    const cells = splitLine(lines[i], sep).map(strip);
+    if (cells.length < 2 || cells.some(isDataCell)) continue;
+    const hits = cells.filter((c) => /fecha|data|date|dia|hora|hour|consumo|kwh|\bwh\b|energ|cups|periodo|metodo|obtencion/.test(c)).length;
+    if (hits >= 2 || (hits >= 1 && cells.filter(Boolean).length >= 3 && cells.some((c) => /^\d{1,2}h?$|^\d{1,2}:\d{2}$/.test(c)))) { headerIdx = i; headers = cells; start = i + 1; break; }
+  }
+  // pivot layout (one row per day, one column per hour): flatten to date;hour;kwh rows
+  if (headers) {
+    const hourCols = headers.map((h, j) => ({ h, j })).filter(({ h }) => /^(h|hora )?\d{1,2}(h|:00)?$/.test(h) || /^\d{1,2}[-–]\d{1,2}h?$/.test(h) || /^\d{1,2}:\d{2}[-–]\d{1,2}:\d{2}$/.test(h));
+    if (hourCols.length >= 20) {
+      const dCol = headers.findIndex((h) => /fecha|data|date|dia/.test(h));
+      const flat = ['fecha;hora;consumo_kwh'];
+      const startHours = hourCols.map(({ h }) => +(h.match(/\d{1,2}/) || [0])[0]);
+      const zeroBasedPivot = startHours.includes(0);
+      for (let i = start; i < lines.length; i++) {
+        const cells = splitLine(lines[i], sep);
+        if (dCol < 0 || !parseDate(cells[dCol])) continue;
+        hourCols.forEach(({ j }, k) => { const v = num(cells[j]); if (v !== null) flat.push(`${cells[dCol]};${zeroBasedPivot ? startHours[k] + 1 : startHours[k]};${String(v).replace('.', ',')}`); });
+      }
+      if (flat.length > 1) { const c = parseConsumptionCSV(flat.join('\n'), { ceutaMelilla }); c.format = 'tabla por horas (una fila por día)'; c.warnings.unshift('Fichero con una fila por día y una columna por hora: convertido a formato horario.'); return c; }
+    }
   }
   let cDate, cHour, cKwh, cExp, cMet, cups = null, format = 'genérico';
   if (headers) {

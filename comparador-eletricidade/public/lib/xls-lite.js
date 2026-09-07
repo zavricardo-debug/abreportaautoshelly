@@ -137,6 +137,12 @@ const isDateFormat = (code) => /[dmyhs]/i.test(String(code).replace(/"[^"]*"|\\.
  * @returns {{ rows: any[][], sheet: string, sheets: string[] }}
  */
 export function readXlsRows(buf, { sheetIndex = 0 } = {}) {
+  if (sheetIndex === 'all') { // every worksheet: [{ name, rows }]
+    const first = readXlsRows(buf, { sheetIndex: 0 });
+    const out = [{ name: first.sheet, rows: first.rows }];
+    for (let i = 1; i < first.sheets.length; i++) { try { const r = readXlsRows(buf, { sheetIndex: i }); if (r.sheet !== first.sheet || i === 0) out.push({ name: r.sheet, rows: r.rows }); } catch { /* chart / macro sheets */ } }
+    return { rows: first.rows, sheet: first.sheet, sheets: first.sheets, all: out };
+  }
   const { entries, readStream } = oleStreams(buf);
   const wbEntry = entries.find((e) => e.type === 2 && /^(workbook|book)$/i.test(e.name));
   if (!wbEntry) throw new Error(`o ficheiro não contém um livro Excel (streams: ${entries.filter((e) => e.type === 2).map((e) => e.name).join(', ') || 'nenhum'})`);
@@ -147,6 +153,7 @@ export function readXlsRows(buf, { sheetIndex = 0 } = {}) {
   const recs = [];
   for (let p = 0; p + 4 <= s.length;) { const type = u16(p); const len = Math.min(u16(p + 2), s.length - p - 4); recs.push({ type, pos: p + 4, len }); p += 4 + len; }
   if (!recs.length || recs[0].type !== 0x0809) throw new Error('livro Excel inválido (registo BOF em falta)');
+  if (recs.some((r, i) => i < 64 && r.type === 0x002F)) throw new Error('o livro Excel está protegido por palavra-passe – remova a proteção (Guardar como…) ou exporte para CSV');
   const ver = u16(recs[0].pos);
   const biff8 = ver === 0x0600;
   if (!biff8 && ver !== 0x0500) throw new Error(`versão de ficheiro Excel não suportada (BIFF 0x${ver.toString(16)})`);
@@ -172,7 +179,8 @@ export function readXlsRows(buf, { sheetIndex = 0 } = {}) {
     }
   }
   const worksheets = sheets.filter((sh) => sh.kind === 0);
-  const target = worksheets[sheetIndex] || worksheets[0] || sheets[0];
+  const target = sheets[sheetIndex] && sheets[sheetIndex].kind === 0 ? sheets[sheetIndex] : (worksheets[sheetIndex] || worksheets[0] || sheets[0]);
+  if (sheetIndex > 0 && !sheets[sheetIndex]) throw new Error('folha inexistente');
   // locate the sheet substream: BOUNDSHEET offset, else the n-th BOF after the globals
   let start = target ? recs.findIndex((r) => r.pos - 4 === target.off && r.type === 0x0809) : -1;
   if (start < 0) { let n = target ? sheets.indexOf(target) : 0; for (let k = i; k < recs.length; k++) if (recs[k].type === 0x0809 && n-- === 0) { start = k; break; } }
@@ -217,13 +225,32 @@ const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 const decodeEntities = (t) => t.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => e[0] === '#' ? String.fromCodePoint(parseInt(e[1] === 'x' || e[1] === 'X' ? e.slice(2) : e.slice(1), e[1] === 'x' || e[1] === 'X' ? 16 : 10)) : (ENT[e.toLowerCase()] ?? m));
 const cellText = (html) => decodeEntities(html.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
 
+/** Innermost <table> elements of an HTML document (layout tables often wrap the data table). */
+function leafTables(html) {
+  const out = []; const stack = [];
+  const re = /<table\b[^>]*>|<\/table>/gi; let m;
+  while ((m = re.exec(html))) {
+    if (m[0][1] !== '/') stack.push({ start: m.index, hasChild: false });
+    else if (stack.length) { const t = stack.pop(); if (!t.hasChild) out.push(html.slice(t.start, m.index + m[0].length)); if (stack.length) stack[stack.length - 1].hasChild = true; }
+  }
+  if (stack.length) out.push(html.slice(stack[0].start)); // unclosed table
+  return out;
+}
+
 /**
  * Rows of the first table in an HTML document or of the first worksheet of a SpreadsheetML 2003 XML
  * document (both are commonly served as ".xls" by web portals). Returns null when the text is not markup.
  */
-export function tableTextToRows(text) {
+export function tableTextToRows(text, { all = false } = {}) {
   const t = String(text || '').replace(/^\uFEFF/, '').trimStart();
-  if (t[0] !== '<') return null;
+  if (t[0] !== '<') return all ? null : (sylkToRows(t) || difToRows(t));
+  if (all) { // every worksheet / table -> [{ name, rows }]
+    const ssml = /urn:schemas-microsoft-com:office:spreadsheet|<(?:ss:)?Workbook\b/i.test(t.slice(0, 4000));
+    const parts = ssml ? [...t.matchAll(/<(?:ss:)?Worksheet\b([^>]*)>[\s\S]*?<\/(?:ss:)?Worksheet>/gi)].map((m) => ({ name: (m[1].match(/ss:Name="([^"]*)"/i) || [])[1], html: m[0] })) : leafTables(t).map((html) => ({ html }));
+    const out = parts.map((p, i) => ({ name: p.name || (ssml ? `Folha${i + 1}` : `Tabela ${i + 1}`), rows: tableTextToRows(ssml ? `<Workbook xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${p.html}</Workbook>` : p.html) })).filter((x) => x.rows && x.rows.length > 1);
+    out.sort((a, b) => b.rows.length - a.rows.length); // the data table is (almost always) the longest one
+    return out.length ? out : null;
+  }
   const ssml = /urn:schemas-microsoft-com:office:spreadsheet|<(?:ss:)?Workbook\b/i.test(t.slice(0, 4000));
   let body = t;
   if (ssml) { const m = t.match(/<(?:ss:)?Worksheet\b[\s\S]*?<\/(?:ss:)?Worksheet>/i); if (m) body = m[0]; }
@@ -253,4 +280,40 @@ export function tableTextToRows(text) {
     rows.push(Array.from(cells, (c) => (c === undefined ? null : c)));
   }
   return rows.some((r) => r.length) ? rows : null;
+}
+
+/* ------------------------------------------------------------------ SYLK / DIF (rare "xls" exports) */
+/** SYLK (symbolic link) text -> rows, or null. */
+export function sylkToRows(t) {
+  if (!/^ID;P/i.test(t)) return null;
+  const rows = []; let y = 0, x = 0;
+  for (const line of t.split(/\r?\n/)) {
+    if (!/^[CF];/.test(line)) continue;
+    let v; const fields = line.slice(2).split(';');
+    for (const f of fields) {
+      if (f[0] === 'Y') y = +f.slice(1) - 1;
+      else if (f[0] === 'X') x = +f.slice(1) - 1;
+      else if (f[0] === 'K') v = f.slice(1);
+    }
+    if (line[0] === 'C' && v !== undefined) {
+      if (/^".*"$/.test(v)) v = v.slice(1, -1).replace(/;;/g, ';');
+      else if (Number.isFinite(Number(v)) && v.trim() !== '') v = Number(v);
+      (rows[y] ||= [])[x] = v;
+    }
+  }
+  return rows.length ? rows.map((r) => (r ? Array.from(r, (c) => (c === undefined ? null : c)) : [])) : null;
+}
+/** DIF (data interchange format) text -> rows, or null. */
+export function difToRows(t) {
+  if (!/^TABLE\r?\n/i.test(t)) return null;
+  const lines = t.split(/\r?\n/);
+  let i = lines.findIndex((l) => /^DATA$/i.test(l)); if (i < 0) return null;
+  const rows = []; let cur = null;
+  for (i += 3; i + 1 < lines.length; i += 2) {
+    const [type, num] = lines[i].split(','); const str = lines[i + 1];
+    if (type === '-1') { if (/^BOT$/i.test(str)) { cur = []; rows.push(cur); } else if (/^EOD$/i.test(str)) break; }
+    else if (type === '0' && cur) cur.push(/^V$/i.test(str) ? Number(num) : num === '' ? null : num);
+    else if (type === '1' && cur) cur.push(str.replace(/^"|"$/g, ''));
+  }
+  return rows.length ? rows : null;
 }

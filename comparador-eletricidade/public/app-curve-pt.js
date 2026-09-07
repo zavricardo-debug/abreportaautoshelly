@@ -41,7 +41,19 @@ export function initCurvePT(c) {
   for (const id of ['#pt-curve-use', '#pt-curve-period']) $(id).addEventListener('change', () => { applyCurveToFormPT(); renderCurvePT(); ctx.updateDerived(); ctx.onCurveChanged?.('changed'); });
 }
 
-function curveError(msg) { const el = $('#pt-curve-error'); el.textContent = msg; el.classList.remove('hidden'); }
+function curveError(msg, preview = '', sheetNames = null) {
+  const el = $('#pt-curve-error');
+  el.textContent = msg;
+  if (sheetNames && sheetNames.length > 1) { const p = document.createElement('div'); p.className = 'small'; p.textContent = `Folhas encontradas: ${sheetNames.join(', ')} (todas foram tentadas).`; el.appendChild(p); }
+  if (preview) {
+    const d = document.createElement('details'); d.className = 'err-preview';
+    const sm = document.createElement('summary'); sm.textContent = 'O que foi lido do ficheiro (primeiras linhas)'; d.appendChild(sm);
+    const pre = document.createElement('pre'); pre.textContent = preview; d.appendChild(pre);
+    const hint = document.createElement('div'); hint.className = 'small muted'; hint.textContent = 'Se estas linhas não mostram data, hora e consumo, o ficheiro não é o detalhe por hora/15 min. Copie estas linhas para pedir suporte.'; d.appendChild(hint);
+    el.appendChild(d);
+  }
+  el.classList.remove('hidden');
+}
 
 /** Decode a File (xlsx / csv / txt) into rows or text and load it. */
 export async function handleCurveFilePT(file) {
@@ -61,7 +73,7 @@ export async function handleCurveFilePT(file) {
 export function loadCurveBufferPT(buf, fileName = 'consumos.xlsx') {
   try {
     const dec = decodeCurveBuffer(buf);
-    return dec.rows ? loadCurvePT(dec.rows, fileName, dec.source) : loadCurvePT(dec.text, fileName);
+    return loadCurveDecodedPT(dec, fileName);
   } catch (e) {
     console.error(e);
     PT_CURVE.curve = null; PT_CURVE.used = null;
@@ -72,17 +84,79 @@ export function loadCurveBufferPT(buf, fileName = 'consumos.xlsx') {
 }
 
 /**
- * Bytes of any supported consumption file -> { rows, source } (Excel .xlsx / .xls, HTML or SpreadsheetML
- * tables saved as .xls) or { text } (CSV / TXT). Shared with app.js (main dropzone) and app-es.js.
+ * Bytes of any supported consumption file -> { rows, source, sheets } (Excel .xlsx / .xls, HTML, SpreadsheetML,
+ * SYLK/DIF tables saved as .xls) or { text } (CSV / TXT, UTF-8 / UTF-16 / Windows-1252).
+ * `sheets` lists every worksheet/table found ([{ name, rows }]) so the caller can try the ones after the first.
+ * Shared with app.js (main dropzone) and app-es.js.
  */
 export function decodeCurveBuffer(buf) {
-  if (buf.byteLength >= 8 && isOle(buf)) { const { rows, sheet } = readXlsRows(buf); return { rows, source: `Excel 97-2003, folha "${sheet}"` }; }
-  if (buf.byteLength >= 4 && isZip(buf)) { const { rows, sheet } = readXlsxRows(buf); return { rows, source: `folha "${sheet}"` }; }
+  if (buf.byteLength >= 8 && isOle(buf)) { const r = readXlsRows(buf, { sheetIndex: 'all' }); return { rows: r.rows, source: `Excel 97-2003, folha "${r.sheet}"`, sheets: r.all, kind: 'xls' }; }
+  if (buf.byteLength >= 4 && isZip(buf)) { const r = readXlsxRows(buf, { sheetIndex: 'all' }); return { rows: r.rows, source: `folha "${r.sheet}"`, sheets: r.all, kind: 'xlsx' }; }
+  const text = decodeText(buf);
+  const all = tableTextToRows(text, { all: true }); // web portals often export an HTML/XML table under the name "ficheiro.xls"
+  if (all) { const ssml = /<(?:ss:)?Workbook\b/i.test(text.slice(0, 4000)); return { rows: all[0].rows, source: ssml ? `Excel XML 2003, folha "${all[0].name}"` : 'tabela HTML', sheets: all, kind: ssml ? 'xml' : 'html' }; }
+  const single = tableTextToRows(text); // SYLK / DIF
+  if (single) return { rows: single, source: /^ID;P/i.test(text) ? 'SYLK' : 'DIF', sheets: [{ name: 'Folha1', rows: single }], kind: 'text' };
+  return { text, kind: 'text' };
+}
+
+/** Bytes -> string: BOM-aware UTF-16 (Excel "Unicode text"), UTF-8, else Windows-1252. */
+export function decodeText(buf) {
+  const b = new Uint8Array(buf);
+  if (b.length >= 2 && ((b[0] === 0xff && b[1] === 0xfe) || (b[0] === 0xfe && b[1] === 0xff))) return new TextDecoder(b[0] === 0xff ? 'utf-16le' : 'utf-16be').decode(buf).replace(/^\uFEFF/, '');
+  // UTF-16 without BOM: every other byte is 0 in ASCII text
+  const n = Math.min(b.length, 400);
+  if (n >= 8) { let z1 = 0, z0 = 0; for (let i = 0; i + 1 < n; i += 2) { if (b[i + 1] === 0) z1++; if (b[i] === 0) z0++; } if (z1 > n / 2 * 0.8) return new TextDecoder('utf-16le').decode(buf); if (z0 > n / 2 * 0.8) return new TextDecoder('utf-16be').decode(buf); }
   let text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
   if (/\uFFFD/.test(text)) text = new TextDecoder('windows-1252').decode(buf);
-  const rows = tableTextToRows(text); // web portals often export an HTML/XML table under the name "ficheiro.xls"
-  if (rows) return { rows, source: /<(?:ss:)?Workbook\b/i.test(text.slice(0, 4000)) ? 'Excel XML 2003' : 'tabela HTML' };
-  return { text };
+  return text.replace(/^\uFEFF/, '');
+}
+
+/** Human-readable preview of what was decoded (first non-empty lines / rows) for error messages. */
+export function previewOfDecoded(dec, n = 4) {
+  const rows = dec.rows || null;
+  const lines = rows ? rows.filter((r) => r && r.some((c) => c !== null && c !== undefined && String(c).trim() !== '')).slice(0, n).map((r) => r.map((c) => (c === null || c === undefined ? '' : String(c))).join(' | '))
+    : String(dec.text || '').split(/\r?\n/).filter((l) => l.trim()).slice(0, n);
+  return lines.map((l) => (l.length > 140 ? l.slice(0, 140) + '…' : l)).join('\n');
+}
+
+/** Try the parser on the first sheet, then on every other sheet/table; returns { curve, sheetName } or throws the first error. */
+export function parseAnySheet(dec, parse) {
+  let firstErr = null;
+  const sheets = dec.sheets && dec.sheets.length ? dec.sheets : [{ name: '', rows: dec.rows }];
+  for (const sh of sheets) {
+    if (!sh.rows || !sh.rows.length) continue;
+    try { return { curve: parse(sh.rows), sheetName: sh.name }; } catch (e) { firstErr = firstErr || e; }
+  }
+  throw firstErr || new Error('o ficheiro não tem nenhuma folha com dados');
+}
+
+/** Decoded file ({rows, sheets, source} or {text}) -> curve; tries every sheet and shows a diagnostic error on failure. */
+export function loadCurveDecodedPT(dec, fileName = 'consumos.xlsx') {
+  if (!dec.rows) return loadCurvePT(dec.text, fileName);
+  try {
+    const { curve } = parseAnySheet(dec, (rows) => parseConsumptionPT(rows, { source: sourceFor(dec, rows) }));
+    return applyLoadedPT(curve, fileName);
+  } catch (e) {
+    console.error(e);
+    PT_CURVE.curve = null; PT_CURVE.used = null;
+    $('#pt-curve-result').classList.add('hidden');
+    curveError(`Não foi possível ler "${fileName}": ${e.message}`, previewOfDecoded(dec), dec.sheets?.map((x) => x.name));
+    return null;
+  }
+  function sourceFor(d, rows) { const sh = d.sheets?.find((x) => x.rows === rows); return sh && d.sheets.length > 1 ? `${d.source.replace(/, folha .*$/, '')}, folha "${sh.name}"` : d.source; }
+}
+
+function applyLoadedPT(curve, fileName) {
+  PT_CURVE.curve = curve; PT_CURVE.file = fileName;
+  $('#pt-curve-error').classList.add('hidden');
+  $('#pt-curve-use').checked = true;
+  syncCycleFromBill(ctx.getParsed());
+  applyCurveToFormPT();
+  renderCurvePT();
+  ctx.updateDerived();
+  ctx.onCurveChanged?.('loaded');
+  return curve;
 }
 
 /** Parse rows/text, apply to the form and render. Returns the curve or null (error shown in the box). */
@@ -102,7 +176,7 @@ export function loadCurvePT(input, fileName = 'consumos.csv', source = '') {
     console.error(e);
     PT_CURVE.curve = null; PT_CURVE.used = null;
     $('#pt-curve-result').classList.add('hidden');
-    curveError(`Não foi possível ler "${fileName}": ${e.message}`);
+    curveError(`Não foi possível ler "${fileName}": ${e.message}`, previewOfDecoded(typeof input === 'string' ? { text: input } : { rows: input }));
     return null;
   }
 }

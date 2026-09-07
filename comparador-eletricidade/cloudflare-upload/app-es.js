@@ -5,7 +5,7 @@
 import { simulateES, simulateAllES, splitConsumption, cnmcLink, PERIODS_ES, PERIOD_LABELS_ES, RULES_ES_2026 } from './lib/simulator-es.js';
 import { parseConsumptionCSV, sliceCurve, applyShare, shiftToValle, CALENDAR_TEXT_ES } from './lib/consumption-es.js';
 import { sheetRowsToCsv } from './lib/xlsx-lite.js';
-import { decodeCurveBuffer } from './app-curve-pt.js';
+import { decodeCurveBuffer, parseAnySheet, previewOfDecoded } from './app-curve-pt.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -155,7 +155,19 @@ function bindCurve() {
   $('#btn-curve-clear').addEventListener('click', () => { ES.curve = null; ES.curveUsed = null; ES.curveFile = ''; ES.curveText = ''; input.value = ''; $('#es-curve-result').classList.add('hidden'); $('#es-curve-error').classList.add('hidden'); fillFormES(ES.parsed, ES.rawText); });
   for (const id of ['#es-curve-use', '#es-curve-period', '#es-curve-ceuta']) $(id).addEventListener('change', () => { if (id === '#es-curve-ceuta' && ES.curveText) loadCurveText(ES.curveText, ES.curveFile); else { applyCurveToForm(); updateDerivedES(); } });
 }
-function curveError(msg) { const el = $('#es-curve-error'); el.textContent = msg; el.classList.remove('hidden'); }
+function curveError(msg, preview = '', sheetNames = null) {
+  const el = $('#es-curve-error');
+  el.textContent = msg;
+  if (sheetNames && sheetNames.length > 1) { const p = document.createElement('div'); p.className = 'small'; p.textContent = `Hojas encontradas: ${sheetNames.join(', ')} (se han probado todas).`; el.appendChild(p); }
+  if (preview) {
+    const d = document.createElement('details'); d.className = 'err-preview';
+    const sm = document.createElement('summary'); sm.textContent = 'Lo que se ha leído del fichero (primeras líneas)'; d.appendChild(sm);
+    const pre = document.createElement('pre'); pre.textContent = preview; d.appendChild(pre);
+    const hint = document.createElement('div'); hint.className = 'small muted'; hint.textContent = 'Si estas líneas no muestran fecha, hora y consumo, el fichero no es el detalle horario. Copie estas líneas para pedir soporte.'; d.appendChild(hint);
+    el.appendChild(d);
+  }
+  el.classList.remove('hidden');
+}
 
 async function handleCurveFile(file) {
   $('#es-curve-error').classList.add('hidden');
@@ -164,24 +176,28 @@ async function handleCurveFile(file) {
   loadCurveBufferES(buf, file.name);
 }
 
-/** CSV / TXT / XLSX bytes -> curve (Excel is read in the browser with lib/xlsx-lite.js, first sheet). */
+/** CSV / TXT / XLSX / XLS bytes -> curve (Excel is read in the browser with lib/xlsx-lite.js / lib/xls-lite.js; every sheet is tried). */
 export function loadCurveBufferES(buf, fileName = 'consumos.csv') {
+  let dec = null;
   try {
-    const dec = decodeCurveBuffer(buf); // .xlsx / .xls (Excel 97-2003) / HTML-XML tables -> rows; otherwise text (UTF-8 or Windows-1252)
-    return loadCurveText(dec.rows ? sheetRowsToCsv(dec.rows) : dec.text, fileName);
+    dec = decodeCurveBuffer(buf); // .xlsx / .xls (Excel 97-2003) / HTML-XML tables -> rows; otherwise text (UTF-8, UTF-16 or Windows-1252)
+    if (!dec.rows) return loadCurveText(dec.text, fileName);
+    const { curve, sheetName } = parseAnySheet(dec, (rows) => parseConsumptionCSV(sheetRowsToCsv(rows), { ceutaMelilla: $('#es-curve-ceuta').checked }));
+    const sh = dec.sheets?.find((x) => x.name === sheetName);
+    return loadCurveText(sheetRowsToCsv(sh ? sh.rows : dec.rows), fileName, curve);
   } catch (e) {
     console.error(e);
     ES.curve = null; ES.curveUsed = null;
     $('#es-curve-result').classList.add('hidden');
-    curveError(`No se ha podido leer "${fileName}": ${e.message}`);
+    curveError(`No se ha podido leer "${fileName}": ${e.message}`, dec ? previewOfDecoded(dec) : '', dec?.sheets?.map((x) => x.name));
     return null;
   }
 }
 
 /** Parse the CSV text, classify hours and apply to the form. Exposed for tests via window.__test_curve. */
-export function loadCurveText(text, fileName = 'consumos.csv') {
+export function loadCurveText(text, fileName = 'consumos.csv', parsedCurve = null) {
   try {
-    const curve = parseConsumptionCSV(text, { ceutaMelilla: $('#es-curve-ceuta').checked });
+    const curve = parsedCurve || parseConsumptionCSV(text, { ceutaMelilla: $('#es-curve-ceuta').checked });
     ES.curve = curve; ES.curveText = text; ES.curveFile = fileName;
     $('#es-curve-error').classList.add('hidden');
     $('#es-curve-use').checked = true; // a freshly loaded curve is meant to be used
@@ -192,7 +208,7 @@ export function loadCurveText(text, fileName = 'consumos.csv') {
   } catch (e) {
     ES.curve = null; ES.curveUsed = null;
     $('#es-curve-result').classList.add('hidden');
-    curveError(`No se ha podido leer "${fileName}": ${e.message}`);
+    curveError(`No se ha podido leer "${fileName}": ${e.message}`, previewOfDecoded({ text }));
     return null;
   }
 }

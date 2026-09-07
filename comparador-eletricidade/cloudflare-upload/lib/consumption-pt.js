@@ -194,6 +194,36 @@ function detectHeader(rows) {
   return null;
 }
 
+/** Rows with a date column and ≥ 20 hour-like columns (e.g. "1".."24", "0h".."23h", "00:00".."23:00") -> long format rows, or null. */
+function unpivotRows(rows) {
+  for (let i = 0; i < Math.min(rows.length, 40); i++) {
+    const r = rows[i]; if (!r || r.length < 20) continue;
+    const hs = r.map((c) => strip(c));
+    const hourCols = hs.map((h, j) => ({ h, j })).filter(({ h }) => /^(h|hora ?)?\d{1,2}(h|:00|:15|:30|:45)?$/.test(h) || /^\d{1,2}[-–]\d{1,2}h?$/.test(h) || /^\d{1,2}:\d{2}[-–]\d{1,2}:\d{2}$/.test(h));
+    if (hourCols.length < 20) continue;
+    const dCol = hs.findIndex((h) => /^data|^date|^fecha|^dia/.test(h));
+    if (dCol < 0) continue;
+    const label = (h) => { const m = h.match(/^(?:h|hora ?)?(\d{1,2})(?::(\d{2}))?/); return { h: +m[1], mi: m[2] ? +m[2] : null }; };
+    const labels = hourCols.map(({ h }) => label(h));
+    const quarter = labels.some((l) => l.mi);
+    const zeroBased = labels.some((l) => l.h === 0);
+    const out = [['data', 'hora', 'consumo (kwh)']];
+    for (let k = i + 1; k < rows.length; k++) {
+      const row = rows[k]; if (!row) continue;
+      const d = parseDateCell(row[dCol]); if (!d) continue;
+      const dateTxt = `${d.y}-${p2(d.mo)}-${p2(d.d)}`;
+      hourCols.forEach(({ j }, n) => {
+        const v = num(row[j]); if (v === null) return;
+        const l = labels[n];
+        const hourTxt = quarter || l.mi !== null ? `${p2(l.h)}:${p2(l.mi || 0)}` : String(zeroBased ? l.h + 1 : l.h); // 1..24 = hour ending
+        out.push([dateTxt, hourTxt, v]);
+      });
+    }
+    if (out.length > 1) return { rows: out, note: 'Ficheiro com uma linha por dia e uma coluna por hora: convertido para o formato hora a hora.' };
+  }
+  return null;
+}
+
 /* ------------------------------------------------------------------ main parser */
 /**
  * @param {string|any[][]} input  CSV text or worksheet rows (from xlsx-lite readXlsxRows().rows)
@@ -201,9 +231,12 @@ function detectHeader(rows) {
  * @returns {ConsumptionPT}
  */
 export function parseConsumptionPT(input, opts = {}) {
-  const rows = typeof input === 'string' ? csvToRows(input) : (input || []);
+  let rows = typeof input === 'string' ? csvToRows(input) : (input || []);
   if (!rows.length) throw new Error('O ficheiro está vazio.');
   const warnings = [];
+  // pivot layout (one row per day, one column per hour or per quarter-hour): flatten to [date, hour, value]
+  const pv = unpivotRows(rows);
+  if (pv) { rows = pv.rows; warnings.push(pv.note); }
   const hdr = detectHeader(rows);
   let cDate = -1, cHour = -1, cDT = -1, cVal = -1, cInj = -1, cSt = -1, start = 0, headers = [], format = 'genérico';
   if (hdr) {

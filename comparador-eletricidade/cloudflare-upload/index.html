@@ -43,7 +43,7 @@
 
     <div class="upload-grid">
       <label class="dropzone" id="dropzone" for="file-input">
-        <input type="file" id="file-input" accept="application/pdf,.pdf,.xlsx,.xls,.csv,.txt" hidden>
+        <input type="file" id="file-input" accept="application/pdf,.pdf,.xlsx,.xls,.ods,.csv,.txt" hidden>
         <div class="dz-inner">
           <div class="dz-icon">📄</div>
           <div class="dz-title">1. Fatura em PDF</div>
@@ -58,7 +58,7 @@
         </div>
       </label>
       <label class="dropzone secondary" id="curve-dropzone" for="curve-file-input">
-        <input type="file" id="curve-file-input" accept=".csv,.txt,.xls,.xlsx,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+        <input type="file" id="curve-file-input" accept=".csv,.txt,.xls,.xlsx,.xlsm,.ods,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.oasis.opendocument.spreadsheet" hidden>
         <div class="dz-inner">
           <div class="dz-icon">📈</div>
           <div class="dz-title">2. Consumos por hora <span class="muted">(opcional)</span></div>
@@ -125,7 +125,7 @@
                 e classificamos cada quarto de hora com os horários da ERSE (ciclo diário ou semanal) para saber quanto gastaria em <b>bi-horário</b> e <b>tri-horário</b> com o seu consumo real.</p>
             </div>
             <label class="dropzone mini" id="pt-curve-drop" for="pt-curve-input">
-              <input type="file" id="pt-curve-input" accept=".xlsx,.xls,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
+              <input type="file" id="pt-curve-input" accept=".xlsx,.xls,.xlsm,.ods,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.oasis.opendocument.spreadsheet" hidden>
               <span>📈 Arraste o CSV / XLS / XLSX da E-Redes para aqui ou clique para escolher</span>
               <button type="button" class="btn ghost small" id="btn-pt-curve-sample">Experimentar com um ficheiro de exemplo</button>
             </label>
@@ -363,7 +363,7 @@
                 y clasificamos cada hora en <b>punta / llano / valle</b> según el calendario 2.0TD para comparar las tarifas con discriminación horaria con su consumo real.</p>
             </div>
             <label class="dropzone mini" id="es-curve-drop" for="es-curve-input">
-              <input type="file" id="es-curve-input" accept=".csv,text/csv,text/plain,.txt,.xls,.xlsx" hidden>
+              <input type="file" id="es-curve-input" accept=".csv,text/csv,text/plain,.txt,.xls,.xlsx,.xlsm,.ods" hidden>
               <span>📈 Arrastre el CSV / Excel aquí o pulse para elegir</span>
               <button type="button" class="btn ghost small" id="btn-curve-sample">Probar con una curva de ejemplo</button>
             </label>
@@ -592,6 +592,6 @@
   <span id="app-version" title="Versão da aplicação"></span>
 </footer>
 
-<script type="module" src="app.js?v=1.6.0"></script>
+<script type="module" src="app.js?v=1.6.1"></script>
 </body>
 </html>

@@ -155,7 +155,8 @@ para las tarifas con discriminación horaria el reparto punta/llano/valle es una
 se puede adjuntar el **CSV o Excel (.xlsx) de consumo horario** que se descarga gratis de [Datadis](https://datadis.es)
 o del área de cliente de la distribuidora (e-distribución, i-DE, UFD, Viesgo…). Los `.xlsx` se leen en el
 navegador con `public/lib/xlsx-lite.js` (fechas/horas en texto o en números de serie de Excel) y los `.xls`
-antiguos (Excel 97-2003, o tablas HTML/XML guardadas como `.xls`) con `public/lib/xls-lite.js`.
+antiguos (Excel 97-2003, o tablas HTML/XML guardadas como `.xls`) con `public/lib/xls-lite.js`; también
+`.ods`, tablas «pivot» (una fila por día y una columna por hora) y ficheros con varias hojas.
 `public/lib/consumption-es.js` lee los formatos habituales (`CUPS;Fecha;Hora;Consumo_kWh;Metodo_obtencion`
 de Datadis/CNMC, `AE_kWh;AS_KWh;…` de e-distribución, `FECHA-HORA;…;CONSUMO Wh` de i-DE, ficheros sin
 cabecera, cuartohorarios 1..96 o `HH:MM`, valores en Wh o kWh, coma o punto decimal) y clasifica cada hora
@@ -193,7 +194,13 @@ O que é lido (`public/lib/consumption-pt.js`):
   mini-FAT, diretório) e os registos BIFF (`LABELSST`/`SST`+`CONTINUE`, `NUMBER`, `RK`, `MULRK`,
   `LABEL`, `FORMULA` com resultado em cache, formatos de data, sistema 1904). Também lê os «falsos» `.xls`
   que muitos portais exportam: uma **tabela HTML** ou um documento **SpreadsheetML 2003** com extensão
-  `.xls`. Ficheiros `.ods` devem ser guardados como `.xlsx`/CSV.
+  `.xls`, ficheiros SYLK/DIF e texto UTF-16 («Texto Unicode» do Excel). Folhas **OpenDocument `.ods`**
+  (LibreOffice) também são lidas (`content.xml`). Quando o livro tem várias folhas/tabelas todas são
+  tentadas (a primeira com dados reconhecíveis ganha) e, se nenhuma servir, a mensagem de erro mostra as
+  primeiras linhas lidas para facilitar o diagnóstico.
+* **Tabela «pivot»** (uma linha por dia e uma coluna por hora – `Fecha | 0h … 23h`, `Data | 00:00 … 23:00`,
+  ou 96 colunas de quartos de hora), como exportam algumas áreas de cliente: é convertida para o formato
+  hora a hora antes de classificar.
 * **CSV/TXT** com `;`, `,` ou tabulações, vírgula ou ponto decimal, com ou sem linhas de título antes do
   cabeçalho (`Data | Hora | Consumo registado, Ativa (kW) | [Injeção registada…] | [Estado]`).
 * Formato E-Redes: um registo por **15 minutos**, hora = **fim** do intervalo (`00:15` = 00:00–00:15,
@@ -306,8 +313,8 @@ aplicação aparece no rodapé (`APP_VERSION` em `app.js`) e nas mensagens de er
 * España: la lista de tarifas es manual (fecha en cada tarifa) y no incluye PVPC ni tarifas
   planas/flexibles; IGIC/IPSI se aplican sólo si la factura los indica. Confirme siempre en el
   comparador oficial de la CNMC (botón con sus datos ya cargados) antes de cambiar.
-* Curva horaria / consumos E-Redes: se lee la primera hoja del libro (`.xls`/`.xlsx`); los ficheros
-  `.ods` y los `.xls` protegidos con contraseña deben guardarse como `.xlsx` o CSV; las tarifas
+* Curva horaria / consumos E-Redes: se prueban todas las hojas del libro (`.xls`/`.xlsx`/`.ods`); los
+  ficheros protegidos con contraseña deben guardarse sin protección o como CSV; las tarifas
   indexadas se simulan con su precio medio (no hora a hora con el precio OMIE de cada hora); los
   excedentes de autoconsumo no se compensan. Em Portugal os horários implementados
   são os do Continente (Açores/Madeira têm ciclos próprios) e os do Regulamento Tarifário em vigor

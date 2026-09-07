@@ -223,12 +223,27 @@ function parseSheet(xml, sst) {
  * @returns {{ rows: any[][], sheet: string, sheets: string[] }}
  */
 export function readXlsxRows(buf, { sheetIndex = 0 } = {}) {
+  if (sheetIndex === 'all') { // every worksheet: [{ name, rows }]
+    const first = readXlsxRows(buf, { sheetIndex: 0 });
+    const out = [{ name: first.sheet, rows: first.rows }];
+    for (let i = 1; i < first.sheets.length; i++) { try { const r = readXlsxRows(buf, { sheetIndex: i }); out.push({ name: r.sheet, rows: r.rows }); } catch { /* ignore */ } }
+    return { rows: first.rows, sheet: first.sheet, sheets: first.sheets, all: out };
+  }
   if (isOle(buf)) throw new Error('formato Excel 97-2003 (.xls) – use readXlsRows() de xls-lite.js');
   if (!isZip(buf)) throw new Error('o ficheiro não é um .xlsx válido (não é um pacote ZIP)');
   const entries = zipEntries(buf);
   const text = (name) => { const e = entries.get(name); return e ? new TextDecoder('utf-8').decode(zipRead(buf, e)) : null; };
   const wb = text('xl/workbook.xml');
-  if (!wb) throw new Error(entries.has('content.xml') ? 'é uma folha OpenDocument (.ods) – guarde como .xlsx ou CSV' : 'xl/workbook.xml em falta – o ficheiro não é um livro Excel (.xlsx)');
+  if (!wb) {
+    if (entries.has('content.xml')) { // OpenDocument spreadsheet (.ods) – LibreOffice
+      const all = odsToSheets(text('content.xml'));
+      if (!all.length) throw new Error('a folha OpenDocument (.ods) não tem tabelas com dados');
+      if (sheetIndex === 'all') return { rows: all[0].rows, sheet: all[0].name, sheets: all.map((x) => x.name), all };
+      const sh = all[sheetIndex] || all[0];
+      return { rows: sh.rows, sheet: sh.name, sheets: all.map((x) => x.name) };
+    }
+    throw new Error('xl/workbook.xml em falta – o ficheiro não é um livro Excel (.xlsx)');
+  }
   const rels = text('xl/_rels/workbook.xml.rels') || '';
   const relMap = new Map();
   for (const m of rels.matchAll(/<Relationship\b([^>]*)\/?>/g)) { const id = attr(m[1], 'Id'), target = attr(m[1], 'Target'); if (id && target) relMap.set(id, target); }
@@ -241,7 +256,7 @@ export function readXlsxRows(buf, { sheetIndex = 0 } = {}) {
     sheets.push({ name, target });
   }
   const sheet = sheets[sheetIndex] || sheets[0];
-  const candidates = [sheet?.target, `xl/worksheets/sheet${sheetIndex + 1}.xml`, ...[...entries.keys()].filter((k) => /^xl\/worksheets\/sheet\d+\.xml$/.test(k)).sort()];
+  const candidates = sheetIndex > 0 && sheet?.target ? [sheet.target] : [sheet?.target, `xl/worksheets/sheet${sheetIndex + 1}.xml`, ...[...entries.keys()].filter((k) => /^xl\/worksheets\/sheet\d+\.xml$/.test(k)).sort()];
   const path = candidates.find((c) => c && entries.has(c));
   if (!path) throw new Error('nenhuma folha de cálculo encontrada no ficheiro');
   const sst = parseSharedStrings(text('xl/sharedStrings.xml') || '');
@@ -249,8 +264,46 @@ export function readXlsxRows(buf, { sheetIndex = 0 } = {}) {
   return { rows, sheet: sheet?.name || path, sheets: sheets.map((s) => s.name) };
 }
 
-/* ------------------------------------------------------------------ Excel serial dates */
 const EXCEL_EPOCH = Date.UTC(1899, 11, 30);
+
+/* ------------------------------------------------------------------ OpenDocument (.ods) */
+/** content.xml of an .ods file -> [{ name, rows }] (dates as Excel serials, times as day fractions, numbers, strings). */
+export function odsToSheets(xml) {
+  const out = [];
+  if (!xml) return out;
+  const tableRe = /<table:table\b([^>]*)>([\s\S]*?)<\/table:table>/g; let tm;
+  while ((tm = tableRe.exec(xml))) {
+    const name = decodeXml(attr(tm[1], 'table:name') || `Folha${out.length + 1}`);
+    const rows = [];
+    const rowRe = /<table:table-row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/table:table-row>)/g; let rm;
+    while ((rm = rowRe.exec(tm[2]))) {
+      const rep = Math.min(+(attr(rm[1], 'table:number-rows-repeated') || 1), 1000);
+      const cells = [];
+      const cellRe = /<table:(covered-table-cell|table-cell)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/table:\1>)/g; let cm;
+      while ((cm = cellRe.exec(rm[2] || ''))) {
+        const a = cm[2], inner = cm[3] || '';
+        const n = +(attr(a, 'table:number-columns-repeated') || 1);
+        const type = attr(a, 'office:value-type');
+        let v = null;
+        if (type === 'float' || type === 'percentage' || type === 'currency') v = Number(attr(a, 'office:value'));
+        else if (type === 'boolean') v = attr(a, 'office:boolean-value') === 'true' ? 1 : 0;
+        else if (type === 'date') { const d = attr(a, 'office:date-value') || ''; const m = d.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/); if (m) v = (Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) - EXCEL_EPOCH) / 86400000; }
+        else if (type === 'time') { const t = attr(a, 'office:time-value') || ''; const m = t.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/); if (m) v = ((+(m[1] || 0)) * 3600 + (+(m[2] || 0)) * 60 + (+(m[3] || 0))) / 86400; }
+        else if (type === 'string' || inner) { const ps = [...inner.matchAll(/<text:p\b[^>]*>([\s\S]*?)<\/text:p>/g)].map((m) => decodeXml(m[1].replace(/<text:s\b[^>]*\/>/g, ' ').replace(/<[^>]+>/g, ''))); v = ps.join(' ').trim() || null; }
+        if (v === null && n > 64) { cells.length += Math.min(n, 1); continue; } // long empty runs (trailing 1000+ empty cells)
+        for (let k = 0; k < Math.min(n, 256); k++) cells.push(v);
+      }
+      while (cells.length && (cells[cells.length - 1] === null || cells[cells.length - 1] === undefined)) cells.pop();
+      const isEmpty = !cells.length;
+      for (let k = 0; k < (isEmpty ? Math.min(rep, 1) : rep); k++) rows.push(Array.from(cells, (c) => (c === undefined ? null : c)));
+    }
+    while (rows.length && !rows[rows.length - 1].length) rows.pop();
+    if (rows.length) out.push({ name, rows });
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ Excel serial dates */
 /** Excel serial number -> { y, mo, d, h, mi } (UTC parts; Excel serials have no timezone). */
 export function serialToDate(n) {
   const ms = Math.round(n * 86400000);

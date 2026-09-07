@@ -490,3 +490,40 @@ test('step 1 has a dedicated upload for the consumption file: .xls (Excel 97-200
   for (let i = 0; i < 50 && !/38 dias/.test(d.querySelector('#pt-curve-summary').textContent); i++) await new Promise((r) => setTimeout(r, 20));
   assert.match(d.querySelector('#pt-curve-summary').textContent, /38 dias/);
 });
+
+test('unreadable consumption file: the error box shows what was decoded (diagnostic preview, sheet names); a two-sheet E-Redes .xls after a Spanish invoice is still routed to the PT flow', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  // Spanish invoice first (the situation reported by the user)
+  window.__test_text(readFileSync(resolve(__dirname, 'fixtures/endesa-es-2026.txt'), 'utf8'));
+  assert.equal(d.body.dataset.country, 'ES');
+  // an .xls that is a real workbook but holds no consumption table -> ES flow error with preview of what was read
+  const { readFileSync: rf } = await import('node:fs');
+  const X = new Uint8Array(rf(resolve(__dirname, 'fixtures/datadis-ejemplo.xls')));
+  // build a workbook-less situation cheaply: an HTML table with unrelated columns saved as .xls
+  const html = '<html><body><table><tr><th>Concepto</th><th>Importe</th></tr><tr><td>Potencia</td><td>12,34</td></tr><tr><td>Energía</td><td>45,67</td></tr></table></body></html>';
+  window.__test_curve_buffer(new TextEncoder().encode(html).buffer, 'consumos.xls');
+  const err = d.querySelector('#es-curve-error');
+  assert.ok(!err.classList.contains('hidden'));
+  assert.match(err.textContent, /No se ha podido leer "consumos.xls"/);
+  assert.ok(err.querySelector('details.err-preview'), 'diagnostic preview present');
+  assert.match(err.querySelector('pre').textContent, /Concepto \| Importe/);
+  assert.match(err.querySelector('pre').textContent, /Potencia \| 12,34/);
+  // now a two-sheet E-Redes .xls (first sheet = info) -> content sniff over all sheets routes to PT and the second sheet is parsed
+  const b = rf(resolve(__dirname, 'fixtures/eredes-duas-folhas.xls'));
+  window.__test_curve_buffer(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength), 'consumos.xls');
+  assert.equal(d.body.dataset.country, 'PT');
+  assert.ok(d.querySelector('#pt-curve-error').classList.contains('hidden'), d.querySelector('#pt-curve-error').textContent);
+  assert.match(d.querySelector('#pt-curve-summary').textContent, /folha "Consumos"/);
+  assert.match(d.querySelector('#pt-curve-summary').textContent, /4 dias/);
+  // PT flow: an unrecognised sheet -> PT error with preview + list of sheets tried
+  const info = '<?xml version="1.0"?><Workbook xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Resumo"><Table><Row><Cell><Data ss:Type="String">CPE</Data></Cell><Cell><Data ss:Type="String">PT0002000000000000AA</Data></Cell></Row><Row><Cell><Data ss:Type="String">Consumo registado</Data></Cell><Cell><Data ss:Type="Number">123</Data></Cell></Row></Table></Worksheet><Worksheet ss:Name="Notas"><Table><Row><Cell><Data ss:Type="String">Sem dados</Data></Cell><Cell><Data ss:Type="String">-</Data></Cell></Row><Row><Cell><Data ss:Type="String">Gerado</Data></Cell><Cell><Data ss:Type="String">2026-09-07</Data></Cell></Row></Table></Worksheet></Workbook>';
+  window.__test_curve_buffer(new TextEncoder().encode(info).buffer, 'export.xls');
+  const perr = d.querySelector('#pt-curve-error');
+  assert.ok(!perr.classList.contains('hidden'));
+  assert.match(perr.textContent, /Não foi possível ler "export.xls"/);
+  assert.match(perr.textContent, /Folhas encontradas: Resumo, Notas/);
+  assert.match(perr.querySelector('pre').textContent, /CPE \| PT0002000000000000AA/);
+  assert.ok(X.length > 0);
+});

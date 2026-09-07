@@ -3,14 +3,14 @@ import { parseInvoiceText } from './lib/parser.js';
 import { parseInvoiceTextES, detectCountry } from './lib/parser-es.js';
 import { simulate, simulateAll, baselinePrices, nearestStandardPower, STANDARD_POWERS, PERIOD_KEYS, PERIOD_LABELS, RULES_2026 } from './lib/simulator.js';
 import { initES, fillFormES, showManualES, loadCurveText, loadCurveBufferES } from './app-es.js';
-import { initCurvePT, loadCurvePT, decodeCurveBuffer, activeCurvePT, applyCurveToFormPT, syncCycleFromBill, PT_CURVE } from './app-curve-pt.js';
+import { initCurvePT, loadCurvePT, loadCurveDecodedPT, decodeCurveBuffer, activeCurvePT, applyCurveToFormPT, syncCycleFromBill, PT_CURVE } from './app-curve-pt.js';
 import { kwhForOption, shiftToVazio } from './lib/consumption-pt.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
-export const APP_VERSION = '1.6.0'; // shown in the footer + error messages (helps spot stale caches)
+export const APP_VERSION = '1.6.1'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
   country: 'PT',    // 'PT' (ERSE flow) or 'ES' (2.0TD flow, app-es.js)
@@ -157,7 +157,7 @@ async function handleCurveUpload(file) {
 
 async function handleFile(file, password) {
   hideError();
-  if (/\.(csv|txt|xlsx|xls|xlsm)$/i.test(file.name) || /text\/csv|text\/plain|spreadsheetml|ms-excel/.test(file.type)) {
+  if (/\.(csv|txt|xlsx|xls|xlsm|ods|slk|dif|xml)$/i.test(file.name) || /text\/csv|text\/plain|spreadsheetml|ms-excel|opendocument\.spreadsheet/.test(file.type)) {
     // a consumption curve (E-Redes Excel/CSV, Datadis CSV…) dropped on the invoice dropzone
     return handleCurveUpload(file);
   }
@@ -235,7 +235,7 @@ function routeCurveFile(buf, name) {
   // decode once: Excel (.xlsx / .xls / HTML-XML table) -> rows, otherwise text
   let dec = null, err = null;
   try { dec = decodeCurveBuffer(buf); } catch (e) { console.error(e); err = e; }
-  const sample = (dec?.rows ? dec.rows.slice(0, 60).map((r) => r.join(';')).join('\n') : (dec?.text || '')).slice(0, 8000).toLowerCase();
+  const sample = (dec?.rows ? (dec.sheets || [{ rows: dec.rows }]).map((sh) => (sh.rows || []).slice(0, 60).map((r) => r.join(';')).join('\n')).join('\n') : (dec?.text || '')).slice(0, 16000).toLowerCase();
   const country = /consumo registado|consumo medido na ic|e-redes|\bcpe\b|injec|injeç/.test(sample) ? 'PT'
     : /\bcups\b|consumo_kwh|ae_kwh|metodo_obtencion|\bfecha\b|consumo wh/.test(sample) ? 'ES'
     : (state.parsed ? state.country : 'PT');
@@ -247,8 +247,7 @@ function routeCurveFile(buf, name) {
   }
   if (state.country !== 'PT' || $('#step-values').classList.contains('hidden')) { setCountry('PT'); if (!state.parsed || state.country !== 'PT') { state.parsed = null; fillForm(null); } show('#step-values'); }
   if (err) { const el = $('#pt-curve-error'); el.textContent = `Não foi possível ler "${name}": ${err.message}`; el.classList.remove('hidden'); $('#pt-curve-result').classList.add('hidden'); }
-  else if (dec.rows) loadCurvePT(dec.rows, name, dec.source);
-  else loadCurvePT(dec.text, name);
+  else loadCurveDecodedPT(dec, name);
   $('#pt-curve-box').scrollIntoView({ behavior: 'smooth' });
 }
 
