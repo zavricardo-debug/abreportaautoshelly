@@ -6,6 +6,7 @@ import { simulateES, simulateAllES, splitConsumption, cnmcLink, PERIODS_ES, PERI
 import { parseConsumptionCSV, sliceCurve, applyShare, shiftToValle, CALENDAR_TEXT_ES } from './lib/consumption-es.js';
 import { sheetRowsToCsv } from './lib/xlsx-lite.js';
 import { decodeCurveBuffer, parseAnySheet, previewOfDecoded } from './app-curve-pt.js';
+import { hourlyRowsES, renderHourlySection } from './app-hourly.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -405,6 +406,7 @@ function runComparisonES() {
   ui.hideError();
   const f = readFormES();
   ES.form = f;
+  ES.curveForResults = f.curve && ES.curveUsed ? { ...ES.curveUsed, file: ES.curveFile, ceutaMelilla: $('#es-curve-ceuta').checked } : null; // the hours behind the kWh of the form
   const profile = profileOf(f);
   ES.baseline = simulateES(profile, basePricesOf(f), rules());
   computeResults();
@@ -464,7 +466,8 @@ function renderResultsES() {
   const totalKwh = base.totalKwh;
   const shifted = ES.shift ? shiftToValle(f.kwh, ES.shift) : null;
   $('#es-results-sub').textContent = `Perfil: ${fmtNum(f.power.p1, 2)} kW punta / ${fmtNum(f.power.p2, 2)} kW valle · ${fmtNum(totalKwh, 0)} kWh en ${f.days} días (punta ${fmtNum(f.kwh.punta, 0)} · llano ${fmtNum(f.kwh.llano, 0)} · valle ${fmtNum(f.kwh.valle, 0)}${f.curve ? ' – reparto REAL de su curva horaria' : ' – reparto estimado'})` +
-    (shifted ? ` · simulando trasladar el ${Math.round(ES.shift * 100)} % de punta y llano a valle (punta ${fmtNum(shifted.punta, 0)} · llano ${fmtNum(shifted.llano, 0)} · valle ${fmtNum(shifted.valle, 0)} kWh)` : '') + ` · ${ES.results.length} tarifas aplicables.`;
+    (shifted ? ` · simulando trasladar el ${Math.round(ES.shift * 100)} % de punta y llano a valle (punta ${fmtNum(shifted.punta, 0)} · llano ${fmtNum(shifted.llano, 0)} · valle ${fmtNum(shifted.valle, 0)} kWh)` : '') + ` · ${ES.results.length} tarifas aplicables.` +
+    (f.curve ? ' En "Detalle" de cada tarifa verá el coste de la energía hora a hora con su consumo real.' : '');
   $('#es-th-days').textContent = `${f.days} días, con impuestos`;
 
   const best = rows[0];
@@ -620,6 +623,24 @@ function openDetailES(x) {
       <dt>Fuente de los precios</dt><dd>${o.source?.url ? `<a href="${esc(o.source.url)}" target="_blank" rel="noopener">${esc(o.source.name)}</a>` : esc(o.source?.name || '—')} · consultado el ${fmtDate(o.source?.date)}. Los precios pueden haber cambiado: confirme siempre en la web de la comercializadora antes de contratar.</dd>
       <dt>Web</dt><dd class="links"><a href="${esc(ES.dataset.suppliers.find((sp) => sp.code === o.supplierCode)?.url || o.source?.url || '#')}" target="_blank" rel="noopener">${esc(o.supplier)}</a><a href="${esc($('#es-cnmc-link').href)}" target="_blank" rel="noopener">Comparador CNMC</a></dd>
     </dl>` : `<p class="muted small">Reconstrucción de su factura con los precios leídos. Financiación del bono social y alquiler del contador son conceptos regulados idénticos en todas las tarifas.</p>`;
-  $('#modal-body').innerHTML = diffBox + table + meta;
+  $('#modal-body').innerHTML = diffBox + table + hourlySectionES(x, isBase) + meta;
   $('#detail-modal').showModal();
+}
+
+/** Hour-by-hour energy cost of this tariff vs. the bill's, from the consumption file used in the comparison (empty when there is none). */
+function hourlySectionES(x, isBase) {
+  const cf = ES.curveForResults, f = ES.form;
+  if (!cf?.curve?.hours?.length || !f) return '';
+  const curve = cf.curve;
+  const billKwh = PERIODS_ES.reduce((a, k) => a + f.kwh[k], 0);
+  const scale = curve.totalKwh > 0 && billKwh > 0 ? billKwh / curve.totalKwh : 1; // the form holds the billed kWh with the curve's shares
+  const prices = isBase ? basePricesOf(f) : x.prices;
+  const data = hourlyRowsES(curve.hours, { scale, shift: isBase ? 0 : ES.shift || 0, offer: prices, base: basePricesOf(f), ceutaMelilla: cf.ceutaMelilla });
+  const scopeTxt = cf.scope === 'period' ? `las ${curve.hours.length} horas del fichero dentro del periodo de la factura (${fmtDate(curve.start)} → ${fmtDate(curve.end)})` : `el fichero completo (${curve.days} días, ${fmtDate(curve.start)} → ${fmtDate(curve.end)})`;
+  const scaleTxt = Math.abs(scale - 1) > 0.001 ? ` Los kWh de cada hora están escalados a los ${fmtNum(billKwh, 0)} kWh facturados (× ${fmtNum(scale, 3)}), manteniendo el reparto real por horas.` : '';
+  const shiftTxt = !isBase && ES.shift ? ` Incluye el escenario "trasladar el ${Math.round(ES.shift * 100)} % de punta y llano a valle" para esta tarifa (su factura se mantiene como está).` : '';
+  const single = prices.energy?.punta == null;
+  const intro = `Consumo de <b>${esc(cf.file)}</b>: ${scopeTxt}, ${data.dayCounts.weekday} laborables y ${data.dayCounts.weekend} de fin de semana/festivos. Cada hora se clasifica en punta / llano / valle según el calendario 2.0TD del día en que se consumió y se multiplica por el precio de ese periodo${single ? ' (esta tarifa tiene un precio único: todas las horas cuestan lo mismo por kWh)' : ''}.${scaleTxt}${shiftTxt}`;
+  const note = 'Importes de energía sin impuestos (ni impuesto eléctrico ni IVA). La columna "Periodo" indica en qué periodo cae esa hora a lo largo de los días del fichero: 10–14 h es punta de lunes a viernes pero valle en fin de semana, por eso aparecen porcentajes. ' + CALENDAR_TEXT_ES;
+  return renderHourlySection(data, { lang: 'es', isBase, intro, note, fmtNum, fmtEur, esc });
 }

@@ -245,3 +245,24 @@ table.results.compact td .pct { display: block; font-size: .72rem; color: var(--
 .alert .err-preview { margin-top: 8px; }
 .alert .err-preview summary { cursor: pointer; font-weight: 600; }
 .alert .err-preview pre { margin: 6px 0; padding: 8px 10px; background: rgba(255,255,255,.7); border-radius: 8px; font-size: .78rem; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow: auto; }
+
+/* hour-by-hour detail (modal) */
+.hourly { margin: 14px 0 6px; }
+.hourly h4 { margin: 0 0 4px; font-size: .98rem; }
+.hourly .chart-wrap svg { height: 190px; }
+.hourly .chart-wrap svg rect.base { fill: #94a3b8; }
+.hourly .curve-legend .sw.base { background: #94a3b8; }
+.hourly details.hourly-table { margin-top: 8px; }
+.hourly details.hourly-table summary { cursor: pointer; font-size: .85rem; color: #0e7490; }
+table.invoice.hourly { font-size: .8rem; margin-top: 8px; }
+table.invoice.hourly td.num { white-space: nowrap; position: relative; }
+table.invoice.hourly td.num .hbar { position: absolute; left: 0; top: 4px; bottom: 4px; background: #e0f2fe; border-radius: 3px; z-index: 0; max-width: 100%; }
+table.invoice.hourly td.num .hbar + * , table.invoice.hourly td.num { z-index: 1; }
+table.invoice.hourly td, table.invoice.hourly th { padding: 4px 6px; }
+table.invoice.hourly td.diff.good { color: var(--good, #15803d); }
+table.invoice.hourly td.diff.bad { color: var(--bad, #b91c1c); }
+table.invoice.hourly td.diff.zero { color: var(--muted, #6b7280); }
+.pchip { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: .72rem; font-weight: 600; color: #fff; white-space: nowrap; }
+.pchip small { font-weight: 500; opacity: .9; }
+.pchip.punta, .pchip.ponta { background: #dc2626; } .pchip.llano, .pchip.cheias, .pchip.foraVazio { background: #f59e0b; } .pchip.valle, .pchip.vazio { background: #16a34a; } .pchip.simples { background: #64748b; }
+.modal { width: min(860px, 96vw); }

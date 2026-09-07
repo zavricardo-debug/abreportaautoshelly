@@ -322,12 +322,47 @@ test('Spanish flow with an hourly consumption CSV: real punta/llano/valle split 
   assert.ok(ptRows.length === rows.length, 'one row per shown tariff + baseline');
   assert.match(ptRows[0].textContent, /Su factura actual/);
   assert.match(ptRows[0].textContent, /46,37/);
+  // detail modal of the best tariff: hour-by-hour energy cost from the curve (24 rows + total, both tariffs, chart)
+  rows[1].querySelector('button').click();
+  const hb = d.querySelector('#modal-body');
+  assert.ok(hb.querySelector('#hourly-detail'), 'hourly section present when a curve drives the comparison');
+  assert.match(hb.querySelector('#hourly-detail').textContent, /Energía hora a hora con su consumo real/);
+  assert.match(hb.querySelector('#hourly-detail').textContent, /consumos\.csv/);
+  assert.match(hb.querySelector('#hourly-detail').textContent, /escalados a los 277 kWh facturados/);
+  const hRows = [...hb.querySelectorAll('table.hourly tbody tr')];
+  assert.equal(hRows.length, 25, '24 hours + total');
+  assert.match(hRows[0].children[0].textContent, /^00–01$/);
+  assert.match(hRows[0].querySelector('.pchip').textContent, /Valle/);            // 0-1 h is valle every day
+  assert.match(hRows[12].querySelector('.pchip').textContent, /Punta/);           // 12-13 h: punta on weekdays (dominant), valle at weekends
+  assert.ok(hRows[12].querySelectorAll('.pchip').length >= 2, 'weekday punta + weekend valle chips');
+  assert.equal(hb.querySelectorAll('table.hourly thead th').length, 6, 'hour, period, kWh, su tarifa, esta tarifa, diferencia');
+  const num = (t) => Number(t.replace(/[^\d,−-]/g, '').replace('−', '-').replace(',', '.'));
+  const totalRow = hRows[24];
+  assert.match(totalRow.textContent, /Total energía/);
+  const kwhSum = hRows.slice(0, 24).reduce((a, r) => a + num(r.children[2].textContent.split(' ')[0]), 0);
+  assert.ok(Math.abs(kwhSum - 277.2) < 0.5, `hour kWh sum ${kwhSum}`);
+  assert.ok(Math.abs(num(totalRow.children[3].textContent) - 46.37) < 0.02, `base energy ${totalRow.children[3].textContent}`); // = "Su factura" energy line
+  assert.equal(hb.querySelectorAll('#hourly-detail svg rect').length, 48, 'two bars per hour');
+  d.querySelector('#modal-close').click();
+  // baseline detail: single set of bars, cost column only
+  rows[0].querySelector('button').click();
+  assert.equal(hb.querySelectorAll('#hourly-detail svg rect').length, 24);
+  assert.equal(hb.querySelectorAll('table.hourly thead th').length, 4);
+  d.querySelector('#modal-close').click();
   // what-if: shift 25 % of punta+llano to valle -> cheaper 3-period totals
   const before = Number(rows[1].children[7].textContent.replace(/[^\d,]/g, '').replace(',', '.'));
   const sh = d.querySelector('#es-flt-shift'); sh.value = '0.25'; sh.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.match(d.querySelector('#es-results-sub').textContent, /trasladar el 25 %/);
   const after = Number(d.querySelectorAll('#es-results-table tbody tr')[1].children[7].textContent.replace(/[^\d,]/g, '').replace(',', '.'));
   assert.ok(after < before, `shift lowers the best total: ${after} < ${before}`);
+  // the hourly detail follows the what-if scenario and its total matches the tariff's energy line
+  const bestRow = d.querySelectorAll('#es-results-table tbody tr')[1]; bestRow.querySelector('button').click();
+  assert.match(hb.querySelector('#hourly-detail').textContent, /trasladar el 25 %/);
+  const energyLine = [...hb.querySelectorAll('table.invoice:not(.hourly) tbody tr')].find((r) => /Energía \(total\)/.test(r.textContent));
+  const shownEnergy = num(energyLine.children[4].textContent);
+  const hourlyTotal = num([...hb.querySelectorAll('table.hourly tbody tr')].pop().children[4].textContent);
+  assert.ok(Math.abs(shownEnergy - hourlyTotal) < 0.03, `hourly total ${hourlyTotal} = energy line ${shownEnergy}`);
+  d.querySelector('#modal-close').click();
   // baseline row unchanged (the bill is what it is)
   assert.match(d.querySelectorAll('#es-results-table tbody tr')[0].children[7].textContent, /89,84/);
 
@@ -389,6 +424,29 @@ test('Portuguese flow with the E-Redes consumption Excel: real vazio/cheias/pont
   assert.ok(rows().slice(1).every((r) => r.querySelector('.badge.opt')?.textContent === 'tri-horária'));
   assert.ok(rows().slice(1).every((r) => [...r.querySelectorAll('.badge')].some((x) => /consumo real por período/.test(x.textContent))));
   const bestTri = total(rows()[1]);
+  // detail of the best tri-horária offer: quarter-hours of the E-Redes file classified in ponta/cheias/vazio vs. the bi-horária bill
+  rows()[1].querySelector('button').click();
+  const mb = d.querySelector('#modal-body');
+  assert.ok(mb.querySelector('#hourly-detail'));
+  const ht = mb.querySelector('#hourly-detail').textContent;
+  assert.match(ht, /Energia hora a hora com o seu consumo real/);
+  assert.match(ht, /Oferta tri-horária \(a sua fatura é bi-horária\), ciclo diário/);
+  assert.match(ht, /registos de 15 min/);
+  const hr = [...mb.querySelectorAll('table.hourly tbody tr')];
+  assert.equal(hr.length, 25);
+  assert.match(hr[9].querySelector('.pchip').textContent, /Cheias/);  // Aug/Sep = hora legal de Verão: 09-10 h is cheias (ponta 10:30-13 / 19:30-21)
+  assert.match(hr[11].querySelector('.pchip').textContent, /Ponta/);
+  assert.match(hr[10].textContent, /Cheias \d+ %.*Ponta \d+ %|Ponta \d+ %.*Cheias \d+ %/); // 10-11 h: 10:00-10:30 cheias + 10:30-11:00 ponta (quarter-hour resolution)
+  assert.match(hr[23].querySelector('.pchip').textContent, /Vazio/);
+  const numPT = (t) => Number(t.replace(/[^\d,−-]/g, '').replace('−', '-').replace(',', '.'));
+  const tot = hr[24];
+  assert.match(tot.textContent, /Total energia/);
+  // total of the offer's hourly energy = the sum of its "Termo de Energia" lines in the invoice table above
+  const energyLines = [...mb.querySelectorAll('table.invoice:not(.hourly) tbody tr')].filter((r) => /Termo de Energia/.test(r.textContent));
+  const energySum = energyLines.reduce((a, r) => a + numPT(r.children[3].textContent), 0);
+  assert.ok(Math.abs(numPT(tot.children[4].textContent) - energySum) < 0.03, `hourly ${tot.children[4].textContent} vs lines ${energySum}`);
+  assert.equal(mb.querySelectorAll('#hourly-detail svg rect').length, 48);
+  d.querySelector('#modal-close').click();
   // what-if: 25 % to vazio lowers the best tri-horária total, baseline unchanged
   const sh = d.querySelector('#flt-shift'); sh.value = '0.25'; sh.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.match(sub(), /25 % do consumo fora de vazio/);

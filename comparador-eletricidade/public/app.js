@@ -4,13 +4,14 @@ import { parseInvoiceTextES, detectCountry } from './lib/parser-es.js';
 import { simulate, simulateAll, baselinePrices, nearestStandardPower, STANDARD_POWERS, PERIOD_KEYS, PERIOD_LABELS, RULES_2026 } from './lib/simulator.js';
 import { initES, fillFormES, showManualES, loadCurveText, loadCurveBufferES } from './app-es.js';
 import { initCurvePT, loadCurvePT, loadCurveDecodedPT, decodeCurveBuffer, activeCurvePT, applyCurveToFormPT, syncCycleFromBill, PT_CURVE } from './app-curve-pt.js';
-import { kwhForOption, shiftToVazio } from './lib/consumption-pt.js';
+import { kwhForOption, shiftToVazio, scheduleText } from './lib/consumption-pt.js';
+import { hourlyRowsPT, renderHourlySection } from './app-hourly.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
-export const APP_VERSION = '1.6.2'; // shown in the footer + error messages (helps spot stale caches)
+export const APP_VERSION = '1.7.0'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
   country: 'PT',    // 'PT' (ERSE flow) or 'ES' (2.0TD flow, app-es.js)
@@ -23,6 +24,7 @@ const state = {
   skippedOptions: [],  // options requested but not simulable (no consumption curve)
   shift: 0,            // fraction of fora-de-vazio consumption moved to vazio (what-if)
   curveInfo: null,     // { file, scope, cycle, days } when the E-Redes curve drives the split
+  curveForResults: null, // { curve, scope, cycle, file } used by the last comparison (hour-by-hour detail)
 };
 
 const fmtEur = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v)) ? '—' : new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
@@ -467,6 +469,7 @@ function computeResults() {
   state.skippedOptions = skipped;
   state.shift = shift;
   state.curveInfo = ac ? { file: ac.file, scope: ac.scope, cycle: ac.cycle, days: ac.curve.days } : null;
+  state.curveForResults = ac; // { curve, scope, cycle, file } – the quarter-hours behind every simulation
 }
 
 function bindFilters() {
@@ -513,6 +516,7 @@ function renderResults() {
   if (multi) sub += ` Opções comparadas: ${state.resultOptions.map((o) => OPT[o]).join(', ')}${state.curveInfo ? ` – consumo por período REAL do ficheiro de consumos (${state.curveInfo.cycle === 'semanal' ? 'ciclo semanal' : 'ciclo diário'}, ${state.curveInfo.scope === 'period' ? 'período da fatura' : state.curveInfo.days + ' dias'})` : ''}.`;
   if (state.skippedOptions.length) sub += ` ${state.skippedOptions.map((o) => OPT[o]).join(' e ')}: não simulável sem o ficheiro de consumos da E-Redes (a fatura não indica o consumo por período).`;
   if (state.shift > 0) sub += ` Cenário: ${Math.round(state.shift * 100)} % do consumo fora de vazio transferido para o vazio (a sua fatura atual mantém-se como está).`;
+  if (state.curveInfo) sub += ' Em "Detalhe" de cada oferta vê o custo da energia hora a hora com o seu consumo real.';
   $('#results-sub').textContent = sub;
   $('#th-days').textContent = `${f.days} dias, c/ IVA`;
 
@@ -633,8 +637,29 @@ function openDetail(x, base) {
       <dt>Ligações</dt><dd class="links">${o.links?.offer ? `<a href="${esc(o.links.offer)}" target="_blank" rel="noopener">Página da oferta</a>` : ''}${o.links?.sheet ? `<a href="${esc(o.links.sheet)}" target="_blank" rel="noopener">Ficha padronizada</a>` : ''}${o.links?.terms ? `<a href="${esc(o.links.terms)}" target="_blank" rel="noopener">Condições gerais</a>` : ''}${o.links?.supplier ? `<a href="${esc(o.links.supplier)}" target="_blank" rel="noopener">Site</a>` : ''}</dd>
       <dt>Código ERSE</dt><dd>${esc(o.id)}</dd>
     </dl>` : '';
-  $('#modal-body').innerHTML = diff + invoice + meta;
+  $('#modal-body').innerHTML = diff + invoice + hourlySectionPT(x, base) + meta;
   $('#detail-modal').showModal();
+}
+
+/** Hour-by-hour energy cost of this offer vs. the bill's, from the consumption file used in the comparison (empty when there is none). */
+function hourlySectionPT(x, base) {
+  const ac = state.curveForResults, f = state.form;
+  if (!ac?.curve?.quarters?.length || !f) return '';
+  const isBase = !base || x.sim === base;
+  const curve = ac.curve;
+  const billKwh = f.kwh.reduce((a, b) => a + b, 0);
+  const scale = curve.totalKwh > 0 && billKwh > 0 ? billKwh / curve.totalKwh : 1;
+  const bp = baselinePrices(f);
+  const offerOption = isBase ? f.option : (x.option || x.sim.option);
+  const data = hourlyRowsPT(curve.quarters, { scale, shift: isBase ? 0 : state.shift || 0, cycle: ac.cycle, offerOption, offerPrices: isBase ? bp.energy : x.prices.energy, baseOption: f.option, basePrices: bp.energy });
+  const OPT = { 1: 'simples', 2: 'bi-horária', 3: 'tri-horária' };
+  const scopeTxt = ac.scope === 'period' ? `os ${curve.days} dias do ficheiro dentro do período da fatura (${fmtDate(curve.start)} → ${fmtDate(curve.end)})` : `o ficheiro completo (${curve.days} dias, ${fmtDate(curve.start)} → ${fmtDate(curve.end)})`;
+  const scaleTxt = Math.abs(scale - 1) > 0.001 ? ` Os kWh de cada hora estão escalados aos ${fmtNum(billKwh, 0)} kWh faturados (× ${fmtNum(scale, 3)}), mantendo a repartição real por horas.` : '';
+  const shiftTxt = !isBase && state.shift && offerOption > 1 ? ` Inclui o cenário "${Math.round(state.shift * 100)} % do consumo fora de vazio transferido para o vazio" nesta oferta (a sua fatura mantém-se como está).` : '';
+  const optTxt = isBase ? `Tarifa ${OPT[f.option]}` : `Oferta ${OPT[offerOption]}${offerOption !== f.option ? ` (a sua fatura é ${OPT[f.option]})` : ''}`;
+  const intro = `Consumo de <b>${esc(ac.file)}</b>: ${scopeTxt} – ${data.dayCounts.util} dias úteis, ${data.dayCounts.sabado} sábados e ${data.dayCounts.domingo} domingos, registos de ${curve.step} min. ${optTxt}, ${ac.cycle === 'semanal' ? 'ciclo semanal' : 'ciclo diário'}: cada quarto de hora é classificado no período horário do dia em que foi consumido (hora legal de Inverno/Verão) e multiplicado pelo preço desse período${offerOption === 1 ? ' (preço único: todas as horas custam o mesmo por kWh)' : ''}.${scaleTxt}${shiftTxt}`;
+  const note = `Valores de energia sem IVA e sem taxas. A coluna "Período" mostra em que período cai essa hora ao longo dos dias do ficheiro (no ciclo semanal a mesma hora pode ser ponta num dia útil e vazio ao domingo, daí as percentagens). ${scheduleText(ac.cycle)}`;
+  return renderHourlySection(data, { lang: 'pt', isBase, intro, note, fmtNum, fmtEur, esc });
 }
 
 function ivaLabelEnergy(s) {

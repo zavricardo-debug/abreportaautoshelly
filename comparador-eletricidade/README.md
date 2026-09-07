@@ -168,6 +168,11 @@ según el calendario 2.0TD de la Circular 3/2020 (laborables: punta 10–14 h y 
 Ceuta y Melilla con la punta desplazada a 11–15 h y 19–23 h). La columna `Hora` 1..24 de las
 distribuidoras es la hora *final* del intervalo (hora 1 = 00:00–01:00).
 
+Con la curva cargada, el botón **Detalle** de cada tarifa añade la sección *Energía hora a hora con su consumo
+real*: cada hora del fichero se clasifica en punta / llano / valle según el día en que se consumió, se multiplica
+por el precio de ese periodo en la tarifa y en su factura, y se muestran el gráfico (barras grises = su tarifa,
+de colores = la tarifa) y una tabla de 24 filas con kWh, coste y diferencia por hora (`public/app-hourly.js`).
+
 Con la curva cargada: se muestran el reparto real por periodos (comparado con el de la factura), el perfil
 medio de un día laborable y de fin de semana (barras coloreadas por periodo), y los kWh de punta/llano/valle
 del formulario se sustituyen por los reales (recortados al periodo de la factura si la curva lo cubre y
@@ -220,6 +225,12 @@ O que é lido (`public/lib/consumption-pt.js`):
     09:00–14:00 e 20:00–22:00, resto vazio); domingo vazio todo o dia.
   * Bi-horário: fora de vazio = ponta + cheias. O ciclo é lido da fatura quando lá aparece («ciclo
     diário»/«ciclo semanal») e pode ser mudado no próprio painel.
+
+Com o ficheiro carregado, o botão **Detalhe** de cada oferta (passo 3) acrescenta a secção *Energia hora a
+hora com o seu consumo real*: cada quarto de hora do ficheiro é classificado em ponta / cheias / vazio no
+ciclo escolhido e no horário legal do dia em que foi consumido, multiplicado pelo preço desse período na
+oferta e na sua tarifa, com gráfico (barras cinzentas = a sua tarifa, coloridas = a oferta) e tabela de 24
+linhas com kWh, custo e diferença por hora (`public/app-hourly.js`).
 
 Com o ficheiro carregado o passo 2 mostra: ficheiro/período/nº de dias, consumo total (recortado ao
 período da fatura quando o ficheiro o cobre), repartição real em **tri-horário** e **bi-horário** para
