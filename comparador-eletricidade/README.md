@@ -6,7 +6,7 @@ rubricas da fatura e compara o que está a pagar com as ofertas do mercado:
 * **Portugal** – todas as ofertas publicadas pela **ERSE** (EDP Comercial, Endesa, Iberdrola, Galp,
   Goldenergy, Repsol, Plenitude, MEO Energia, SU Eletricidade/tarifa regulada, …).
 * **España** (peaje 2.0TD) – lista curada de tarifas de Endesa, Iberdrola, Naturgy, Repsol,
-  TotalEnergies, Octopus, Plenitude, Chippio e Imagina, com **comparação conceito a conceito**
+  TotalEnergies, Octopus, Plenitude, Chippio, Imagina e Visalia, com **comparação conceito a conceito**
   (potencia, energía, bono social, alquiler, impuesto eléctrico, IVA, total) e ligação ao
   comparador oficial da CNMC. O país é detetado automaticamente a partir do texto da fatura.
 

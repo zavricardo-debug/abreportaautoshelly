@@ -2,11 +2,11 @@
   "meta": {
     "country": "ES",
     "market": "Peaje 2.0TD · viviendas · Península y Baleares",
-    "publishedAt": "2026-09-05",
-    "source": "Precios publicados por las comercializadoras en sus webs (sin impuestos) y, cuando la web no los muestra, por los comparadores Rastreator (05/09/2026) y Selectra (09/2026). Lista curada manualmente – no es un volcado del comparador de la CNMC.",
+    "publishedAt": "2026-09-08",
+    "source": "Precios publicados por las comercializadoras en sus webs (sin impuestos) y, cuando la web no los muestra, por los comparadores Rastreator (05/09/2026) y Selectra (09/2026); Visalia añadida el 08/09/2026. Lista curada manualmente – no es un volcado del comparador de la CNMC.",
     "official": "https://comparador.cnmc.gob.es",
-    "offers": 21,
-    "suppliers": 9,
+    "offers": 24,
+    "suppliers": 10,
     "note": "Los precios promocionales de primer año se indican en 'promoText'; 'after' contiene los precios una vez terminada la promoción. Todos los precios son €/kWh y €/kW·día sin impuestos."
   },
   "rules": {
@@ -69,6 +69,11 @@
       "code": "IMAGINA",
       "name": "Imagina Energía",
       "url": "https://www.imaginaenergia.com"
+    },
+    {
+      "code": "VISALIA",
+      "name": "Visalia Energía",
+      "url": "https://visalia.es/luz/"
     }
   ],
   "offers": [
@@ -632,6 +637,83 @@
         "date": "2026-09-05"
       },
       "notes": "3 periodos; potencia valle muy barata (0,029 €/kW·día)."
+    },
+    {
+      "id": "VISALIA-FIJO-24H",
+      "supplierCode": "VISALIA",
+      "supplier": "Visalia",
+      "name": "Luz Fijo 24 horas",
+      "type": "fixed",
+      "energy": {
+        "single": 0.119995
+      },
+      "power": {
+        "p1": 0.076712,
+        "p2": 0.076712
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "renewable": true,
+      "source": {
+        "name": "visalia.es (contratable a este precio hasta el 26/06/2027)",
+        "url": "https://visalia.es/luz/fijo24horas/",
+        "date": "2026-09-08"
+      },
+      "notes": "Mismo precio las 24 h; término fijo 0,076712 €/kW·día en punta y valle (incluye peajes y cargos). Sólo particulares; sin permanencia."
+    },
+    {
+      "id": "VISALIA-3P",
+      "supplierCode": "VISALIA",
+      "supplier": "Visalia",
+      "name": "Luz 3 Periodos",
+      "type": "fixed3",
+      "energy": {
+        "punta": 0.23853,
+        "llano": 0.149464,
+        "valle": 0.119806
+      },
+      "power": {
+        "p1": 0.075903,
+        "p2": 0.001987
+      },
+      "permanence": false,
+      "priceFixedMonths": 12,
+      "maxPower": 15,
+      "renewable": true,
+      "source": {
+        "name": "visalia.es (contratable a este precio hasta el 26/06/2027)",
+        "url": "https://visalia.es/luz/luz-3-periodos/",
+        "date": "2026-09-08"
+      },
+      "notes": "Precio fijo por periodo 12 meses; potencia al precio regulado (peajes + cargos). Sólo particulares; sin permanencia."
+    },
+    {
+      "id": "VISALIA-COSTE-CUOTA",
+      "supplierCode": "VISALIA",
+      "supplier": "Visalia",
+      "name": "Luz Coste + Cuota (indexada)",
+      "type": "indexed",
+      "energy": {
+        "punta": 0.20371,
+        "llano": 0.135573,
+        "valle": 0.106667
+      },
+      "power": {
+        "p1": 0.075903,
+        "p2": 0.001987
+      },
+      "feePerMonth": 4.95,
+      "indexed": true,
+      "permanence": false,
+      "maxPower": 15,
+      "renewable": true,
+      "source": {
+        "name": "visalia.es (precio medio de los últimos 12 meses por periodo)",
+        "url": "https://visalia.es/luz/coste-cuota/",
+        "date": "2026-09-08"
+      },
+      "notes": "Energía a precio de coste (varía cada hora) + cuota de 4,95 €/mes. Se usan los precios medios por periodo de los últimos 12 meses publicados por Visalia (media 0,140279 €/kWh); su estimación para los próximos 12 meses es algo menor (0,095 / 0,125 / 0,204 €/kWh, media 0,132). Potencia al precio regulado."
     }
   ]
 }
