@@ -168,6 +168,12 @@ según el calendario 2.0TD de la Circular 3/2020 (laborables: punta 10–14 h y 
 Ceuta y Melilla con la punta desplazada a 11–15 h y 19–23 h). La columna `Hora` 1..24 de las
 distribuidoras es la hora *final* del intervalo (hora 1 = 00:00–01:00).
 
+La tabla de resultados muestra, dentro de la columna **Energía**, lo que cuestan los kWh de cada periodo
+(punta / llano / valle) **con los precios de su factura → con la tarifa**, y el botón **Detalle** abre con
+la tabla *Energía por periodo horario – lo que paga hoy vs. esta tarifa* (kWh, €/kWh y € de cada lado,
+diferencia). Si su factura tiene precio único, "paga hoy" es kWh del periodo × ese precio único, de modo que
+se ve cuánto le cuestan hoy las horas de valle que una tarifa de tres periodos abarataría.
+
 Con la curva cargada, el botón **Detalle** de cada tarifa añade la sección *Energía hora a hora con su consumo
 real*: cada hora del fichero se clasifica en punta / llano / valle según el día en que se consumió, se multiplica
 por el precio de ese periodo en la tarifa y en su factura, y se muestran el gráfico (barras grises = su tarifa,
@@ -225,6 +231,13 @@ O que é lido (`public/lib/consumption-pt.js`):
     09:00–14:00 e 20:00–22:00, resto vazio); domingo vazio todo o dia.
   * Bi-horário: fora de vazio = ponta + cheias. O ciclo é lido da fatura quando lá aparece («ciclo
     diário»/«ciclo semanal») e pode ser mudado no próprio painel.
+
+A tabela de resultados mostra, na coluna **Energia**, quanto custam os kWh de cada período (ponta / cheias /
+vazio ou fora de vazio / vazio) **com os preços da sua fatura → com a oferta**, e o botão **Detalhe** abre com
+a tabela *Energia por período horário – o que paga hoje vs. esta oferta*. Quando a oferta tem outra opção
+horária (p. ex. tri-horária face a uma fatura bi-horária) os preços atuais são aplicados aos mesmos kWh
+período a período (vazio = vazio; fora de vazio = ponta + cheias; de tri para bi usa-se a média ponderada
+dos preços de ponta e cheias).
 
 Com o ficheiro carregado, o botão **Detalhe** de cada oferta (passo 3) acrescenta a secção *Energia hora a
 hora com o seu consumo real*: cada quarto de hora do ficheiro é classificado em ponta / cheias / vazio no

@@ -540,10 +540,29 @@ function badges(x) {
   return b;
 }
 
-function cell(v, baseV, bold = false) {
+function cell(v, baseV, bold = false, extra = '') {
   const d = baseV === null || baseV === undefined ? null : r2(v - baseV);
   const dHtml = d === null ? '' : `<span class="cell-delta ${d < -0.005 ? 'good' : d > 0.005 ? 'bad' : 'zero'}">${d === 0 ? '=' : signed(d)}</span>`;
-  return `<td class="num">${bold ? '<b>' : ''}${fmtEur(v)}${bold ? '</b>' : ''}${dHtml}</td>`;
+  return `<td class="num">${bold ? '<b>' : ''}${fmtEur(v)}${bold ? '</b>' : ''}${dHtml}${extra}</td>`;
+}
+
+/** Energy of each 2.0TD period: what the bill's prices cost for those kWh vs. this tariff (kWh from the form / curve, what-if applied). */
+function periodEnergyHtml(sim, base) {
+  const f = ES.form; if (!f) return '';
+  const bp = basePricesOf(f);
+  const basePrice = (k) => bp.energy.punta != null ? +bp.energy[k] || 0 : +bp.energy.single || 0;
+  const kwhOf = (k) => sim.kwh?.[k] || 0;
+  const offerLine = (k) => sim.lines.find((l) => l.id === `energy_${k}`);
+  const offerPrice = (k) => offerLine(k) ? +offerLine(k).price : +sim.lines.find((l) => l.id === 'energy_single')?.price || 0;
+  const rows = PERIODS_ES.map((k) => {
+    const kwh = kwhOf(k), now = r2(kwh * basePrice(k)), off = r2(kwh * offerPrice(k));
+    const d = base ? r2(off - now) : null;
+    return `<div class="pe-row"><span class="pe-k ${k}">${PERIOD_LABELS_ES[k]}</span><span class="pe-kwh">${fmtNum(kwh, 0)} kWh</span>` +
+      (base ? `<span class="pe-now" title="con los precios de su factura">${fmtEur(now)}</span><span class="pe-arrow">→</span>` : '') +
+      `<span class="pe-off">${fmtEur(off)}</span>` +
+      (d === null ? '' : `<span class="pe-d ${d < -0.005 ? 'good' : d > 0.005 ? 'bad' : 'zero'}">${d === 0 ? '=' : signed(d)}</span>`) + '</div>';
+  }).join('');
+  return `<div class="period-energy">${rows}</div>`;
 }
 
 function rowEl(r) {
@@ -555,7 +574,7 @@ function rowEl(r) {
     <td class="rank">${r.rank}</td>
     <td><div class="offer-name">${esc(r.name)}</div>${r.sub ? `<div class="offer-sub">${esc(r.sub)}</div>` : ''}${r.badges?.length ? `<div class="badges">${r.badges.map(([c, t]) => `<span class="badge ${c}">${esc(t)}</span>`).join('')}</div>` : ''}</td>
     ${cell(s.powerAmount, b?.powerAmount)}
-    ${cell(s.energyAmount, b?.energyAmount)}
+    ${cell(s.energyAmount, b?.energyAmount, false, periodEnergyHtml(s, b))}
     ${cell(regulatedOf(s), b ? regulatedOf(b) : null)}
     ${cell(s.ie, b?.ie)}
     ${cell(s.iva, b?.iva)}
@@ -580,20 +599,41 @@ function openDetailES(x) {
   $('#modal-title').textContent = `${o.supplier} – ${o.name}`;
   const qty = (l) => l.unit === 'kW' ? `${fmtNum(l.qty, 3)} kW × ${l.days} días` : l.unit === 'kWh' ? `${fmtNum(l.qty, 3)} kWh` : l.unit === 'días' ? `${l.days ?? l.qty} días` : l.unit === '€' ? `s/ ${fmtEur(l.qty)}` : l.id === 'other' ? '<span class="muted">importe fijo de su factura</span>' : '';
   const price = (l) => l.priceUnit === '%' ? `${fmtNum(l.price, l.id === 'ie' ? 7 : 0)} %` : l.price != null ? `${fmtNum(l.price, 6)} ${l.priceUnit}` : '';
+  // energy per period with the prices of YOUR bill: a single-price bill costs kWh × precio único in every period,
+  // so the user sees what the kWh consumed at those hours cost today vs. with this tariff
+  const basePricesNow = basePricesOf(ES.form);
+  const basePriceOf = (period) => period === 'single' ? (basePricesNow.energy.single ?? null) : (basePricesNow.energy.punta != null ? basePricesNow.energy[period] : basePricesNow.energy.single);
+  const baseEnergyFor = (l) => {
+    if (l.period === 'single') return base.energyAmount;
+    if (!base.single) return base.lines.find((b) => b.id === l.id)?.amount ?? 0;
+    return r2((l.qty || 0) * (basePriceOf(l.period) || 0));
+  };
   const baseAmount = (l) => {
     if (isBase) return null;
-    if (l.group === 'energy') return base.single && l.period !== 'single' ? undefined : (l.period === 'single' ? base.energyAmount : base.lines.find((b) => b.id === l.id)?.amount);
+    if (l.group === 'energy') return baseEnergyFor(l);
     return base.lines.find((b) => b.id === l.id)?.amount ?? 0;
+  };
+  const basePriceCell = (l) => {
+    if (isBase || l.group !== 'energy') return '';
+    const p = basePriceOf(l.period);
+    return p == null ? '' : `<span class="muted small">${fmtNum(p, 6)} €/kWh${base.single && l.period !== 'single' ? ' (precio único)' : ''}</span>`;
   };
   const tr = (l) => {
     const b = baseAmount(l);
     const d = b === null || b === undefined ? null : r2(l.amount - b);
     return `<tr class="${l.group === 'total' ? 'total' : ''}"><td>${esc(l.label)}</td><td>${qty(l)}</td><td>${price(l)}</td>` +
-      (isBase ? '' : `<td>${b === undefined ? '<span class="muted">(precio único)</span>' : fmtEur(b)}</td>`) +
+      (isBase ? '' : `<td>${fmtEur(b)}${basePriceCell(l) ? '<br>' + basePriceCell(l) : ''}</td>`) +
       `<td>${fmtEur(l.amount)}</td>` +
       (isBase ? '' : `<td class="diff ${d === null ? '' : d < -0.005 ? 'good' : d > 0.005 ? 'bad' : ''}">${d === null ? '' : d === 0 ? '=' : signed(d)}</td>`) + '</tr>';
   };
-  const lines = [...s.lines];
+  let lines = [...s.lines];
+  // a single-price tariff compared with a 3-period bill: split its energy line by period (same price) so the rows line up
+  if (!isBase && s.single && !base.single) {
+    const price = +s.lines.find((l) => l.id === 'energy_single')?.price || 0;
+    const per = PERIODS_ES.map((k) => ({ id: `energy_${k}`, group: 'energy', period: k, label: `Energía ${PERIOD_LABELS_ES[k].toLowerCase()}`, qty: s.kwh[k], unit: 'kWh', price, priceUnit: '€/kWh', amount: r2(s.kwh[k] * price) }));
+    const i = lines.findIndex((l) => l.id === 'energy_single');
+    lines.splice(i, 1, ...per);
+  }
   // concepts that only exist on the user's bill (discounts / fees of the current tariff): show them with 0 for the offer
   if (!isBase) {
     for (const bl of base.lines.filter((l) => (l.id === 'other' || l.id === 'fee' || l.id === 'extra') && !lines.some((x) => x.id === l.id))) {
@@ -605,11 +645,11 @@ function openDetailES(x) {
   const lastEnergy = lines.length - 1 - [...lines].reverse().findIndex((l) => l.group === 'energy');
   if (!isBase && lines.filter((l) => l.group === 'energy').length > 1) lines.splice(lastEnergy + 1, 0, { id: 'energy_total', group: 'energy_total', label: 'Energía (total)', amount: s.energyAmount, unit: 'kWh', qty: s.totalKwh, price: null });
   const rowsHtml = lines.map((l) => l.group === 'energy_total'
-    ? `<tr><td><i>${esc(l.label)}</i></td><td>${fmtNum(l.qty, 3)} kWh</td><td>${fmtNum(s.avgEnergyPrice, 6)} €/kWh (media)</td><td>${fmtEur(base.energyAmount)}</td><td>${fmtEur(l.amount)}</td><td class="diff ${l.amount - base.energyAmount < -0.005 ? 'good' : l.amount - base.energyAmount > 0.005 ? 'bad' : ''}">${signed(r2(l.amount - base.energyAmount))}</td></tr>`
+    ? `<tr class="subtotal"><td><i>${esc(l.label)}</i></td><td>${fmtNum(l.qty, 3)} kWh</td><td>${fmtNum(s.avgEnergyPrice, 6)} €/kWh (media)</td><td>${fmtEur(base.energyAmount)}<br><span class="muted small">${base.single ? `${fmtNum(basePriceOf('single'), 6)} €/kWh (precio único)` : `${fmtNum(base.avgEnergyPrice, 6)} €/kWh (media)`}</span></td><td>${fmtEur(l.amount)}</td><td class="diff ${l.amount - base.energyAmount < -0.005 ? 'good' : l.amount - base.energyAmount > 0.005 ? 'bad' : ''}">${signed(r2(l.amount - base.energyAmount))}</td></tr>`
     : tr(l)).join('');
   const table = `
     <table class="invoice">
-      <thead><tr><th>Concepto</th><th>Cantidad</th><th>Precio (sin imp.)</th>${isBase ? '' : '<th>Su factura</th>'}<th>${isBase ? 'Importe' : 'Esta tarifa'}</th>${isBase ? '' : '<th>Diferencia</th>'}</tr></thead>
+      <thead><tr><th>Concepto</th><th>Cantidad</th><th>Precio (sin imp.)</th>${isBase ? '' : '<th>Su factura<br><small>lo que paga hoy</small></th>'}<th>${isBase ? 'Importe' : 'Esta tarifa'}</th>${isBase ? '' : '<th>Diferencia</th>'}</tr></thead>
       <tbody>${rowsHtml}</tbody>
     </table>`;
   const diffBox = !isBase ? `<div class="alert ${s.total <= base.total ? 'ok' : 'warn'}">${s.total <= base.total ? 'Ahorro' : 'Coste adicional'} respecto a su factura: <b>${fmtEur(Math.abs(s.total - base.total))}</b> en este periodo (${fmtEur(Math.abs(s.totalPerYear - base.totalPerYear), 0)}/año).${x.simAfter && x.simAfter !== s ? ` Cuando termine la promoción: <b>${fmtEur(x.simAfter.total)}</b> (${signed(r2(x.simAfter.total - base.total))}).` : ''}${x.promoDenied ? ' Como ya es cliente de esta comercializadora se aplican los precios sin la promoción de bienvenida.' : ''}</div>` : '';
@@ -623,8 +663,34 @@ function openDetailES(x) {
       <dt>Fuente de los precios</dt><dd>${o.source?.url ? `<a href="${esc(o.source.url)}" target="_blank" rel="noopener">${esc(o.source.name)}</a>` : esc(o.source?.name || '—')} · consultado el ${fmtDate(o.source?.date)}. Los precios pueden haber cambiado: confirme siempre en la web de la comercializadora antes de contratar.</dd>
       <dt>Web</dt><dd class="links"><a href="${esc(ES.dataset.suppliers.find((sp) => sp.code === o.supplierCode)?.url || o.source?.url || '#')}" target="_blank" rel="noopener">${esc(o.supplier)}</a><a href="${esc($('#es-cnmc-link').href)}" target="_blank" rel="noopener">Comparador CNMC</a></dd>
     </dl>` : `<p class="muted small">Reconstrucción de su factura con los precios leídos. Financiación del bono social y alquiler del contador son conceptos regulados idénticos en todas las tarifas.</p>`;
-  $('#modal-body').innerHTML = diffBox + table + hourlySectionES(x, isBase) + meta;
+  $('#modal-body').innerHTML = diffBox + periodEnergyTableES(x, isBase) + table + hourlySectionES(x, isBase) + meta;
   $('#detail-modal').showModal();
+}
+
+/** Detail modal: "Energía por periodo – lo que paga hoy vs. esta tarifa" (kWh of each 2.0TD period × both price sets). */
+function periodEnergyTableES(x, isBase) {
+  const f = ES.form, s = x.sim; if (!f || !s?.kwh) return '';
+  const bp = basePricesOf(f);
+  const priceNow = (k) => bp.energy.punta != null ? +bp.energy[k] || 0 : +bp.energy.single || 0;
+  const priceOff = (k) => { const l = s.lines.find((q) => q.id === `energy_${k}`); return l ? +l.price : +s.lines.find((q) => q.id === 'energy_single')?.price || 0; };
+  const rows = PERIODS_ES.map((k) => { const kwh = s.kwh[k] || 0; return { k, kwh, pn: priceNow(k), now: r2(kwh * priceNow(k)), po: priceOff(k), off: r2(kwh * priceOff(k)) }; }); // cents per line, like the bill
+  const tot = rows.reduce((a, r) => ({ kwh: a.kwh + r.kwh, now: a.now + r.now, off: a.off + r.off }), { kwh: 0, now: 0, off: 0 });
+  const dcell = (v) => `<td class="diff ${v < -0.005 ? 'good' : v > 0.005 ? 'bad' : 'zero'}">${v === 0 ? '=' : signed(v)}</td>`;
+  const body = rows.map((r) => `<tr><td><span class="pe-k ${r.k}">${PERIOD_LABELS_ES[r.k]}</span></td><td>${fmtNum(r.kwh, 3)} kWh</td><td>${fmtNum(r.pn, 6)}${bp.energy.punta == null ? ' <span class="muted">(único)</span>' : ''}</td><td>${fmtEur(r.now)}</td>` +
+    (isBase ? '' : `<td>${fmtNum(r.po, 6)}${s.single ? ' <span class="muted">(único)</span>' : ''}</td><td>${fmtEur(r.off)}</td>${dcell(r2(r.off - r.now))}`) + '</tr>').join('');
+  const avgNow = bp.energy.punta == null ? `${fmtNum(+bp.energy.single || 0, 6)} <span class="muted">(único)</span>` : `${fmtNum(tot.kwh ? tot.now / tot.kwh : 0, 6)} <span class="muted">(media)</span>`;
+  const avgOff = s.single ? `${fmtNum(priceOff('punta'), 6)} <span class="muted">(único)</span>` : `${fmtNum(tot.kwh ? tot.off / tot.kwh : 0, 6)} <span class="muted">(media)</span>`;
+  const foot = `<tr class="total"><td>Total energía</td><td>${fmtNum(tot.kwh, 3)} kWh</td><td>${avgNow}</td><td>${fmtEur(r2(tot.now))}</td>` +
+    (isBase ? '' : `<td>${avgOff}</td><td>${fmtEur(r2(tot.off))}</td>${dcell(r2(tot.off - tot.now))}`) + '</tr>';
+  const src = f.curve ? `reparto REAL de su curva horaria (${f.curve.scope === 'period' ? 'periodo de la factura' : f.curve.days + ' días'})` : (ES.parsed?.energy?.readings ? 'lecturas por periodo de la factura' : 'reparto estimado por defecto');
+  const note = `${isBase ? '' : bp.energy.punta == null ? ' Su tarifa tiene un precio único: "Paga hoy" es lo que le cuestan hoy los kWh consumidos en cada franja horaria.' : ''}${!isBase && ES.shift ? ` Incluye el escenario de trasladar el ${Math.round(ES.shift * 100)} % de punta y llano a valle (aplicado a ambos lados).` : ''}`;
+  return `
+    <h4 class="sub-h">Energía por periodo horario – ${isBase ? 'lo que paga hoy' : 'lo que paga hoy vs. esta tarifa'}</h4>
+    <table class="invoice periods-cmp">
+      <thead><tr><th>Periodo</th><th>kWh</th><th>Su tarifa<br><small>€/kWh sin imp.</small></th><th>Paga hoy</th>${isBase ? '' : '<th>Esta tarifa<br><small>€/kWh sin imp.</small></th><th>Con esta tarifa</th><th>Diferencia</th>'}</tr></thead>
+      <tbody>${body}${foot}</tbody>
+    </table>
+    <p class="muted small">Importes sin impuestos. kWh por periodo: ${src}.${note}</p>`;
 }
 
 /** Hour-by-hour energy cost of this tariff vs. the bill's, from the consumption file used in the comparison (empty when there is none). */

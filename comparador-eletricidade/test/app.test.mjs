@@ -322,9 +322,35 @@ test('Spanish flow with an hourly consumption CSV: real punta/llano/valle split 
   assert.ok(ptRows.length === rows.length, 'one row per shown tariff + baseline');
   assert.match(ptRows[0].textContent, /Su factura actual/);
   assert.match(ptRows[0].textContent, /46,37/);
-  // detail modal of the best tariff: hour-by-hour energy cost from the curve (24 rows + total, both tariffs, chart)
+  // results table: energy per period "su factura → tarifa" inside the Energía cell (baseline shows only what is paid today)
+  const peBase = [...rows[0].querySelectorAll('.period-energy .pe-row')];
+  assert.equal(peBase.length, 3);
+  assert.match(peBase[2].textContent, /^Valle/);
+  assert.equal(rows[0].querySelectorAll('.pe-arrow').length, 0);
+  const num = (t) => Number(t.replace(/[^\d,−-]/g, '').replace('−', '-').replace(',', '.'));
+  const peBest = [...rows[1].querySelectorAll('.period-energy .pe-row')];
+  assert.equal(peBest.length, 3);
+  assert.equal(rows[1].querySelectorAll('.pe-arrow').length, 3);
+  const nowSum = peBest.reduce((a, r) => a + num(r.querySelector('.pe-now').textContent), 0);
+  const offSum = peBest.reduce((a, r) => a + num(r.querySelector('.pe-off').textContent), 0);
+  assert.ok(Math.abs(nowSum - 46.37) < 0.03, `today per period sums to the bill's energy: ${nowSum}`);
+  assert.ok(Math.abs(offSum - num(rows[1].children[3].firstChild.textContent)) < 0.03, `offer per period sums to its Energía cell: ${offSum}`);
+  // detail modal of the best tariff: per-period table (today vs. this tariff) + hour-by-hour energy cost from the curve
   rows[1].querySelector('button').click();
   const hb = d.querySelector('#modal-body');
+  const pc = hb.querySelector('table.periods-cmp');
+  assert.ok(pc, 'per-period comparison table present');
+  assert.match(pc.querySelector('thead').textContent, /Paga hoy.*Con esta tarifa.*Diferencia/);
+  const pcRows = [...pc.querySelectorAll('tbody tr')];
+  assert.equal(pcRows.length, 4, 'punta, llano, valle, total');
+  assert.match(pcRows[0].textContent, /Punta.*\(único\)/, 'single-price bill: the same €/kWh in every period');
+  assert.ok(Math.abs(num(pcRows[3].children[3].textContent) - 46.37) < 0.02, 'today total = bill energy');
+  assert.ok(Math.abs(num(pcRows[3].children[5].textContent) - num(rows[1].children[3].firstChild.textContent)) < 0.02, 'offer total = its Energía cell');
+  // the invoice table shows the "su factura" energy per period with the single price (no more "(precio único)" placeholders)
+  const invEnergy = [...hb.querySelectorAll('table.invoice:not(.periods-cmp):not(.hourly) tbody tr')].filter((r) => /^Energía (punta|llano|valle)/.test(r.textContent));
+  assert.equal(invEnergy.length, 3);
+  assert.ok(Math.abs(invEnergy.reduce((a, r) => a + num(r.children[3].textContent.split('€')[0] + '€'), 0) - 46.37) < 0.03, 'per-period "su factura" amounts sum to 46,37');
+  assert.match(invEnergy[0].children[3].textContent, /0,167283 €\/kWh \(precio único\)/);
   assert.ok(hb.querySelector('#hourly-detail'), 'hourly section present when a curve drives the comparison');
   assert.match(hb.querySelector('#hourly-detail').textContent, /Energía hora a hora con su consumo real/);
   assert.match(hb.querySelector('#hourly-detail').textContent, /consumos\.csv/);
@@ -336,7 +362,6 @@ test('Spanish flow with an hourly consumption CSV: real punta/llano/valle split 
   assert.match(hRows[12].querySelector('.pchip').textContent, /Punta/);           // 12-13 h: punta on weekdays (dominant), valle at weekends
   assert.ok(hRows[12].querySelectorAll('.pchip').length >= 2, 'weekday punta + weekend valle chips');
   assert.equal(hb.querySelectorAll('table.hourly thead th').length, 6, 'hour, period, kWh, su tarifa, esta tarifa, diferencia');
-  const num = (t) => Number(t.replace(/[^\d,−-]/g, '').replace('−', '-').replace(',', '.'));
   const totalRow = hRows[24];
   assert.match(totalRow.textContent, /Total energía/);
   const kwhSum = hRows.slice(0, 24).reduce((a, r) => a + num(r.children[2].textContent.split(' ')[0]), 0);
@@ -424,9 +449,25 @@ test('Portuguese flow with the E-Redes consumption Excel: real vazio/cheias/pont
   assert.ok(rows().slice(1).every((r) => r.querySelector('.badge.opt')?.textContent === 'tri-horária'));
   assert.ok(rows().slice(1).every((r) => [...r.querySelectorAll('.badge')].some((x) => /consumo real por período/.test(x.textContent))));
   const bestTri = total(rows()[1]);
-  // detail of the best tri-horária offer: quarter-hours of the E-Redes file classified in ponta/cheias/vazio vs. the bi-horária bill
+  // Energia cell: bill periods (fora de vazio / vazio) for the baseline; ponta/cheias/vazio "paga hoje → oferta" for a tri offer
+  const numPT = (t) => Number(t.replace(/[^\d,−-]/g, '').replace('−', '-').replace(',', '.'));
+  const baseCell = rows()[0].children[2];
+  assert.deepEqual([...baseCell.querySelectorAll('.pe-k')].map((k) => k.textContent), ['Fora de Vazio', 'Vazio']);
+  const triCell = rows()[1].children[2];
+  assert.deepEqual([...triCell.querySelectorAll('.pe-k')].map((k) => k.textContent), ['Ponta', 'Cheias', 'Vazio']);
+  const nowSum = [...triCell.querySelectorAll('.pe-now')].reduce((a, e) => a + numPT(e.textContent), 0);
+  const baseNow = [...baseCell.querySelectorAll('.pe-off')].reduce((a, e) => a + numPT(e.textContent), 0);
+  assert.ok(Math.abs(nowSum - baseNow) < 0.03, `what is paid today is the same money whichever way the periods are cut: ${nowSum} vs ${baseNow}`);
+  // detail of the best tri-horária offer: per-period table + quarter-hours of the E-Redes file classified in ponta/cheias/vazio vs. the bi-horária bill
   rows()[1].querySelector('button').click();
   const mb = d.querySelector('#modal-body');
+  const pc = mb.querySelector('table.periods-cmp');
+  assert.ok(pc);
+  const pcRows = [...pc.querySelectorAll('tbody tr')];
+  assert.equal(pcRows.length, 4);
+  assert.match(pcRows[0].textContent, /^Ponta/); assert.match(pcRows[3].textContent, /^Total energia/);
+  assert.ok(Math.abs(numPT(pcRows[3].children[3].textContent) - baseNow) < 0.03, 'today total');
+  assert.match(mb.querySelector('table.periods-cmp + p').textContent, /A sua fatura é bi-horária e esta oferta é tri-horária/);
   assert.ok(mb.querySelector('#hourly-detail'));
   const ht = mb.querySelector('#hourly-detail').textContent;
   assert.match(ht, /Energia hora a hora com o seu consumo real/);
@@ -438,7 +479,6 @@ test('Portuguese flow with the E-Redes consumption Excel: real vazio/cheias/pont
   assert.match(hr[11].querySelector('.pchip').textContent, /Ponta/);
   assert.match(hr[10].textContent, /Cheias \d+ %.*Ponta \d+ %|Ponta \d+ %.*Cheias \d+ %/); // 10-11 h: 10:00-10:30 cheias + 10:30-11:00 ponta (quarter-hour resolution)
   assert.match(hr[23].querySelector('.pchip').textContent, /Vazio/);
-  const numPT = (t) => Number(t.replace(/[^\d,−-]/g, '').replace('−', '-').replace(',', '.'));
   const tot = hr[24];
   assert.match(tot.textContent, /Total energia/);
   // total of the offer's hourly energy = the sum of its "Termo de Energia" lines in the invoice table above

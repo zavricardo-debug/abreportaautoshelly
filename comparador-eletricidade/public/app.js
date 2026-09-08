@@ -11,7 +11,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
-export const APP_VERSION = '1.7.0'; // shown in the footer + error messages (helps spot stale caches)
+export const APP_VERSION = '1.7.1'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
   country: 'PT',    // 'PT' (ERSE flow) or 'ES' (2.0TD flow, app-es.js)
@@ -537,12 +537,12 @@ function renderResults() {
   const tb = $('#results-table tbody');
   tb.innerHTML = '';
   // baseline row
-  tb.appendChild(rowEl({ rank: '', name: 'A sua fatura atual', sub: `${f.supplierCode ? supplierName(f.supplierCode) : 'preços lidos da fatura'} · ${fmtNum(f.powerPrice, 4)} + ${fmtNum(f.tarPrice, 4)} €/dia`, energy: base.avgEnergyPrice, power: base.powerTerm.unitPrice, total: base.total, diff: null, year: base.totalPerYear, cls: 'baseline', onDetail: () => openDetail({ offer: { supplier: 'A sua fatura', name: 'Preços atuais', variant: '' }, sim: base, prices: baselinePrices(f) }, base) }));
+  tb.appendChild(rowEl({ rank: '', name: 'A sua fatura atual', sub: `${f.supplierCode ? supplierName(f.supplierCode) : 'preços lidos da fatura'} · ${fmtNum(f.powerPrice, 4)} + ${fmtNum(f.tarPrice, 4)} €/dia`, energy: base.avgEnergyPrice, periods: periodEnergyHtml(base, true), power: base.powerTerm.unitPrice, total: base.total, diff: null, year: base.totalPerYear, cls: 'baseline', onDetail: () => openDetail({ offer: { supplier: 'A sua fatura', name: 'Preços atuais', variant: '' }, sim: base, prices: baselinePrices(f) }, base) }));
   rows.forEach((x, i) => {
     const diff = x.sim.total - base.total;
     tb.appendChild(rowEl({
       rank: i + 1, name: `${x.offer.supplier} · ${x.offer.name}`, sub: x.offer.variant, badges: [...(multi ? [['opt', OPT[x.option]]] : []), ...(state.curveInfo && x.option > 1 ? [['curve', 'consumo real por período']] : []), ...badges(x.offer)],
-      energy: x.sim.avgEnergyPrice, power: x.prices.tf, total: x.sim.total, diff, year: x.sim.totalPerYear,
+      energy: x.sim.avgEnergyPrice, periods: periodEnergyHtml(x.sim, false), power: x.prices.tf, total: x.sim.total, diff, year: x.sim.totalPerYear,
       cls: (i === 0 ? 'best ' : '') + (x.isCurrentSupplier ? 'current-supplier' : ''),
       onDetail: () => openDetail(x, base),
     }));
@@ -573,6 +573,73 @@ function badges(o) {
   return b;
 }
 
+/**
+ * Energy per period of a simulation: the kWh of each period × the price you pay TODAY (bill prices mapped onto the
+ * simulation's periods) vs. × the price of the offer. Bi-horário is a coarsening of tri-horário in every ERSE cycle
+ * (vazio is the same; fora de vazio = ponta + cheias), so the mapping is exact except tri-bill → bi-offer, where the
+ * fora-de-vazio kWh get the bill's ponta/cheias-weighted average price.
+ * @returns {Array<{key, label, kwh, priceNow, now, priceOff, off, mixed}>|null}
+ */
+function periodEnergyPT(sim) {
+  const f = state.form; if (!f || !sim?.energy?.lines) return null;
+  const bp = baselinePrices(f).energy;                       // €/kWh of the bill, PERIOD_KEYS[f.option] order
+  const optB = f.option, optO = sim.option;
+  const keysB = PERIOD_KEYS[optB] || PERIOD_KEYS[1];
+  const kwhB = (f.kwh || []).map((v) => Number(v) || 0);
+  const r2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
+  const mk = (key, kwh, priceNow, priceOff, mixed = false) => ({ key, label: PERIOD_LABELS[key], kwh, priceNow, now: r2(kwh * priceNow), priceOff, off: r2(kwh * priceOff), mixed });
+  // offer with a single price while the bill has periods: show the bill's periods, all at the offer's single price
+  if (optO === 1 && optB > 1) {
+    const single = sim.energy.lines[0]?.unitPrice || 0;
+    return keysB.map((k, i) => mk(k, kwhB[i], bp[i] || 0, single));
+  }
+  return sim.energy.lines.map((l) => {
+    const k = l.period;
+    let priceNow, mixed = false;
+    if (optB === 1) priceNow = bp[0] || 0;
+    else if (optB === optO) priceNow = bp[keysB.indexOf(k)] || 0;
+    else if (optB === 2 && optO === 3) priceNow = k === 'vazio' ? bp[1] || 0 : bp[0] || 0;
+    else if (optB === 3 && optO === 2) { if (k === 'vazio') priceNow = bp[2] || 0; else { const pk = kwhB[0], ck = kwhB[1]; priceNow = pk + ck > 0 ? (pk * (bp[0] || 0) + ck * (bp[1] || 0)) / (pk + ck) : ((bp[0] || 0) + (bp[1] || 0)) / 2; mixed = true; } }
+    else priceNow = bp[0] || 0;
+    return mk(k, l.kwh, priceNow, l.unitPrice, mixed);
+  });
+}
+
+/** Compact per-period block for the results table: "Ponta 90 kWh 25,00 € → 15,30 € −9,70 €". */
+function periodEnergyHtml(sim, isBaseRow) {
+  const rows = periodEnergyPT(sim); if (!rows) return '';
+  const inner = rows.map((r) => {
+    const d = isBaseRow ? null : Math.round((r.off - r.now) * 100) / 100;
+    return `<div class="pe-row"><span class="pe-k ${r.key}">${esc(r.label)}</span><span class="pe-kwh">${fmtNum(r.kwh, 0)} kWh</span>` +
+      (isBaseRow ? `<span class="pe-off">${fmtEur(r.now)}</span>` : `<span class="pe-now" title="com os preços da sua fatura${r.mixed ? ' (média ponderada ponta/cheias)' : ''}">${fmtEur(r.now)}</span><span class="pe-arrow">→</span><span class="pe-off">${fmtEur(r.off)}</span>` +
+        `<span class="pe-d ${d < -0.005 ? 'good' : d > 0.005 ? 'bad' : 'zero'}">${d === 0 ? '=' : (d < 0 ? '−' : '+') + fmtEur(Math.abs(d))}</span>`) + '</div>';
+  }).join('');
+  return `<div class="period-energy">${inner}</div>`;
+}
+
+/** Detail modal: table "energia por período – o que paga hoje vs. esta oferta". */
+function periodEnergyTablePT(x, base) {
+  const rows = periodEnergyPT(x.sim); if (!rows) return '';
+  const isBase = !base || x.sim === base;
+  const f = state.form;
+  const OPT = { 1: 'simples', 2: 'bi-horária', 3: 'tri-horária' };
+  const tot = rows.reduce((a, r) => ({ kwh: a.kwh + r.kwh, now: a.now + r.now, off: a.off + r.off }), { kwh: 0, now: 0, off: 0 });
+  const dcell = (v) => `<td class="diff ${v < -0.005 ? 'good' : v > 0.005 ? 'bad' : 'zero'}">${v === 0 ? '=' : (v < 0 ? '−' : '+') + fmtEur(Math.abs(v))}</td>`;
+  const body = rows.map((r) => `<tr><td><span class="pe-k ${r.key}">${esc(r.label)}</span></td><td>${fmtNum(r.kwh, 1)} kWh</td><td>${fmtNum(r.priceNow, 6)}${r.mixed ? ' <span class="muted">(média)</span>' : ''}</td><td>${fmtEur(r.now)}</td>` +
+    (isBase ? '' : `<td>${fmtNum(r.priceOff, 6)}</td><td>${fmtEur(r.off)}</td>${dcell(Math.round((r.off - r.now) * 100) / 100)}`) + '</tr>').join('');
+  const foot = `<tr class="total"><td>Total energia</td><td>${fmtNum(tot.kwh, 1)} kWh</td><td>${fmtNum(tot.kwh ? tot.now / tot.kwh : 0, 6)} <span class="muted">(média)</span></td><td>${fmtEur(tot.now)}</td>` +
+    (isBase ? '' : `<td>${fmtNum(tot.kwh ? tot.off / tot.kwh : 0, 6)} <span class="muted">(média)</span></td><td>${fmtEur(tot.off)}</td>${dcell(Math.round((tot.off - tot.now) * 100) / 100)}`) + '</tr>';
+  const src = state.curveInfo ? `consumo REAL de cada período segundo o ficheiro de consumos (${state.curveInfo.cycle === 'semanal' ? 'ciclo semanal' : 'ciclo diário'})` : (x.sim.option === f.option ? 'consumo por período indicado na fatura' : 'consumo total da fatura');
+  const note = isBase ? '' : ` A sua fatura é ${OPT[f.option]}${x.sim.option !== f.option ? ` e esta oferta é ${OPT[x.sim.option]}: os preços que paga hoje foram aplicados aos mesmos kWh, período a período${f.option === 3 && x.sim.option === 2 ? ' (fora de vazio: média ponderada dos seus preços de ponta e cheias)' : ''}` : ''}.${state.shift > 0 && x.sim.option > 1 ? ` Inclui o cenário de ${Math.round(state.shift * 100)} % do consumo fora de vazio transferido para o vazio (aplicado aos dois lados).` : ''}`;
+  return `
+    <h4 class="sub-h">Energia por período horário – ${isBase ? 'o que paga hoje' : 'o que paga hoje vs. esta oferta'}</h4>
+    <table class="invoice periods-cmp">
+      <thead><tr><th>Período</th><th>kWh</th><th>A sua tarifa<br><small>€/kWh s/IVA</small></th><th>Paga hoje</th>${isBase ? '' : '<th>Esta oferta<br><small>€/kWh s/IVA</small></th><th>Com esta oferta</th><th>Diferença</th>'}</tr></thead>
+      <tbody>${body}${foot}</tbody>
+    </table>
+    <p class="muted small">Valores s/IVA. kWh por período: ${src}.${note}</p>`;
+}
+
 function rowEl(r) {
   const tr = document.createElement('tr');
   tr.className = r.cls || '';
@@ -581,7 +648,7 @@ function rowEl(r) {
   tr.innerHTML = `
     <td class="rank">${r.rank}</td>
     <td><div class="offer-name">${esc(r.name)}</div>${r.sub ? `<div class="offer-sub">${esc(r.sub)}</div>` : ''}${r.badges?.length ? `<div class="badges">${r.badges.map(([c, t]) => `<span class="badge ${c}">${esc(t)}</span>`).join('')}</div>` : ''}</td>
-    <td class="num">${fmtNum(r.energy, 4)}</td>
+    <td class="num">${fmtNum(r.energy, 4)}${r.periods || ''}</td>
     <td class="num">${fmtNum(r.power, 4)}</td>
     <td class="num"><b>${fmtEur(r.total)}</b></td>
     ${diffCell}
@@ -637,7 +704,7 @@ function openDetail(x, base) {
       <dt>Ligações</dt><dd class="links">${o.links?.offer ? `<a href="${esc(o.links.offer)}" target="_blank" rel="noopener">Página da oferta</a>` : ''}${o.links?.sheet ? `<a href="${esc(o.links.sheet)}" target="_blank" rel="noopener">Ficha padronizada</a>` : ''}${o.links?.terms ? `<a href="${esc(o.links.terms)}" target="_blank" rel="noopener">Condições gerais</a>` : ''}${o.links?.supplier ? `<a href="${esc(o.links.supplier)}" target="_blank" rel="noopener">Site</a>` : ''}</dd>
       <dt>Código ERSE</dt><dd>${esc(o.id)}</dd>
     </dl>` : '';
-  $('#modal-body').innerHTML = diff + invoice + hourlySectionPT(x, base) + meta;
+  $('#modal-body').innerHTML = diff + periodEnergyTablePT(x, base) + invoice + hourlySectionPT(x, base) + meta;
   $('#detail-modal').showModal();
 }
 

@@ -266,3 +266,20 @@ table.invoice.hourly td.diff.zero { color: var(--muted, #6b7280); }
 .pchip small { font-weight: 500; opacity: .9; }
 .pchip.punta, .pchip.ponta { background: #dc2626; } .pchip.llano, .pchip.cheias, .pchip.foraVazio { background: #f59e0b; } .pchip.valle, .pchip.vazio { background: #16a34a; } .pchip.simples { background: #64748b; }
 .modal { width: min(860px, 96vw); }
+
+/* energy per period inside the results tables + detail modal ("paga hoje → oferta") */
+.period-energy { margin-top: 5px; font-size: .7rem; line-height: 1.3; font-weight: 400; }
+.period-energy .pe-row { display: flex; gap: 5px; justify-content: flex-end; align-items: baseline; white-space: nowrap; }
+.pe-k { display: inline-block; font-weight: 700; padding: 0 6px; border-radius: 999px; color: #fff; font-size: .64rem; line-height: 1.5; }
+.pe-k.punta, .pe-k.ponta { background: #dc2626; } .pe-k.llano, .pe-k.cheias, .pe-k.foraVazio { background: #f59e0b; } .pe-k.valle, .pe-k.vazio { background: #16a34a; } .pe-k.simples { background: #64748b; }
+.period-energy .pe-kwh { color: var(--muted); min-width: 52px; text-align: right; }
+.period-energy .pe-now { color: var(--muted); }
+.period-energy .pe-arrow { color: #94a3b8; }
+.period-energy .pe-off { font-weight: 600; }
+.period-energy .pe-d { min-width: 52px; text-align: right; font-weight: 600; }
+.period-energy .pe-d.good, table.invoice td.diff.good { color: var(--good); } .period-energy .pe-d.bad, table.invoice td.diff.bad { color: var(--bad); } .period-energy .pe-d.zero, table.invoice td.diff.zero { color: #94a3b8; font-weight: 400; }
+table.invoice.periods-cmp { margin-top: 6px; }
+table.invoice.periods-cmp td:first-child { white-space: nowrap; }
+table.invoice tr.subtotal td { background: #f8fafc; }
+table.results td .period-energy { min-width: 250px; }
+@media (max-width: 720px) { table.results td .period-energy .pe-kwh { display: none; } }
