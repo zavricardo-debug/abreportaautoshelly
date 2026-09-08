@@ -82,6 +82,23 @@ function tokensOf(line) {
 const first = (toks, unit) => toks.find((t) => t.unit === unit) || null;
 const lastEur = (toks) => { const e = toks.filter((t) => t.unit === 'eur'); return e.length ? e[e.length - 1] : null; };
 const unitless = (toks) => toks.filter((t) => !t.unit);
+/**
+ * The € amount of a cost line. Bills print a second column (bar chart with the € of previous invoices, summary
+ * box…) whose labels share the vertical position of the detail lines, so the extracted line may end with figures
+ * that do not belong to it ("Alquiler del contador 31 días x 0,026774 Eur/día 0,83 € 47,23 €"). Pick the € token
+ * that reproduces the arithmetic of the line (qty × price) and, when that cannot be computed, the left-most one
+ * (foreign columns are always to the right).
+ */
+function pickAmount(toks, expected = null, after = -1) {
+  const cands = toks.filter((t) => t.unit === 'eur' && t.index > after);
+  if (!cands.length) return null;
+  if (expected !== null && Number.isFinite(expected)) {
+    let best = null;
+    for (const c of cands) { const d = Math.abs(c.value - expected); if (!best || d < best.d) best = { c, d }; }
+    if (best.d <= 0.015) return best.c;
+  }
+  return cands[0];
+}
 
 /* ------------------------------------------------------------------ line parsers */
 function powerPrice(tok) {
@@ -94,9 +111,11 @@ function powerPrice(tok) {
 }
 
 function parsePowerLine(n, toks) {
-  const kw = first(toks, 'kw'), price = first(toks, 'eur/kw'), days = first(toks, 'dias'), amount = lastEur(toks);
+  const kw = first(toks, 'kw'), price = first(toks, 'eur/kw'), days = first(toks, 'dias');
+  const unit = powerPrice(price);
+  const amount = pickAmount(toks, kw && unit !== null && days ? kw.value * unit * days.value : null);
   const period = /\bvalle\b|\bp3\b|\bp2\b/.test(n) && !/\bp1\b/.test(n) ? 'p2' : 'p1';
-  return { period, kw: kw?.value ?? null, price: powerPrice(price), days: days?.value ?? null, amount: amount?.value ?? null };
+  return { period, kw: kw?.value ?? null, price: unit, days: days?.value ?? null, amount: amount?.value ?? null };
 }
 
 function energyPeriod(n) {
@@ -109,28 +128,36 @@ function energyPeriod(n) {
 function parseEnergyLine(n, toks) {
   const kwh = first(toks, 'kwh');
   let price = first(toks, 'eur/kwh')?.value ?? null;
-  const amount = lastEur(toks)?.value ?? null;
   if (price === null) {
     // "Consumo 277,224 kWh 0,167283 46,37 €" (no unit printed on the price)
     const cand = unitless(toks).filter((t) => t.index > (kwh?.index ?? -1) && t.value > 0 && t.value < 1);
     if (cand.length) price = cand[0].value;
-    else if (kwh && amount) price = amount / kwh.value;
   }
+  const amount = pickAmount(toks, kwh && price !== null ? kwh.value * price : null)?.value ?? null;
+  if (price === null && kwh && amount) price = amount / kwh.value;
   return { period: energyPeriod(n), kwh: kwh?.value ?? null, price, amount };
 }
 
 function parsePerDayLine(toks) {
-  const days = first(toks, 'dias'), price = first(toks, 'eur/dia'), amount = lastEur(toks);
+  const days = first(toks, 'dias'), price = first(toks, 'eur/dia');
+  const amount = pickAmount(toks, days && price ? days.value * price.value : null);
   return { days: days?.value ?? null, price: price?.value ?? null, amount: amount?.value ?? null };
 }
 
 function parseTaxLine(toks) {
   const eur = toks.filter((t) => t.unit === 'eur');
   const pct = first(toks, 'pct');
-  const amount = eur.length ? eur[eur.length - 1].value : null;
-  let base = eur.length >= 2 ? eur[0].value : null;
+  const rate = pct ? pct.value / 100 : null;
+  const pctIdx = pct ? pct.index : -1;
+  // base: "( 69,85 Eur X 5,11 %) 3,57 €" -> the € printed before the percentage; "IVA 21 % s/ 74,25 15,59 €" -> the
+  // unitless figure; "IVA 21 % 74,25 € 15,59 €" -> the first of two € tokens
+  let baseTok = eur.find((t) => t.index < pctIdx) || null;
+  let base = baseTok?.value ?? null;
+  if (base === null) { const u = unitless(toks).filter((t) => t.value > 0 && t.index > pctIdx); if (u.length) base = u[0].value; }
   if (base === null) { const u = unitless(toks).filter((t) => t.value > 0); if (u.length) base = u[u.length - 1].value; }
-  return { base, rate: pct ? pct.value / 100 : null, amount };
+  if (base === null && eur.length >= 2) { baseTok = eur[0]; base = baseTok.value; }
+  const amount = pickAmount(toks, base !== null && rate !== null ? base * rate : null, baseTok ? baseTok.index : -1)?.value ?? null;
+  return { base, rate, amount };
 }
 
 const DATE = String.raw`(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})`;
@@ -188,7 +215,7 @@ const INFO_RE = /\bmedi[oa]\b|\banual\b|estimad|anterior|histor|acumulad|previst
 const DISCOUNT_RE = /descuento|\bdto\b|bonificaci|promoci|regalo|ahorro aplicado/;
 const FEE_RE = /\bcuota\b|gesti[oó]n|comercializaci[oó]n/;
 const SERVICE_RE = /servicio|mantenimiento|protecci|seguro|asistencia|urgencias|reparaci|ok ?luz|funciona|hogar|averias|\bplan\b/;
-const SUBTOTAL_RE = /^(potencia|energia|varios|impuestos|otros|servicios|descuentos)\s*:?\s*(-?[\d.]+,\d{2})\s*(?:€|eur)$/;
+const SUBTOTAL_RE = /^(potencia|energia|varios|impuestos|otros|servicios|descuentos)\s*:?\s*(-?[\d.]+,\d{2})\s*(?:€|eur)(?![\w/])/;
 
 /**
  * @param {string} text raw text extracted from the PDF (lines separated by \n)
@@ -230,15 +257,22 @@ export function parseInvoiceTextES(text) {
       continue;
     }
     // meter readings table: "Punta 7.161,000 7.258,000 1,00 0,000 97,000"  or  "Consumo punta 97 kWh"
-    if (/^(consumo )?(punta|llano|valle)\b/.test(n) && !hasUnit('eur') && !hasUnit('eur/kwh') && !hasUnit('eur/kw')) {
+    // (a € figure glued to a readings row comes from another column of the page – chart labels – and is ignored)
+    if (/^(consumo )?(punta|llano|valle)\b/.test(n) && !hasUnit('eur/kwh') && !hasUnit('eur/kw') && (!hasUnit('eur') || (!hasUnit('kwh') && unitless(toks).length >= 3))) {
       const key = energyPeriod(n);
+      const own = unitless(toks);
       if (hasUnit('kwh')) readings[key] = first(toks, 'kwh').value;
-      else if (toks.length >= 3 && toks.every((t) => !t.unit)) readings[key] = toks[toks.length - 1].value;
+      else if (own.length >= 3 && toks.every((t) => !t.unit || t.unit === 'eur')) readings[key] = own[own.length - 1].value;
       continue;
     }
     if (/^total|^subtotal|^importe total|^total a pagar|^importe a pagar/.test(n)) {
-      const e = lastEur(toks) || (unitless(toks).length ? unitless(toks)[unitless(toks).length - 1] : null);
-      if (e && /^(total|importe total|total factura|total importe( de la)? factura|total a pagar|importe a pagar)\b/.test(n)) totalCands.push({ label: n, amount: e.value, pref: /^total( factura| a pagar| importe)?$|importe total( factura)?$|importe a pagar$/.test(n.replace(/[\d.,\s€]+$/, '').trim()) ? 1 : 0 });
+      if (/^(total|importe total|total factura|total importe( de la)? factura|total a pagar|importe a pagar)\b/.test(n)) {
+        const pref = /^total( factura| a pagar| importe)?$|importe total( factura)?$|importe a pagar$/.test(n.replace(/[\d.,\s€]+(eur)?[\d.,\s€]*$/i, '').trim()) ? 1 : 0;
+        const eurs = toks.filter((t) => t.unit === 'eur');
+        const cands = eurs.length ? eurs : unitless(toks).slice(-1);
+        // left-most first: figures of a foreign column (chart labels) are appended to the right
+        cands.forEach((t, i) => totalCands.push({ label: n, amount: t.value, pref, pos: i }));
+      }
       continue;
     }
     if (/excedent|compensaci|reactiva|vertid/.test(n)) { if (/excedent|compensaci/.test(n)) warnings.push('La factura incluye compensación de excedentes (autoconsumo); no se tiene en cuenta en la comparación.'); continue; }
@@ -296,8 +330,16 @@ export function parseInvoiceTextES(text) {
   const bonoSocial = per(bonoLines), meterRent = per(rentLines);
   const ie = ieLines.length ? { base: ieLines[0].base, rate: ieLines[0].rate, amount: r2(sum(ieLines.map((l) => l.amount))) } : null;
   const iva = ivaLines.length ? { tax: ivaLines[0].tax, rate: ivaLines[0].rate, base: ivaLines[0].base, amount: r2(sum(ivaLines.map((l) => l.amount))) } : null;
-  totalCands.sort((a, b) => b.pref - a.pref || b.amount - a.amount);
-  const total = totalCands.length ? totalCands[0].amount : null;
+  // the TOTAL of the bill: among the candidates the one that equals the sum of the concepts read (when all are
+  // there); otherwise the preferred label, left-most figure, largest amount
+  const iePre = ieLines.length ? r2(sum(ieLines.map((l) => l.amount))) : null;
+  const ivaPre = ivaLines.length ? r2(sum(ivaLines.map((l) => l.amount))) : null;
+  const componentsSum = energyLines.length && powerLines.length && iePre !== null && ivaPre !== null
+    ? r2(sum(powerLines.map((l) => l.amount)) + sum(Object.values(byPeriod).map((v) => v.amount)) + sum(bonoLines.map((l) => l.amount)) + sum(rentLines.map((l) => l.amount)) + iePre + ivaPre + sum(discountLines.map((l) => l.amount)) + sum(feeLines.map((l) => l.amount)) + sum(serviceLines.map((l) => l.amount)))
+    : null;
+  totalCands.sort((a, b) => b.pref - a.pref || a.pos - b.pos || b.amount - a.amount);
+  const matching = componentsSum !== null ? totalCands.find((c) => Math.abs(c.amount - componentsSum) <= 0.05) : null;
+  const total = matching ? matching.amount : totalCands.length ? totalCands[0].amount : null;
 
   const period = findPeriod(rawLines);
   const days = p1?.days || bonoSocial?.days || meterRent?.days || (period ? daysBetween(period.start, period.end) : null);

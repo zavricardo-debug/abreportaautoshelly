@@ -239,13 +239,14 @@ function applyCurveToForm() {
   }
   const { curve, scope } = sel;
   const billKwh = ES.parsed?.energy?.kwh || null;
-  // if the curve covers exactly the bill period use its kWh; otherwise keep the bill's kWh and apply the real shares
-  const useCurveKwh = scope === 'period' && billKwh && Math.abs(curve.totalKwh - billKwh) / billKwh < 0.03;
-  const kwh = useCurveKwh || !billKwh ? curve.byPeriod : applyShare(billKwh, curve.share);
+  // the bill's kWh are what was invoiced: the curve only provides the punta/llano/valle SHARES (its own total can
+  // differ a little – estimated hours, meter vs. distributor data – and would otherwise change the energy amount)
+  const kwh = billKwh ? applyShare(billKwh, curve.share) : curve.byPeriod;
   for (const k of PERIODS_ES) setVal(`#es-kwh-${k}`, r3(kwh[k]), true);
-  const src = scope === 'period' ? `las ${curve.hours.length} horas de la curva dentro del periodo de la factura (${fmtDate(curve.start)} → ${fmtDate(curve.end)})` : `la curva completa (${curve.days} días, ${fmtDate(curve.start)} → ${fmtDate(curve.end)})`;
+  const src = scope === 'period' ? `las ${curve.hours.length} horas de la curva dentro del periodo de la factura (${fmtDate(curve.start)} → ${fmtDate(curve.end)}, ${fmtNum(curve.totalKwh, 3)} kWh en el fichero)` : `la curva completa (${curve.days} días, ${fmtDate(curve.start)} → ${fmtDate(curve.end)})`;
+  const gap = billKwh && scope === 'period' ? (curve.totalKwh - billKwh) / billKwh : 0;
   $('#es-split-hint').textContent = `Reparto REAL según ${src}: punta ${fmtNum(100 * curve.share.punta, 1)} % · llano ${fmtNum(100 * curve.share.llano, 1)} % · valle ${fmtNum(100 * curve.share.valle, 1)} %` +
-    (billKwh && !useCurveKwh ? ` aplicado a los ${fmtNum(billKwh, 3)} kWh facturados.` : useCurveKwh ? ` (${fmtNum(curve.totalKwh, 3)} kWh, coincide con la factura).` : '.') +
+    (billKwh ? ` aplicado a los ${fmtNum(billKwh, 3)} kWh facturados${Math.abs(gap) > 0.002 ? ` (el fichero suma ${fmtNum(curve.totalKwh, 3)} kWh, ${gap > 0 ? '+' : '−'}${fmtNum(100 * Math.abs(gap), 1)} %: se mantiene el consumo de la factura)` : ''}.` : '.') +
     ` ${CALENDAR_TEXT_ES}`;
 }
 

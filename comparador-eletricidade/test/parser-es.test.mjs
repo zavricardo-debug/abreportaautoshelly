@@ -191,3 +191,32 @@ TOTAL IMPORTE FACTURA 85,80 €`;
   assert.ok(r.warnings.some((w) => /Descuentos de su tarifa/.test(w)));
   assert.ok(r.warnings.some((w) => /Servicios adicionales/.test(w)));
 });
+
+test('figures of a neighbouring column (chart labels, summary box) glued to the end of a detail line do not replace its amount', () => {
+  // two-column page: the € labels of the "evolución de sus facturas" chart share the vertical position of the detail lines
+  const text = `P1 (Punta-Llano) 4,600 kW x 0,117686 Eur/kW x 31 días........16,78 € 88,10 €
+Pot. P3 4,600 kW x 0,041554 Eur/kW x 31 días........5,93 €
+Energía 46,37 €.......... 51,02 €
+Consumo 277,224 kWh x 0,167283 Eur/kWh........ 46,37 € 46,40 €
+Financiación Bono Social 31 días x 0,024688 Eur/día...... 0,77 €
+Alquiler del contador ( 31 días x 0,026774 Eur/día )..... 0,83 € 47,23 €
+Impuesto electricidad ( 69,85 Eur X 5,1126963 %)...... 3,57 € 47,23 €
+IVA normal 21 % s/ 74,25.............. 15,59 € 12,00 €
+Periodo 19/07/2026 19/08/2026
+Punta 7.161,000 7.258,000 1,00 0,000 97,000 55,10 €
+Llano 6.746,000 6.806,000 1,00 0,000 60,000
+Valle 11.006,000 11.125,000 1,00 0,000 119,000
+TOTAL 89,84 € 91,20 €`;
+  const p = parseInvoiceTextES(text);
+  assert.equal(p.powerTerm.p1.amount, 16.78);
+  assert.equal(p.energy.amount, 46.37);
+  assert.equal(p.energy.byPeriod.single.price, 0.167283);
+  assert.equal(p.meterRent.amount, 0.83);
+  assert.equal(p.bonoSocial.amount, 0.77);
+  assert.equal(p.ie.amount, 3.57); assert.equal(p.ie.base, 69.85);
+  assert.equal(p.iva.amount, 15.59); assert.equal(p.iva.base, 74.25);
+  assert.equal(p.total, 89.84);
+  assert.deepEqual(p.energy.readings, { punta: 97, llano: 60, valle: 119 });
+  assert.equal(p.subtotals.energia, 46.37);
+  assert.ok(!p.warnings.some((w) => /no coincide/.test(w)), p.warnings.join(' | '));
+});
