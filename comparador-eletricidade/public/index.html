@@ -467,10 +467,21 @@
 
     <div class="summary-grid" id="es-summary-grid"></div>
 
+    <div class="source-bar">
+      <label>Tarifas comparadas
+        <select id="es-flt-source" title="Mercado completo: todas las ofertas 2.0TD registradas en el comparador oficial de la CNMC, consultadas en vivo para su perfil. Lista guardada: la lista incluida en la aplicación (también construida a partir de la CNMC).">
+          <option value="auto">Mercado completo – comparador oficial CNMC (en vivo)</option>
+          <option value="snapshot">Lista guardada en la aplicación</option>
+        </select>
+      </label>
+      <span id="es-source-status" class="source-status"></span>
+    </div>
+
     <div class="filters">
       <label><input type="checkbox" id="es-flt-promo" checked> Aplicar promociones de bienvenida (1.er año)</label>
       <label><input type="checkbox" id="es-flt-newclient" checked> Incluir tarifas sólo para nuevos clientes</label>
-      <label><input type="checkbox" id="es-flt-noindexed"> Excluir indexadas (precio variable)</label>
+      <label><input type="checkbox" id="es-flt-noindexed"> Excluir indexadas y PVPC (precio variable)</label>
+      <label><input type="checkbox" id="es-flt-noservices"> Excluir tarifas con servicios adicionales o permanencia</label>
       <label><input type="checkbox" id="es-flt-best"> Sólo la mejor tarifa de cada comercializadora</label>
       <label>Comercializadora
         <select id="es-flt-supplier"><option value="">Todas</option></select>
@@ -515,6 +526,7 @@
       </table>
     </div>
     <p class="muted small" id="es-results-count"></p>
+    <p class="muted small hidden" id="es-unpriced"></p>
 
     <div id="es-period-box" class="hidden">
       <h3 class="sub-h">Energía por periodo horario con su consumo real</h3>
@@ -544,8 +556,9 @@
       Debajo de cada importe se muestra la diferencia con la misma línea de su factura; el botón «Detalle» abre la comparación línea a línea (cantidad, precio unitario e importe de su factura frente a la tarifa).
       Los descuentos y cuotas de su tarifa actual se incluyen en su factura; los servicios adicionales (mantenimiento, seguros…) no forman parte de la tarifa eléctrica y quedan fuera de la comparación.
       Si ha adjuntado su <b>curva de consumo horario</b>, la energía de cada tarifa con discriminación horaria se calcula con los kWh reales de cada periodo (punta / llano / valle según el calendario 2.0TD: laborables 10–14 h y 18–22 h punta, 8–10, 14–18 y 22–24 h llano, 0–8 h valle; sábados, domingos y festivos nacionales valle las 24 h).
-      Los precios proceden de las webs de las comercializadoras y de comparadores públicos (fecha indicada en cada tarifa) y <b>pueden cambiar</b>: el comparador oficial es el de la
-      <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">CNMC</a> (botón de arriba, ya con sus datos).
+      <b>De dónde salen las tarifas:</b> con «Mercado completo» consultamos en vivo el <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">comparador oficial de la CNMC</a>, donde todas las comercializadoras están obligadas a registrar sus ofertas, y cargamos <i>todas</i> las ofertas 2.0TD disponibles para su potencia, consumo y código postal (más de 100 tarifas de unas 40 comercializadoras).
+      El comparador publica el importe anual de cada oferta pero no sus precios unitarios; como su cálculo es lineal, los derivamos de seis perfiles de referencia y comprobamos que reproducen al céntimo el importe anual que la CNMC publica para su perfil (insignia «CNMC ✓»). Las condiciones de cada oferta (permanencia, servicios, validez, enlace a la web y al contrato) se muestran en «Detalle».
+      Si la CNMC no responde se usa la lista guardada en la aplicación, construida con la misma fuente en la fecha indicada. Los precios <b>pueden cambiar</b>: confirme siempre en la web de la comercializadora o en el comparador oficial (botón de arriba, ya con sus datos).
     </div>
   </section>
 
@@ -570,7 +583,7 @@
     <ul class="small">
       <li>Detectamos automáticamente las facturas españolas (Endesa, Iberdrola, Naturgy, Repsol, TotalEnergies, Octopus, Plenitude…) y leemos <i>todas</i> las líneas de coste: potencia P1/P3, consumo, financiación del bono social, alquiler del contador, impuesto de electricidad, IVA y TOTAL, además del periodo, las potencias contratadas y las lecturas punta/llano/valle.</li>
       <li>Reconstruimos su factura (debe coincidir al céntimo con el TOTAL) y la volvemos a calcular con cada tarifa del mercado, mostrando la diferencia concepto a concepto.</li>
-      <li>La lista de tarifas españolas (<code>public/data/ofertas-es.json</code>) se mantiene a mano a partir de las webs de las comercializadoras; la fecha de consulta aparece en cada tarifa. El botón «Comprobar en el comparador oficial CNMC» abre <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">comparador.cnmc.gob.es</a> con su potencia y consumo anualizado.</li>
+      <li>Las tarifas españolas salen del <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">comparador oficial de la CNMC</a>: en modo «Mercado completo» se consultan en vivo todas las ofertas 2.0TD registradas para su perfil (los precios unitarios se derivan del propio comparador y se verifican con el importe anual que publica); la lista guardada (<code>public/data/ofertas-es.json</code>) se regenera con <code>npm run data:cnmc</code> desde la misma fuente. El botón «Comprobar en el comparador oficial CNMC» abre el comparador con su potencia y consumo anualizado.</li>
     </ul>
     <h3>Regras fiscais aplicadas em Portugal (2026)</h3>
     <ul class="small">
@@ -589,10 +602,10 @@
 </main>
 
 <footer class="wrap footer muted small">
-  Dados de ofertas: Portugal – ERSE (<span id="dataset-date"></span>); España – webs de las comercializadoras y comparadores públicos (lista actualizada el <span id="dataset-date-es"></span>; comparador oficial: <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">CNMC</a>). Esta ferramenta é independente e não representa nenhum comercializador. Os valores são estimativas; confirme sempre com a ficha padronizada da oferta.
+  Dados de ofertas: Portugal – ERSE (<span id="dataset-date"></span>); España – comparador oficial de la <a href="https://comparador.cnmc.gob.es" target="_blank" rel="noopener">CNMC</a> (consulta en vivo; lista guardada actualizada el <span id="dataset-date-es"></span>). Esta ferramenta é independente e não representa nenhum comercializador. Os valores são estimativas; confirme sempre com a ficha padronizada da oferta.
   <span id="app-version" title="Versão da aplicação"></span>
 </footer>
 
-<script type="module" src="app.js?v=1.7.3"></script>
+<script type="module" src="app.js?v=1.8.0"></script>
 </body>
 </html>

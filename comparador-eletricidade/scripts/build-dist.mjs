@@ -5,8 +5,9 @@
 //   npm run build            -> cloudflare-upload/ + zip
 //
 // The bundle contains exactly what the browser needs (index.html, app.js, css,
-// lib/, vendor/pdfjs, data/ofertas.json, samples/) plus Cloudflare's _headers
-// and _redirects files. No server code is included – the site is 100 % static.
+// lib/, vendor/pdfjs, data/ofertas.json, samples/) plus Cloudflare's _headers,
+// _redirects and a tiny _worker.js (proxy /api/cnmc/* -> official CNMC comparator
+// API, needed because that API refuses browser cross-origin requests).
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync, readFileSync } from 'node:fs';
 import { resolve, dirname, relative, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,6 +40,13 @@ for (const [f, fix] of required) {
 rmSync(DIST, { recursive: true, force: true });
 mkdirSync(DIST, { recursive: true });
 cpSync(PUBLIC, DIST, { recursive: true, filter: (src) => !/\.(map|DS_Store)$/.test(src) });
+
+// --- Cloudflare Pages worker (advanced mode): /api/cnmc/* proxy to the official CNMC comparator ------------
+// A root _worker.js is supported by drag-and-drop deployments (unlike a functions/ folder). Everything that is
+// not /api/cnmc/* is passed to the static assets, so the site keeps working exactly as before.
+cpSync(resolve(ROOT, 'cloudflare/_worker.js'), resolve(DIST, '_worker.js'));
+// only /api/* invokes the worker; every other path is served as a plain static asset (no function invocation)
+writeFileSync(resolve(DIST, '_routes.json'), JSON.stringify({ version: 1, include: ['/api/*'], exclude: [] }, null, 2) + '\n');
 
 // --- Cloudflare Pages config -------------------------------------------------
 writeFileSync(resolve(DIST, '_headers'), `# Cloudflare Pages headers (https://developers.cloudflare.com/pages/configuration/headers/)
@@ -89,7 +97,7 @@ writeFileSync(resolve(DIST, 'robots.txt'), 'User-agent: *\nAllow: /\nDisallow: /
 const meta = JSON.parse(readFileSync(resolve(PUBLIC, 'data/ofertas.json'), 'utf8')).meta;
 const metaES = JSON.parse(readFileSync(resolve(PUBLIC, 'data/ofertas-es.json'), 'utf8')).meta;
 const appVersion = (readFileSync(resolve(PUBLIC, 'app.js'), 'utf8').match(/APP_VERSION = '([^']+)'/) || [])[1] || null;
-writeFileSync(resolve(DIST, 'build.json'), JSON.stringify({ builtAt: new Date().toISOString(), appVersion, pdfjs: vendorDir, dataset: meta, datasetES: { offers: metaES.offers, suppliers: metaES.suppliers, publishedAt: metaES.publishedAt } }, null, 2));
+writeFileSync(resolve(DIST, 'build.json'), JSON.stringify({ builtAt: new Date().toISOString(), appVersion, pdfjs: vendorDir, dataset: meta, datasetES: { offers: metaES.offers, suppliers: metaES.suppliers, publishedAt: metaES.publishedAt, source: metaES.source || null }, cnmcProxy: '/api/cnmc/ (_worker.js)' }, null, 2));
 
 // --- report ------------------------------------------------------------------
 let total = 0, count = 0;
@@ -101,7 +109,7 @@ const walk = (dir) => {
 };
 walk(DIST);
 console.log(`${relative(ROOT, DIST)}/: ${count} files, ${(total / 1024 / 1024).toFixed(2)} MB (uncompressed)`);
-for (const f of ['index.html', 'app.js', 'app-es.js', 'app-curve-pt.js', 'styles.css', 'lib', 'vendor', 'data', 'samples', '_headers', '_redirects', '404.html']) {
+for (const f of ['index.html', 'app.js', 'app-es.js', 'app-cnmc.js', 'app-curve-pt.js', 'styles.css', 'lib', 'vendor', 'data', 'samples', '_worker.js', '_headers', '_redirects', '404.html']) {
   console.log('  ' + (existsSync(resolve(DIST, f)) ? '✓' : '✗'), f);
 }
 

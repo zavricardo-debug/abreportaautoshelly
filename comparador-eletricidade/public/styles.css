@@ -283,3 +283,16 @@ table.invoice.periods-cmp td:first-child { white-space: nowrap; }
 table.invoice tr.subtotal td { background: #f8fafc; }
 table.results td .period-energy { min-width: 250px; }
 @media (max-width: 720px) { table.results td .period-energy .pe-kwh { display: none; } }
+
+/* market source (ES): live CNMC vs bundled snapshot */
+.source-bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 8px; font-size: .85rem; color: var(--muted); }
+.source-bar label { display: flex; align-items: center; gap: 6px; }
+.source-status { flex: 1 1 320px; font-size: .8rem; line-height: 1.35; }
+.source-status.loading { color: #0e7490; }
+.source-status.loading::before { content: '⏳ '; }
+.source-status.ok { color: #166534; }
+.source-status.ok::before { content: '✓ '; }
+.source-status.warn { color: #9a3412; }
+.source-status.warn::before { content: '⚠ '; }
+.badge.cnmc { background: #f0fdf4; color: #14532d; border-color: #86efac; }
+.badge.warn { background: #fff7ed; color: #9a3412; border-color: #fdba74; }

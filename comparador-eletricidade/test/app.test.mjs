@@ -652,3 +652,141 @@ test('Endesa "área de clientes" consumption .xls dropped in step 1 is routed to
   assert.ok(Math.abs(v('#es-kwh-punta') + v('#es-kwh-llano') + v('#es-kwh-valle') - 277.224) < 0.01);
   assert.ok(Math.abs(v('#es-kwh-valle') - 277.224 * 40 / 72) < 0.01, `valle ${v('#es-kwh-valle')}`);
 });
+
+/* ------------------------------------------------------------------ Spanish flow: live CNMC market */
+import { cnmcTotal as _cnmcTotal, DERIVATION_LISTS as _DL } from '../public/lib/cnmc.js';
+
+/** Fake CNMC API behind the /api/cnmc/ proxy: 8 offers whose totals follow the comparator's arithmetic exactly. */
+function fakeCnmc() {
+  const IB = { fixed: 9.01, pp1: 33.242078, pp2: 4.921170, energy: [0.192890, 0.134603, 0.100874] };
+  const EN2 = { fixed: 0, pp1: 32.94, pp2: 1.10, energy: [0.13910, 0.13910, 0.13910] }, EN1 = { ...EN2, energy: [0.130527, 0.130527, 0.130527] };
+  const OFFERS = [
+    { id: 4628, h: 369, idc: 9, c: 'IBERDROLA CLIENTES, S.A.U.', o: '2.0TD Plan Online 3 Precios (0-10kW)', y1: IB, y2: IB, verde: true, tpu: 'N' },
+    { id: 5356, h: 116, idc: 16, c: 'ENERGYA VM GESTION DE ENERGÍA, S.L', o: 'Fórmula Fija Única 24HORAS', y1: EN1, y2: EN2, validez: 'Oferta válida solo para nuevos clientes', tpu: 'S' },
+    { id: 6952, h: 52, idc: 5, c: 'ENDESA ENERGÍA S.A.U.', o: 'Conecta 3 Periodos', y1: { fixed: 9.01, pp1: 30.5, pp2: 3.2, energy: [0.17, 0.13, 0.10] }, y2: { fixed: 9.01, pp1: 30.5, pp2: 3.2, energy: [0.19, 0.15, 0.12] }, validez: 'Oferta válida solo para nuevos clientes', tpu: 'N' },
+    { id: 6700, h: 3, idc: 5, c: 'ENDESA ENERGÍA S.A.U.', o: 'Libre Endesa', y1: { fixed: 9.01, pp1: 42.95, pp2: 15.17, energy: [0.167283, 0.167283, 0.167283] }, y2: null, tpu: 'S' },
+    { id: 180, h: 36, idc: 7, c: 'Comercializadora de referencia', o: 'PVPC Histórico 08/09/2025 - 08/09/2026', y1: { fixed: 9.01, pp1: 30.67, pp2: 1.42, energy: [0.19, 0.14, 0.11] }, y2: null, tipo: 'PVPC', tpu: null },
+    { id: 7094, h: 12, idc: 15, c: 'REPSOL COMERCIALIZADORA DE ELECTRICIDAD Y GAS, S.L.U', o: 'Tarifa 10 horas con descuento', y1: IB, y2: IB, tipo: 'FFF', tpu: null },
+    { id: 6772, h: 47, idc: 196, c: 'DOMESTICA GAS Y ELECTRICIDAD SLU', o: 'Visalia 3 Precios', y1: { fixed: 9.01, pp1: 27.704413, pp2: 0.725423, energy: [0.238530, 0.149464, 0.119806] }, y2: null, verde: true, tpu: 'N' },
+    { id: 5521, h: 105, idc: 16, c: 'ENERGYA VM GESTION DE ENERGÍA, S.L', o: 'Fórmula Fija Única 24HORAS ASISTENCIA', y1: { fixed: 47.76, pp1: 32.94, pp2: 1.10, energy: [0.1391, 0.1391, 0.1391] }, y2: null, svc: true, validez: 'Oferta válida solo para nuevos clientes', tpu: 'S' },
+    { id: 9999, h: 1, idc: 321, c: 'LUZ DEL VALLE ENERGÍA, S.L.U.', o: 'Tarifa Valle Feliz', y1: { fixed: 9.01, pp1: 29, pp2: 1, energy: [0.20, 0.12, 0.07] }, y2: null, tpu: 'N', onlyBig: true },
+  ];
+  const itemFor = (f, p) => ({ importeEstimadoPenalizacion: 0, id: f.id, idHistorico: f.h, idComercializadora: f.idc, idMarca: 0, comercializadora: f.c, oferta: f.o, tipoElectricidad: f.tipo || 'TE', importePrimerAnio: _cnmcTotal({ ...f.y1, ...p }), importeSegundoAnio: f.y2 ? _cnmcTotal({ ...f.y2, ...p }) : 0, validez: f.validez || 'Válida para cualquier consumidor', serviciosAdicionales: !!f.svc, tipoServicioAdicional: f.svc ? 'Incluye varios servicios' : null, penalizacion: false, verde: !!f.verde, tienePrecioUnico: f.tpu, autoconsumo: false, ...(f.tipo === 'FFF' ? { flexibleClienteResultListPrimerAnio: [{}] } : {}) });
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(String(url));
+    const u = new URL(String(url), 'http://x/');
+    const q = u.searchParams;
+    const p = { p1: +q.get('potenciaPrimeraFranja'), p2: +q.get('potenciaSegundaFranja'), kwh: [+q.get('consumoPrimeraFranja'), +q.get('consumoSegundaFranja'), +q.get('consumoTerceraFranja')] };
+    const json = (obj) => ({ ok: true, status: 200, json: async () => obj });
+    if (/ofertas\/electricidad/.test(u.pathname)) {
+      // "onlyBig" is listed only for ≥ 4,5 kW: absent from the derivation lists -> detail fallback in the app
+      const items = OFFERS.filter((f) => !f.onlyBig || p.p1 >= 4.5).map((f) => itemFor(f, p)).sort((a, b) => a.importePrimerAnio - b.importePrimerAnio);
+      return json({ resultadoComparador: items, consumo1: p.kwh[0] });
+    }
+    if (/\/oferta$/.test(u.pathname)) {
+      const f = OFFERS.find((x) => x.id === +q.get('idOferta'));
+      const rows = (y) => { const power = Math.round((y.pp1 * p.p1 + y.pp2 * p.p2) * 100) / 100, energy = Math.round((p.kwh[0] * y.energy[0] + p.kwh[1] * y.energy[1] + p.kwh[2] * y.energy[2]) * 100) / 100; return [{ cabecera: 'Término fijo', valor: y.fixed }, { cabecera: 'Término de potencia', valor: power }, { cabecera: 'Consumo electricidad', valor: energy }, { cabecera: 'Impuesto sobre electricidad 5,11269632%', valor: 1 }, { cabecera: 'Equipo de medida', valor: 9.72 }]; };
+      return json({ datosOferta: { nombreOferta: f.o }, datosGeneralesPrimerAnio: [{ cabecera: 'Total', valor: _cnmcTotal({ ...f.y1, ...p }) }], datosGeneralesSegundoAnio: [{ cabecera: 'Total', valor: _cnmcTotal({ ...(f.y2 || f.y1), ...p }) }], datosElectricidadPrimerAnio: rows(f.y1), datosElectricidadSegundoAnio: rows(f.y2 || f.y1), caracteristicas: { caracteristicas: `Término Potencia Punta: ${f.y1.pp1}€/kW año`, limitaciones: f.validez || 'Válida para cualquier consumidor', condicionesPenalizacion: 'Sin permanencia', periodoValidez: 'Oferta válida desde 01-sept-2026 hasta 15-sept-2026', periocidadRevisionPrecios: 'Anual', potenciaMaximaElectricidad: 10, consumoMaximoElectricidad: 999999, ofertaInternet: true, ofertaTel: false, ofertaOficina: false, webOferta: `https://example.test/${f.id}`, webContrato: `https://example.test/${f.id}.pdf`, atencionCliente: `${f.c}$900 000 000$x@y.z$https://example.test/` } });
+    }
+    return { ok: false, status: 404, json: async () => ({ error: 'not found' }) };
+  };
+  return { fetchImpl, calls, OFFERS };
+}
+
+test('Spanish flow – "Mercado completo": every CNMC offer is loaded through /api/cnmc/, priced from six lists, verified and compared line by line', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  const fake = fakeCnmc();
+  const fileFetch = globalThis.fetch;
+  globalThis.fetch = (url, opts) => /^api\/cnmc\//.test(String(url)) ? fake.fetchImpl(url) : fileFetch(url, opts);
+  try {
+    window.__test_text(readFileSync(resolve(__dirname, 'fixtures/endesa-es-2026.txt'), 'utf8'));
+    d.querySelector('#es-cp').value = '28001';
+    assert.equal(d.querySelector('#es-flt-source').value, 'auto');
+    d.querySelector('#values-form-es').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    // snapshot first (synchronously), then the live market replaces it
+    assert.match(d.querySelector('#es-source-status').textContent, /Consultando el comparador oficial de la CNMC/);
+    const snapshotRows = d.querySelectorAll('#es-results-table tbody tr').length;
+    assert.ok(snapshotRows > 10);
+    for (let i = 0; i < 100 && !/Mercado completo/.test(d.querySelector('#es-source-status').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+    const status = d.querySelector('#es-source-status').textContent;
+    assert.match(status, /Mercado completo: 9 ofertas de 7 comercializadoras/, status);
+    assert.match(status, /8 de 8 reproducen al céntimo/, status);   // 8 priced (the flexible one is not) – incl. the detail-derived one
+    // 6 derivation lists + user list + 3 detail calls for the offer missing from the derivation lists
+    assert.equal(fake.calls.filter((u) => /ofertas\/electricidad/.test(u)).length, 7);
+    assert.equal(fake.calls.filter((u) => /idOferta=9999/.test(u)).length, 3);
+    // all derivation lists use the fixed reference CP so the edge cache is shared; the user list carries the user's CP
+    assert.ok(fake.calls.filter((u) => /ofertas\/electricidad/.test(u) && /codigoPostal=28001/.test(u)).length === 7);
+
+    const rows = [...d.querySelectorAll('#es-results-table tbody tr')];
+    const names = rows.slice(1).map((r) => r.querySelector('.offer-name').textContent);
+    // flexible Repsol offer is excluded from the ranking but listed apart with the CNMC figure
+    assert.ok(!names.some((n) => /10 horas/.test(n)), names.join(' | '));
+    assert.match(d.querySelector('#es-unpriced').textContent, /Repsol · Tarifa 10 horas con descuento/);
+    assert.ok(!d.querySelector('#es-unpriced').classList.contains('hidden'));
+    // Endesa is the current supplier: "Conecta" (new clients only) hidden, "Libre Endesa" flagged; the rest present
+    assert.ok(!names.some((n) => /Conecta/.test(n)));
+    assert.ok(names.some((n) => /^Endesa · Libre Endesa/.test(n)));
+    assert.ok(names.some((n) => /^Enérgya-VM · Fórmula Fija Única 24HORAS$/.test(n)));
+    assert.ok(names.some((n) => /^Luz Del Valle Energía · Tarifa Valle Feliz/.test(n)), 'detail-derived offer present');
+    assert.ok(names.some((n) => /^Comercializadora de referencia \(PVPC\) · PVPC/.test(n)));
+    assert.ok(names.some((n) => /^Visalia · Visalia 3 Precios/.test(n)));
+    // Iberdrola with the comparator's exact unit prices (0,192890 / 0,134603 / 0,100874; 33,242078 / 4,921170 €/kW·año):
+    // 31 days · 4,6 kW · 97/60/120 kWh -> 70,49 € (the hand-made list, with the rounded web prices, gave 70,62 €)
+    const ib = rows.find((r) => /Iberdrola · 2\.0TD Plan Online 3 Precios/.test(r.textContent));
+    assert.ok(ib, 'iberdrola row');
+    assert.match(ib.children[7].textContent, /70,49/, [...ib.children].map((c) => c.textContent).join(' | '));
+    assert.match(ib.children[1].textContent, /0,1929 \/ 0,1346 \/ 0,1009 €\/kWh · potencia 0,0911 \/ 0,0135 €\/kW·día/);
+    assert.ok([...ib.querySelectorAll('.badge')].some((b) => /CNMC ✓/.test(b.textContent)), 'verified badge');
+    // Enérgya-VM: bono social inside the prices → regulated column below the bill's 1,60 € (0,83 € meter only)
+    const en = rows.find((r) => /Enérgya-VM · Fórmula Fija Única 24HORAS$/.test(r.querySelector('.offer-name').textContent));
+    assert.match(en.children[4].textContent, /0,83/);
+    assert.ok([...en.querySelectorAll('.badge')].some((b) => /bono social incluido/.test(b.textContent)));
+    assert.ok([...en.querySelectorAll('.badge')].some((b) => /promoción 1\.er año/.test(b.textContent)));
+    // the results count names the CNMC as the source
+    assert.match(d.querySelector('#es-results-count').textContent, /en la lista de la CNMC, 7 comercializadoras/);
+    // supplier filter now lists the live suppliers
+    const opts = [...d.querySelectorAll('#es-flt-supplier option')].map((o) => o.value);
+    assert.ok(opts.includes('CNMC321') && opts.includes('ENERGYAVM') && opts.includes('PVPC'));
+    // "excluir servicios/permanencia" hides the ASISTENCIA offer
+    const ns = d.querySelector('#es-flt-noservices'); ns.checked = true; ns.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.ok(![...d.querySelectorAll('#es-results-table .offer-name')].some((n) => /ASISTENCIA/.test(n.textContent)));
+    ns.checked = false; ns.dispatchEvent(new window.Event('change', { bubbles: true }));
+    // detail modal of a live offer: CNMC block + lazily loaded conditions (detail endpoint) + contract link
+    const ibRow = [...d.querySelectorAll('#es-results-table tbody tr')].find((r) => /Iberdrola · 2\.0TD/.test(r.textContent));
+    ibRow.querySelector('button').click();
+    for (let i = 0; i < 50 && /Cargando las condiciones/.test(d.querySelector('#modal-body').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+    const body = d.querySelector('#modal-body').textContent;
+    assert.match(body, /Según la CNMC/); assert.match(body, /Oferta n\.º 4628/); assert.match(body, /coincide ✓/);
+    assert.match(body, /Término Potencia Punta: 33\.242078/); assert.match(body, /01-sept-2026/);
+    assert.ok(d.querySelector('#modal-body a[href="https://example.test/4628.pdf"]'), 'contract link');
+    d.querySelector('#modal-close').click();
+    // back to the bundled snapshot
+    const src = d.querySelector('#es-flt-source'); src.value = 'snapshot'; src.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.match(d.querySelector('#es-source-status').textContent, /Lista guardada/);
+    assert.equal(d.querySelectorAll('#es-results-table tbody tr').length, snapshotRows);
+    assert.ok(d.querySelector('#es-unpriced').classList.contains('hidden'));
+  } finally {
+    globalThis.fetch = fileFetch;
+  }
+});
+
+test('Spanish flow – CNMC unreachable: the bundled list is used and the status says so', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  const fileFetch = globalThis.fetch;
+  globalThis.fetch = (url, opts) => /^api\/cnmc\//.test(String(url)) ? Promise.resolve({ ok: false, status: 502, json: async () => ({ error: 'upstream unreachable: timeout' }) }) : fileFetch(url, opts);
+  try {
+    window.__test_text(readFileSync(resolve(__dirname, 'fixtures/endesa-es-2026.txt'), 'utf8'));
+    d.querySelector('#values-form-es').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    for (let i = 0; i < 100 && !/No se ha podido consultar/.test(d.querySelector('#es-source-status').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+    assert.match(d.querySelector('#es-source-status').textContent, /No se ha podido consultar el comparador de la CNMC \(upstream unreachable: timeout\)\. Se muestra la lista guardada/);
+    assert.ok(d.querySelectorAll('#es-results-table tbody tr').length > 10);
+    assert.match(d.querySelectorAll('#es-results-table tbody tr')[1].querySelector('.offer-name').textContent, /3 Periodos|Noche|Programa|Octopus 3|Sin Horas|Fijo 24h|Siempre/);
+  } finally {
+    globalThis.fetch = fileFetch;
+  }
+});

@@ -7,6 +7,8 @@ import { parseConsumptionCSV, sliceCurve, applyShare, shiftToValle, CALENDAR_TEX
 import { sheetRowsToCsv } from './lib/xlsx-lite.js';
 import { decodeCurveBuffer, parseAnySheet, previewOfDecoded } from './app-curve-pt.js';
 import { hourlyRowsES, renderHourlySection } from './app-hourly.js';
+import { loadCnmcMarket, loadCnmcOfferDetail } from './app-cnmc.js';
+import { BRAND_LIST } from './lib/cnmc.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -17,31 +19,80 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const signed = (v, d = 2) => `${v < 0 ? '−' : v > 0 ? '+' : ''}${fmtEur(Math.abs(v), d)}`;
 const r2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
 
-export const ES = { dataset: null, parsed: null, form: null, baseline: null, results: [], rawText: '', curve: null, curveUsed: null, curveFile: '' };
+export const ES = { dataset: null, snapshot: null, live: null, liveError: null, liveKey: '', source: 'auto', parsed: null, form: null, baseline: null, results: [], rawText: '', curve: null, curveUsed: null, curveFile: '' };
 let ui = { show: () => {}, hide: () => {}, showError: () => {}, hideError: () => {} };
-const rules = () => ES.dataset?.rules || RULES_ES_2026;
+const rules = () => ES.snapshot?.rules || RULES_ES_2026;
 
 /* ------------------------------------------------------------------ boot */
 export async function initES(hooks) {
   ui = { ...ui, ...hooks };
+  // module state survives a re-import of app.js (tests boot several times): start clean
+  Object.assign(ES, { dataset: null, snapshot: null, live: null, liveError: null, liveKey: '', liveLoading: false, parsed: null, form: null, baseline: null, results: [], rawText: '', curve: null, curveUsed: null, curveFile: '', curveText: '', curveForResults: null, shift: 0 });
   bindForm();
   bindFilters();
   bindCurve();
   try {
     const res = await fetch('data/ofertas-es.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    ES.dataset = await res.json();
-    $('#dataset-pill-es').textContent = `${ES.dataset.meta.offers} tarifas ES · ${fmtDate(ES.dataset.meta.publishedAt)}`;
-    $('#dataset-date-es').textContent = fmtDate(ES.dataset.meta.publishedAt);
+    ES.snapshot = await res.json();
+    ES.dataset = ES.snapshot;
+    $('#dataset-pill-es').textContent = `${ES.snapshot.meta.offers} tarifas ES · ${fmtDate(ES.snapshot.meta.publishedAt)}`;
+    $('#dataset-date-es').textContent = fmtDate(ES.snapshot.meta.publishedAt);
     const sel = $('#es-supplier');
-    for (const s of ES.dataset.suppliers) { const o = document.createElement('option'); o.value = s.code; o.textContent = s.name; sel.appendChild(o); }
+    const known = [...ES.snapshot.suppliers];
+    for (const b of BRAND_LIST) if (b.code !== 'PVPC' && !known.some((k) => k.code === b.code)) known.push({ code: b.code, name: b.name });
+    known.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    for (const s of known) { const o = document.createElement('option'); o.value = s.code; o.textContent = s.name; sel.appendChild(o); }
     for (const [code, name] of [['PVPC', 'Comercializadora de referencia (PVPC)'], ['OTHER', 'Otra comercializadora']]) { const o = document.createElement('option'); o.value = code; o.textContent = name; sel.appendChild(o); }
-    const fsel = $('#es-flt-supplier');
-    for (const s of ES.dataset.suppliers) { const o = document.createElement('option'); o.value = s.code; o.textContent = s.name; fsel.appendChild(o); }
+    fillSupplierFilter(ES.snapshot.suppliers);
   } catch (e) {
     $('#dataset-pill-es').textContent = 'error tarifas ES';
     console.error('ofertas-es.json', e);
   }
+}
+
+function fillSupplierFilter(suppliers) {
+  const fsel = $('#es-flt-supplier'); if (!fsel) return;
+  const keep = fsel.value;
+  fsel.innerHTML = '<option value="">Todas</option>';
+  for (const s of suppliers) { const o = document.createElement('option'); o.value = s.code; o.textContent = s.name; fsel.appendChild(o); }
+  fsel.value = suppliers.some((s) => s.code === keep) ? keep : '';
+}
+
+/* ------------------------------------------------------------------ market source (CNMC live / snapshot) */
+/** Which dataset feeds the comparison: the live CNMC market when it loaded, otherwise the bundled snapshot. */
+function activeDataset() {
+  const want = $('#es-flt-source')?.value || 'auto';
+  if (want !== 'snapshot' && ES.live) return ES.live;
+  return ES.snapshot;
+}
+const liveKeyOf = (f) => JSON.stringify([f.power.p1, f.power.p2, f.days, f.kwh.punta, f.kwh.llano, f.kwh.valle, f.postalCode || '']);
+
+/** Load the full CNMC market for the current profile (once per profile); re-renders when it arrives. */
+async function loadLiveMarket(f) {
+  const key = liveKeyOf(f);
+  if (ES.liveKey === key && (ES.live || ES.liveLoading)) return;
+  ES.liveKey = key; ES.live = null; ES.liveError = null; ES.liveLoading = true;
+  setSourceStatus('loading', 'Consultando el comparador oficial de la CNMC (7 consultas, 20–60 s)…');
+  try {
+    const market = await loadCnmcMarket(profileOf(f), { cp: f.postalCode, onProgress: (n, t) => setSourceStatus('loading', `Consultando el comparador oficial de la CNMC… ${n}/${t}`) });
+    if (ES.liveKey !== key) return;                       // the user changed the profile meanwhile
+    ES.live = { ...market, rules: rules() };
+    ES.liveLoading = false;
+    if (ES.form) { computeResults(); renderResultsES(); }
+  } catch (e) {
+    if (ES.liveKey !== key) return;
+    ES.liveLoading = false;
+    ES.liveError = e?.message || String(e);
+    console.warn('CNMC live', e);
+    if (ES.form) renderResultsES();
+  }
+}
+
+function setSourceStatus(kind, text) {
+  const el = $('#es-source-status'); if (!el) return;
+  el.className = `source-status ${kind}`;
+  el.textContent = text;
 }
 
 /* ------------------------------------------------------------------ form */
@@ -403,13 +454,14 @@ function renderBillLines(f, sim, services) {
 
 /* ------------------------------------------------------------------ compare */
 function runComparisonES() {
-  if (!ES.dataset) return ui.showError('La lista de tarifas españolas (data/ofertas-es.json) no se ha podido cargar.');
+  if (!ES.snapshot) return ui.showError('La lista de tarifas españolas (data/ofertas-es.json) no se ha podido cargar.');
   ui.hideError();
   const f = readFormES();
   ES.form = f;
   ES.curveForResults = f.curve && ES.curveUsed ? { ...ES.curveUsed, file: ES.curveFile, ceutaMelilla: $('#es-curve-ceuta').checked } : null; // the hours behind the kWh of the form
   const profile = profileOf(f);
   ES.baseline = simulateES(profile, basePricesOf(f), rules());
+  if (($('#es-flt-source')?.value || 'auto') !== 'snapshot') loadLiveMarket(f);   // async; re-renders when the CNMC answers
   computeResults();
   $('#es-cnmc-link').href = cnmcLink(profile, { postalCode: f.postalCode, periodStart: f.periodStart, contractType: f.single ? 'F0' : 'E0' });
   ui.show('#step-results-es');
@@ -424,6 +476,8 @@ function computeResults() {
   const profile = profileOf(f);
   if (shift > 0) profile.kwh = shiftToValle(f.kwh, shift);
   ES.shift = shift;
+  ES.dataset = activeDataset();
+  fillSupplierFilter(ES.dataset.suppliers);
   ES.results = simulateAllES(ES.dataset, profile, { includePromo, currentSupplierCode: f.supplierCode });
   // welcome discounts are for new customers: an existing customer of that supplier gets the post-promo price
   for (const r of ES.results) {
@@ -432,9 +486,10 @@ function computeResults() {
 }
 
 function bindFilters() {
-  $$('#step-results-es .filters input, #step-results-es .filters select').forEach((el) => el.addEventListener('change', () => {
+  $$('#step-results-es .filters input, #step-results-es .filters select, #step-results-es .source-bar select').forEach((el) => el.addEventListener('change', () => {
     if (!ES.form) return;
-    if (el.id === 'es-flt-promo' || el.id === 'es-flt-shift') computeResults();
+    if (el.id === 'es-flt-source' && el.value !== 'snapshot') loadLiveMarket(ES.form);
+    if (el.id === 'es-flt-promo' || el.id === 'es-flt-shift' || el.id === 'es-flt-source') computeResults();
     renderResultsES();
   }));
 }
@@ -442,6 +497,7 @@ function bindFilters() {
 function filteredResultsES() {
   let r = ES.results;
   if ($('#es-flt-noindexed').checked) r = r.filter((x) => !x.offer.indexed);
+  if ($('#es-flt-noservices')?.checked) r = r.filter((x) => !x.offer.servicesIncluded && !x.offer.permanence);
   r = r.filter((x) => !(x.offer.newClientsOnly && x.isCurrentSupplier));
   if (!$('#es-flt-newclient').checked) r = r.filter((x) => !x.offer.newClientsOnly);
   const sup = $('#es-flt-supplier').value;
@@ -488,8 +544,36 @@ function renderResultsES() {
   rows.forEach((x, i) => {
     tb.appendChild(rowEl({ rank: i + 1, name: `${x.offer.supplier} · ${x.offer.name}`, sub: priceSub(x), badges: badges(x), sim: x.sim, base, cls: (i === 0 ? 'best ' : '') + (x.isCurrentSupplier ? 'current-supplier-es' : ''), onDetail: () => openDetailES(x) }));
   });
-  $('#es-results-count').textContent = `${rows.length} tarifas mostradas (de ${ES.results.length} aplicables a su perfil; ${ES.dataset.meta.offers} en la lista, actualizada el ${fmtDate(ES.dataset.meta.publishedAt)}).`;
+  const ds = ES.dataset, live = !!ds.meta.live;
+  $('#es-results-count').textContent = `${rows.length} tarifas mostradas (de ${ES.results.length} aplicables a su perfil; ${ds.meta.offers} en la lista${live ? ` de la CNMC, ${ds.meta.suppliers} comercializadoras, consultada hoy` : `, actualizada el ${fmtDate(ds.meta.publishedAt)}`}).` +
+    (live && ds.unpriced ? ` ${ds.unpriced} oferta${ds.unpriced > 1 ? 's' : ''} de la CNMC sin precios unitarios derivables (tramos o topes de consumo) no se muestra${ds.unpriced > 1 ? 'n' : ''}.` : '');
+  renderSourceStatus();
+  renderUnpriced();
   renderPeriodTable(rows);
+}
+
+/** Offers of the live CNMC list that cannot be rebuilt line by line (hours chosen by the customer, tranches…). */
+function renderUnpriced() {
+  const box = $('#es-unpriced'); if (!box) return;
+  const un = (ES.dataset.offers || []).filter((o) => o.prices === false);
+  box.classList.toggle('hidden', !un.length);
+  if (!un.length) return;
+  box.innerHTML = `<b>Otras ${un.length} ofertas registradas en la CNMC para su perfil</b> que no se pueden reconstruir concepto a concepto (el precio depende de las horas que elija el cliente, de tramos o de topes de consumo). Importe anual estimado por la CNMC con su consumo: ` +
+    un.map((o) => `${esc(o.supplier)} · ${esc(o.name)} <b>${fmtEur(o.cnmc?.firstYear, 0)}/año</b>${o.cnmc?.secondYear && o.cnmc.secondYear !== o.cnmc.firstYear ? ` (2.º año ${fmtEur(o.cnmc.secondYear, 0)})` : ''}${o.servicesIncluded ? ' – con servicios' : ''}`).join('; ') + '.';
+}
+
+function renderSourceStatus() {
+  const ds = ES.dataset;
+  if (ds?.meta?.live) {
+    const v = ds.meta.verified, n = ds.meta.priced;
+    setSourceStatus('ok', `Mercado completo: ${ds.meta.offers} ofertas de ${ds.meta.suppliers} comercializadoras registradas en el comparador oficial de la CNMC para su perfil (${fmtNum(ds.meta.profile.p1, 2)}/${fmtNum(ds.meta.profile.p2, 2)} kW · ${fmtNum(ds.meta.profile.kwh.reduce((a, b) => a + b, 0), 0)} kWh/año${ds.meta.profile.cp ? ' · CP ' + ds.meta.profile.cp : ''}). Precios unitarios derivados del propio comparador; ${v} de ${n} reproducen al céntimo el importe anual que publica la CNMC.`);
+  } else if (ES.liveLoading) {
+    /* keep the progress text */
+  } else if (ES.liveError && ($('#es-flt-source')?.value || 'auto') !== 'snapshot') {
+    setSourceStatus('warn', `No se ha podido consultar el comparador de la CNMC (${ES.liveError}). Se muestra la lista guardada (${ES.snapshot.meta.offers} tarifas, ${fmtDate(ES.snapshot.meta.publishedAt)}); use el botón «Comprobar en el comparador oficial CNMC».`);
+  } else {
+    setSourceStatus('', `Lista guardada: ${ES.snapshot.meta.offers} tarifas de ${ES.snapshot.meta.suppliers} comercializadoras (${ES.snapshot.meta.source || 'CNMC'}, ${fmtDate(ES.snapshot.meta.publishedAt)}).`);
+  }
 }
 
 /** Energy cost per 2.0TD period for every shown tariff (kWh of each period × its price) – the "horas valle / punta" view. */
@@ -518,7 +602,7 @@ function renderPeriodTable(rows) {
   rows.forEach((x, i) => tb.insertAdjacentHTML('beforeend', rowHtml(i + 1, `${x.offer.supplier} · ${x.offer.name}`, x.prices, (i === 0 ? 'best ' : '') + (x.isCurrentSupplier ? 'current-supplier-es' : ''), baseEnergy)));
 }
 
-function supplierName(code) { return ES.dataset.suppliers.find((s) => s.code === code)?.name || (code === 'PVPC' ? 'PVPC' : 'precios leídos de la factura'); }
+function supplierName(code) { return ES.dataset.suppliers.find((s) => s.code === code)?.name || ES.snapshot?.suppliers.find((s) => s.code === code)?.name || BRAND_LIST.find((b) => b.code === code)?.name || (code === 'PVPC' ? 'PVPC' : 'precios leídos de la factura'); }
 
 function priceSub(x) {
   const p = x.prices;
@@ -538,6 +622,12 @@ function badges(x) {
   if (ES.form?.curve && o.energy?.punta != null) b.push(['curve', 'energía con su consumo real por horas']);
   if (o.maxKwhYear) b.push(['', `hasta ${fmtNum(o.maxKwhYear, 0)} kWh/año`]);
   if (o.maxPower && o.maxPower < 15) b.push(['', `hasta ${o.maxPower} kW`]);
+  if (o.regulated) b.push(['dual', 'PVPC (tarifa regulada)']);
+  if (o.servicesIncluded) b.push(['serv', 'incluye servicios adicionales']);
+  if (o.permanence) b.push(['cond', o.penaltyEstimate ? `permanencia (penalización ≈ ${fmtEur(o.penaltyEstimate, 0)})` : 'con permanencia']);
+  if (o.bonoSocialIncluded) b.push(['', 'bono social incluido en el precio']);
+  if (o.cnmc?.verified) b.push(['cnmc', 'CNMC ✓ importe anual verificado']);
+  else if (o.cnmc && o.cnmc.verified === false) b.push(['warn', `CNMC: desvío ${signed(o.cnmc.delta, 2)}/año`]);
   return b;
 }
 
@@ -654,18 +744,42 @@ function openDetailES(x) {
       <tbody>${rowsHtml}</tbody>
     </table>`;
   const diffBox = !isBase ? `<div class="alert ${s.total <= base.total ? 'ok' : 'warn'}">${s.total <= base.total ? 'Ahorro' : 'Coste adicional'} respecto a su factura: <b>${fmtEur(Math.abs(s.total - base.total))}</b> en este periodo (${fmtEur(Math.abs(s.totalPerYear - base.totalPerYear), 0)}/año).${x.simAfter && x.simAfter !== s ? ` Cuando termine la promoción: <b>${fmtEur(x.simAfter.total)}</b> (${signed(r2(x.simAfter.total - base.total))}).` : ''}${x.promoDenied ? ' Como ya es cliente de esta comercializadora se aplican los precios sin la promoción de bienvenida.' : ''}</div>` : '';
-  const typeName = { fixed: 'Precio fijo, único las 24 h', fixed3: 'Precio fijo con discriminación horaria (3 periodos)', indexed: 'Indexada al mercado mayorista (precio variable cada hora)' }[o.type] || '—';
+  const typeName = { fixed: 'Precio fijo, único las 24 h', fixed3: 'Precio fijo con discriminación horaria (3 periodos)', indexed: 'Indexada al mercado mayorista (precio variable cada hora)', pvpc: 'PVPC – precio voluntario para el pequeño consumidor (tarifa regulada, precio horario)' }[o.type] || '—';
+  const cnmcBlock = o.cnmc ? `<dt>Según la CNMC</dt><dd>Importe anual estimado por el comparador oficial para su perfil (${fmtNum(o.cnmc.profile?.p1 ?? ES.dataset.meta?.profile?.p1, 2)} kW · ${fmtNum((o.cnmc.profile?.kwh || ES.dataset.meta?.profile?.kwh || []).reduce((a, b) => a + b, 0), 0)} kWh/año): <b>${fmtEur(o.cnmc.firstYear)}</b> el 1.er año${o.cnmc.secondYear && o.cnmc.secondYear !== o.cnmc.firstYear ? ` · ${fmtEur(o.cnmc.secondYear)} el 2.º año` : ''}.` +
+    (o.cnmc.ours != null ? ` Con los precios unitarios derivados reconstruimos ${fmtEur(o.cnmc.ours)} (${o.cnmc.verified ? 'coincide ✓' : 'desvío ' + signed(o.cnmc.delta)}).` : '') +
+    ` Oferta n.º ${o.cnmcId}${o.cnmc.contracting?.length ? ' · contratación: ' + o.cnmc.contracting.join(', ') : ''}.</dd>` : '';
   const meta = o.id ? `
     <dl class="kv">
       <dt>Tipo</dt><dd>${typeName}</dd>
       ${o.promoText ? `<dt>Promoción</dt><dd>${esc(o.promoText)}${o.after ? ` · precios tras la promoción: ${o.after.energy?.single != null ? fmtNum(o.after.energy.single, 6) + ' €/kWh' : PERIODS_ES.map((k) => fmtNum(o.after.energy?.[k], 6)).join(' / ') + ' €/kWh'}` : ''}</dd>` : ''}
-      <dt>Condiciones</dt><dd>${o.permanence ? 'Con permanencia' : 'Sin permanencia'}${o.priceFixedMonths ? ` · precio fijo ${o.priceFixedMonths} meses` : ''}${o.onlineOnly ? ' · contratación sólo online' : ''}${o.newClientsOnly ? ' · sólo nuevos clientes' : ''}${o.maxPower ? ` · potencia hasta ${o.maxPower} kW` : ''}${o.maxKwhYear ? ` · consumo hasta ${fmtNum(o.maxKwhYear, 0)} kWh/año` : ''}${o.renewable ? ' · energía 100 % renovable' : ''}</dd>
-      ${o.notes ? `<dt>Notas</dt><dd>${esc(o.notes)}</dd>` : ''}
-      <dt>Fuente de los precios</dt><dd>${o.source?.url ? `<a href="${esc(o.source.url)}" target="_blank" rel="noopener">${esc(o.source.name)}</a>` : esc(o.source?.name || '—')} · consultado el ${fmtDate(o.source?.date)}. Los precios pueden haber cambiado: confirme siempre en la web de la comercializadora antes de contratar.</dd>
-      <dt>Web</dt><dd class="links"><a href="${esc(ES.dataset.suppliers.find((sp) => sp.code === o.supplierCode)?.url || o.source?.url || '#')}" target="_blank" rel="noopener">${esc(o.supplier)}</a><a href="${esc($('#es-cnmc-link').href)}" target="_blank" rel="noopener">Comparador CNMC</a></dd>
+      <dt>Condiciones</dt><dd id="detail-conditions">${o.permanence ? 'Con permanencia' + (o.penaltyEstimate ? ` (penalización estimada ${fmtEur(o.penaltyEstimate)})` : '') : 'Sin permanencia'}${o.priceFixedMonths ? ` · precio fijo ${o.priceFixedMonths} meses` : ''}${o.onlineOnly ? ' · contratación sólo online' : ''}${o.newClientsOnly ? ' · sólo nuevos clientes' : ''}${o.servicesIncluded ? ` · incluye servicios adicionales${o.servicesText ? ' (' + esc(o.servicesText) + ')' : ''}` : ''}${o.maxPower ? ` · potencia hasta ${o.maxPower} kW` : ''}${o.maxKwhYear ? ` · consumo hasta ${fmtNum(o.maxKwhYear, 0)} kWh/año` : ''}${o.renewable ? ' · energía 100 % renovable' : ''}${o.bonoSocialIncluded ? ' · la financiación del bono social ya está incluida en los precios' : ''}${o.validity ? ' · ' + esc(o.validity) : ''}${o.priceRevision ? ' · revisión de precios: ' + esc(o.priceRevision) : ''}</dd>
+      ${cnmcBlock}
+      ${o.notes ? `<dt>Notas</dt><dd id="detail-notes">${esc(o.notes)}</dd>` : (o.cnmcId ? '<dt>Notas</dt><dd id="detail-notes" class="muted">Cargando las condiciones publicadas en la CNMC…</dd>' : '')}
+      <dt>Fuente de los precios</dt><dd id="detail-source">${o.source?.url ? `<a href="${esc(o.source.url)}" target="_blank" rel="noopener">${esc(o.source.name)}</a>` : esc(o.source?.name || '—')} · consultado el ${fmtDate(o.source?.date)}.${o.source?.contract ? ` <a href="${esc(o.source.contract)}" target="_blank" rel="noopener">Condiciones del contrato</a>.` : ''} Los precios pueden haber cambiado: confirme siempre en la web de la comercializadora antes de contratar.</dd>
+      <dt>Web</dt><dd class="links"><a href="${esc(ES.dataset.suppliers.find((sp) => sp.code === o.supplierCode)?.url || o.supplierUrl || o.source?.url || '#')}" target="_blank" rel="noopener">${esc(o.supplier)}</a><a href="${esc($('#es-cnmc-link').href)}" target="_blank" rel="noopener">Comparador CNMC</a></dd>
     </dl>` : `<p class="muted small">Reconstrucción de su factura con los precios leídos. Financiación del bono social y alquiler del contador son conceptos regulados idénticos en todas las tarifas.</p>`;
   $('#modal-body').innerHTML = diffBox + periodEnergyTableES(x, isBase) + table + hourlySectionES(x, isBase) + meta;
   $('#detail-modal').showModal();
+  if (o.cnmcId && !o.notes && ES.form) fillDetailFromCnmc(o);
+}
+
+/** Live-market offers carry no conditions text until "Detalle" is opened: fetch the CNMC detail and fill the modal. */
+async function fillDetailFromCnmc(o) {
+  try {
+    const d = await loadCnmcOfferDetail(o, profileOf(ES.form), { cp: ES.form.postalCode });
+    Object.assign(o, { notes: d.notes || 'Sin condiciones adicionales publicadas.', validity: d.validity, priceRevision: d.priceRevision, maxPower: d.maxPower || o.maxPower, minPower: d.minPower || o.minPower, maxKwhYear: d.maxKwhYear || o.maxKwhYear });
+    if (d.webOferta) o.source = { ...o.source, url: d.webOferta, contract: d.webContrato || o.source?.contract || null };
+    if (d.contracting?.length) o.cnmc = { ...o.cnmc, contracting: d.contracting };
+    const notes = $('#detail-notes'); if (!notes || $('#modal-title').textContent !== `${o.supplier} – ${o.name}`) return;
+    notes.className = '';
+    notes.innerHTML = esc(o.notes) + (d.infoAdicional ? `<br><span class="muted">${esc(d.infoAdicional)}</span>` : '') + (d.condicionesRevision ? `<br><span class="muted">Revisión de precios: ${esc(d.condicionesRevision)}</span>` : '');
+    const cond = $('#detail-conditions');
+    if (cond) cond.textContent += `${o.validity ? ' · ' + o.validity : ''}${o.priceRevision ? ' · revisión de precios: ' + o.priceRevision : ''}${o.maxKwhYear ? ` · consumo hasta ${fmtNum(o.maxKwhYear, 0)} kWh/año` : ''}${o.maxPower ? ` · potencia hasta ${o.maxPower} kW` : ''}`;
+    const src = $('#detail-source');
+    if (src && d.webOferta) src.innerHTML = `<a href="${esc(d.webOferta)}" target="_blank" rel="noopener">${esc(o.source.name)}</a> · consultado hoy.${d.webContrato ? ` <a href="${esc(d.webContrato)}" target="_blank" rel="noopener">Condiciones del contrato</a>.` : ''} Los precios pueden haber cambiado: confirme siempre en la web de la comercializadora antes de contratar.`;
+  } catch (e) {
+    const notes = $('#detail-notes'); if (notes) notes.textContent = `No se han podido cargar las condiciones desde la CNMC (${e?.message || e}).`;
+  }
 }
 
 /** Detail modal: "Energía por periodo – lo que paga hoy vs. esta tarifa" (kWh of each 2.0TD period × both price sets). */

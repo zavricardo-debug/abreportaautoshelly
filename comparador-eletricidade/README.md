@@ -5,10 +5,13 @@ rubricas da fatura e compara o que está a pagar com as ofertas do mercado:
 
 * **Portugal** – todas as ofertas publicadas pela **ERSE** (EDP Comercial, Endesa, Iberdrola, Galp,
   Goldenergy, Repsol, Plenitude, MEO Energia, SU Eletricidade/tarifa regulada, …).
-* **España** (peaje 2.0TD) – lista curada de tarifas de Endesa, Iberdrola, Naturgy, Repsol,
-  TotalEnergies, Octopus, Plenitude, Chippio, Imagina e Visalia, com **comparação conceito a conceito**
-  (potencia, energía, bono social, alquiler, impuesto eléctrico, IVA, total) e ligação ao
-  comparador oficial da CNMC. O país é detetado automaticamente a partir do texto da fatura.
+* **España** (peaje 2.0TD) – **mercado completo**: todas as ofertas para vivienda registadas no
+  **comparador oficial da CNMC** (≈150 ofertas de ≈60 comercializadoras – Endesa, Iberdrola, Naturgy,
+  Repsol, TotalEnergies, Octopus, Plenitude, Enérgya-VM, CHC, Imagina, Visalia, niba, Gaolania, Nufri,
+  PVPC, cooperativas…), consultadas em direto para o perfil da fatura, com **comparação conceito a
+  conceito** (potencia, energía, bono social, alquiler, impuesto eléctrico, IVA, total) e ligação ao
+  comparador oficial. Se a CNMC não responder, usa-se a lista guardada na aplicação (também construída
+  a partir da CNMC). O país é detetado automaticamente a partir do texto da fatura.
 
 Rubricas lidas da fatura portuguesa:
 
@@ -66,8 +69,9 @@ npm install && npm run vendor && npm run data:build && npm run build
 
 `npm run build` cria a pasta **`cloudflare-upload/`** (e o ficheiro `comparador-eletricidade-cloudflare.zip`)
 com tudo o que o browser precisa: `index.html`, `app.js`, `styles.css`, `lib/`, `vendor/pdfjs/`,
-`data/ofertas.json`, `samples/`, mais `_headers`, `_redirects`, `404.html`, `robots.txt` e
-`build.json` (indica a data do dataset ERSE em produção).
+`data/ofertas.json`, `samples/`, mais `_headers`, `_redirects`, `404.html`, `robots.txt`,
+`build.json` (indica a versão da app e as datas dos datasets em produção) e o **`_worker.js`** +
+`_routes.json` do proxy `/api/cnmc/*` (ver [Tarifas españolas](#tarifas-españolas-publicdataofertas-esjson)).
 
 **Opção A – upload direto (sem Git):** Cloudflare Dashboard → *Workers & Pages* → *Create* →
 *Pages* → *Upload assets* → dar nome ao projeto → arrastar a **pasta `cloudflare-upload/`** (ou o `.zip`) →
@@ -93,7 +97,11 @@ Git* → escolher o repositório e definir:
 Para atualizar as ofertas basta trocar o ZIP em `data-src/` (ou correr `npm run data:update` e
 fazer commit do novo ZIP) – o build regenera o `ofertas.json`.
 
-Não são precisos Functions, KV ou variáveis de ambiente – o site não tem backend.
+Não são precisos KV nem variáveis de ambiente. O único código de servidor é o `_worker.js` na raiz do
+bundle (Pages *advanced mode*, funciona também no upload direto): trata apenas `/api/cnmc/*` – proxy
+GET, só de leitura, para a API do comparador da CNMC (que recusa pedidos com cabeçalho `Origin` do
+browser) com cache de 6 h – e entrega tudo o resto como ficheiros estáticos. Se o worker não estiver
+publicado (bundle antigo), o site continua a funcionar com a lista guardada.
 
 ## Atualizar as ofertas (dados ERSE)
 
@@ -113,20 +121,47 @@ Dataset atual: ZIP ERSE de **2026-09-02** (809 ofertas, 28 comercializadores, 17
 
 ## Tarifas españolas (`public/data/ofertas-es.json`)
 
-No existe un fichero público de precios del mercado español (el comparador de la CNMC no ofrece
-descarga y su API interna no es pública), por lo que la lista se mantiene **a mano** con los
-precios sin impuestos publicados en las webs de las comercializadoras (y, cuando la web no los
-muestra, en Rastreator/Selectra). Cada tarifa guarda `source.url` y `source.date`; el detalle de
-cada tarifa en el sitio muestra esa fuente. Campos: `energy` (`single` o `punta/llano/valle`,
-€/kWh), `power` (`p1`/`p2`, €/kW·día), `after` (precios tras la promoción), `feePerDay`/`feePerMonth`
-(indexadas), `extraPerKwh` (p. ej. SNOEE de Repsol), `maxPower`, `maxKwhYear`, `newClientsOnly`,
-`onlineOnly`, `indexed`, `renewable`, `notes`.
+La lista española se construye a partir del **comparador oficial de la CNMC**
+(<https://comparador.cnmc.gob.es>), donde cada comercializadora está obligada a registrar sus ofertas.
+El comparador no publica precios unitarios ni ofrece descarga, sólo el **importe anual estimado** de
+cada oferta para el perfil consultado; su cálculo es lineal en potencia y consumo, así que la
+aplicación lo invierte:
+
+1. **Mercado completo (en vivo, por defecto).** Al comparar, el navegador pide al proxy `/api/cnmc/`
+   siete listas: seis *perfiles de derivación* fijos (iguales para todos los usuarios, cacheados en el
+   edge) que permiten resolver por oferta el término de potencia P1/P2, los tres precios de energía y
+   la cuota fija, y la lista del **perfil de la factura** (potencia, consumo anualizado por periodo,
+   código postal), que dice qué ofertas se pueden contratar y cuánto estima la CNMC para cada una. Las
+   ofertas que no aparecen en alguna lista de derivación (límites de potencia/consumo) se resuelven con
+   tres llamadas al detalle. Cada oferta se **verifica** reproduciendo al céntimo el importe anual que
+   publica la CNMC para el perfil del usuario (`cnmc.verified`); las de horas flexibles (Repsol «10
+   horas») no se pueden reconstruir por periodos y sólo muestran el importe de la CNMC. El detalle de
+   cada oferta muestra el n.º de oferta CNMC, sus importes anuales, la comprobación y los enlaces a la
+   web y al contrato registrados por la comercializadora. Módulos: `public/lib/cnmc.js` (matemática y
+   marcas), `public/app-cnmc.js` (carga), `cloudflare/_worker.js` y `server.mjs` (proxy).
+2. **Lista guardada (`public/data/ofertas-es.json`).** Copia estática, con la misma estructura, usada
+   cuando la CNMC no responde o al elegir «Lista guardada» en el selector de fuente. Se regenera con:
 
 ```bash
-npm run data:check-es      # simula la factura de referencia (4,6 kW, 277 kWh, 31 días) con todas las tarifas
-npm run data:cnmc          # consulta la API del comparador CNMC para el mismo perfil (sólo desde tu PC;
-                           # imprime el coste anual de cada oferta para detectar tarifas nuevas/obsoletas)
+npm run data:cnmc          # desde un PC con internet: descarga las listas de la CNMC, deriva y verifica los
+                           # precios, escribe public/data/ofertas-es.json + reports/cnmc-update.json (1–3 min)
+node scripts/update-cnmc-offers.mjs --dry           # sólo imprime el resumen
+node scripts/update-cnmc-offers.mjs --no-detail     # sin las llamadas al detalle (condiciones/límites)
+node scripts/update-cnmc-offers.mjs --cp 08001 --p1 4.6 --p2 4.6 --kwh 1029,1017,1218   # perfil de referencia
+npm run data:check-es      # simula la factura de referencia (4,6 kW, 277 kWh, 31 días) con la lista guardada
+npm run data:cnmc:link     # antiguo: imprime el coste anual CNMC de cada oferta para un perfil
 ```
+
+Después de regenerar: `npm test && npm run build` y volver a desplegar. La lista guardada actual
+(publicada el 2026-09-08) es la lista curada anterior, con los precios publicados por las
+comercializadoras, y sólo cubre 10 comercializadoras; el modo en vivo cubre todo el mercado.
+
+Campos de cada oferta: `energy` (`single` o `punta/llano/valle`, €/kWh), `power` (`p1`/`p2`,
+€/kW·día), `after` (precios tras la promoción), `feePerDay`/`feePerMonth` (cuotas o descuentos fijos),
+`extraPerKwh`, `bonoSocialIncluded`, `maxPower`/`minPower`/`maxKwhYear`, `newClientsOnly`,
+`permanence`, `servicesIncluded`, `indexed`, `renewable`, `flexible`, `notes`, `source{name,url,date,
+contract}` y, en las ofertas CNMC, `cnmcId`/`cnmcHist`, `legalName` y `cnmc{firstYear, secondYear,
+validez, method, verified, delta, contracting}`.
 
 Modelo de factura (`public/lib/simulator-es.js`, reproduce al céntimo la factura de Endesa incluida
 como ejemplo, 89,84 €): potencia = kW × €/kW·día × días (P1 y P2); energía = kWh × €/kWh;
@@ -297,7 +332,8 @@ public/
   lib/xlsx-lite.js                   leitor .xlsx sem dependências (inflate + zip + OOXML) usado pelos dois fluxos
   lib/xls-lite.js                    leitor .xls (OLE2 + BIFF8/5) e de tabelas HTML / SpreadsheetML guardadas como .xls
   data/ofertas.json                  ofertas ERSE (gerado)
-  data/ofertas-es.json               tarifas españolas (curadas a mano, com fonte e data)
+  data/ofertas-es.json               tarifas españolas guardadas (fallback do modo em direto CNMC)
+  lib/cnmc.js, app-cnmc.js           mercado completo ES: API do comparador CNMC, derivação/verificação de preços, marcas
   vendor/pdfjs/                      pdf.js (gerado por npm run vendor)
   samples/                           faturas de exemplo fictícias (Endesa simples, EDP bi-horária, Endesa España 2.0TD),
                                      curva horaria ES (CSV) e diagrama de carga E-Redes (xlsx + csv)
@@ -307,9 +343,11 @@ scripts/
   make-sample-pdf.mjs                  gera os PDFs de exemplo (pdfkit)
   make-sample-curve.mjs, make-sample-eredes.mjs   geram a curva ES e o Excel/CSV E-Redes de exemplo
   pdf-to-text.mjs                      debug: `node scripts/pdf-to-text.mjs fatura.pdf --parse`
-  update-cnmc.mjs                      consulta a API do comparador da CNMC (npm run data:cnmc)
+  update-cnmc-offers.mjs               regenera ofertas-es.json a partir do comparador da CNMC (npm run data:cnmc)
+  update-cnmc.mjs                      antigo: imprime o custo anual CNMC de cada oferta (npm run data:cnmc:link)
   build-dist.mjs                       cria cloudflare-upload/ + zip para Cloudflare Pages (npm run build)
-server.mjs                           servidor estático local (gzip) + /api/refresh-data
+cloudflare/_worker.js                worker Pages (proxy /api/cnmc/* → comparador CNMC), copiado para a raiz do bundle
+server.mjs                           servidor estático local (gzip) + /api/refresh-data + proxy /api/cnmc/*
 wrangler.toml                        config Cloudflare Pages (output dir = cloudflare-upload)
 test/                                node --test (parser, simulador, UI em jsdom)
 ```
@@ -337,9 +375,12 @@ aplicação aparece no rodapé (`APP_VERSION` em `app.js`) e nas mensagens de er
   o parser (`public/lib/parser.js`, `LINE_DEFS`).
 * IVA das Regiões Autónomas (Madeira 4 %/22 %, Açores 4 %/16 %) não está implementado.
 * Ofertas indexadas usam o preço médio comunicado à ERSE – o valor real varia com o OMIE.
-* España: la lista de tarifas es manual (fecha en cada tarifa) y no incluye PVPC ni tarifas
-  planas/flexibles; IGIC/IPSI se aplican sólo si la factura los indica. Confirme siempre en el
-  comparador oficial de la CNMC (botón con sus datos ya cargados) antes de cambiar.
+* España: los precios del modo «Mercado completo» se derivan de los importes anuales de la CNMC
+  (perfil horario estándar del comparador); las tarifas flexibles por horas no se reconstruyen y las
+  indexadas usan el precio medio con el que la CNMC las calcula. La lista guardada sólo cubre las
+  comercializadoras incluidas cuando se generó. IGIC/IPSI se aplican sólo si la factura los indica.
+  Confirme siempre en el comparador oficial de la CNMC (botón con sus datos ya cargados) antes de
+  cambiar.
 * Curva horaria / consumos E-Redes: se prueban todas las hojas del libro (`.xls`/`.xlsx`/`.ods`); los
   ficheros protegidos con contraseña deben guardarse sin protección o como CSV; las tarifas
   indexadas se simulan con su precio medio (no hora a hora con el precio OMIE de cada hora); los

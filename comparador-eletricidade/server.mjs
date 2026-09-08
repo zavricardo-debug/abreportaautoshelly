@@ -6,6 +6,8 @@
 //
 // Optional: POST /api/refresh-data downloads the latest ERSE dataset (needs
 // outbound internet on the server).
+// GET /api/cnmc/<path>?<query> proxies the official CNMC comparator API (same
+// contract as cloudflare/_worker.js in production) for the live Spanish market mode.
 
 import { createServer } from 'node:http';
 import { createReadStream, statSync, existsSync } from 'node:fs';
@@ -44,6 +46,7 @@ const server = createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
   if (req.method === 'POST' && url.pathname === '/api/refresh-data') return refreshData(res);
+  if (url.pathname.startsWith('/api/cnmc/')) return proxyCnmc(req, res, url);
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
 
   let pathname = decodeURIComponent(url.pathname);
@@ -77,6 +80,38 @@ const server = createServer((req, res) => {
     createReadStream(file).pipe(res);
   }
 });
+
+/* ---------------------------------------------------------------- CNMC proxy */
+const CNMC_UPSTREAM = 'https://comparador.cnmc.gob.es/api/publico/';
+const CNMC_ALLOWED = new Set(['ofertas/electricidad', 'oferta']);
+const CNMC_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36';
+const cnmcCache = new Map();   // target url -> { at, body }
+const sendJson = (res, status, obj) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify(obj)); };
+
+async function proxyCnmc(req, res, url) {
+  if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS' }); return res.end(); }
+  if (req.method !== 'GET') return sendJson(res, 405, { error: 'method not allowed' });
+  const path = url.pathname.slice('/api/cnmc/'.length).replace(/\/+$/, '');
+  if (!CNMC_ALLOWED.has(path)) return sendJson(res, 404, { error: 'endpoint not allowed', path });
+  const q = new URLSearchParams();
+  for (const [k, v] of url.searchParams) {
+    if (!/^[A-Za-z]{1,40}$/.test(k) || !/^[A-Za-z0-9.\-]{0,20}$/.test(v)) return sendJson(res, 400, { error: 'bad parameter', k });
+    q.append(k, v);
+  }
+  const target = `${CNMC_UPSTREAM}${path}?${q.toString()}`;
+  const hit = cnmcCache.get(target);
+  if (hit && Date.now() - hit.at < 6 * 3600 * 1000) { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'HIT' }); return res.end(hit.body); }
+  try {
+    const up = await fetch(target, { headers: { Accept: 'application/json, text/plain, */*', 'Accept-Language': 'es-ES,es;q=0.9', 'User-Agent': CNMC_UA }, signal: AbortSignal.timeout(60000) });
+    const body = await up.text();
+    if (!up.ok || !/json/i.test(up.headers.get('content-type') || '')) return sendJson(res, up.status === 500 ? 502 : up.status, { error: `CNMC answered ${up.status}`, status: up.status, body: body.slice(0, 300) });
+    cnmcCache.set(target, { at: Date.now(), body });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'X-Cache': 'MISS' });
+    res.end(body);
+  } catch (e) {
+    sendJson(res, 502, { error: `upstream unreachable: ${e?.message || e}` });
+  }
+}
 
 function refreshData(res) {
   if (!refreshing) {

@@ -60,7 +60,8 @@ export function splitConsumption(totalKwh, readings, split = RULES_ES_2026.defau
  * @property {{single?:number,punta?:number,llano?:number,valle?:number}} energy  €/kWh sin impuestos
  * @property {{p1:number,p2:number}} power        €/kW·día sin impuestos
  * @property {number} [feePerDay]                 cuota de gestión (indexadas)
- * @property {number} [feePerMonth]
+ * @property {number} [feePerMonth]               cuota fija (negativa = descuento fijo)
+ * @property {boolean} [bonoSocialIncluded]       the offer's prices already include the bono social financing
  */
 
 /** Rebuild the bill for a profile with the given prices. All amounts rounded to cents like a real bill. */
@@ -96,7 +97,7 @@ export function simulateES(profile, prices, rules = RULES_ES_2026) {
   let fee = 0;
   if (prices.feePerDay) fee = r2(prices.feePerDay * days);
   else if (prices.feePerMonth) fee = r2(prices.feePerMonth * days * 12 / 365);
-  if (fee) lines.push({ id: 'fee', group: 'fee', label: 'Cuota de gestión', qty: days, unit: 'días', price: prices.feePerDay || prices.feePerMonth, priceUnit: prices.feePerDay ? '€/día' : '€/mes', amount: fee });
+  if (fee) lines.push({ id: 'fee', group: 'fee', label: fee < 0 ? 'Descuento fijo de la tarifa' : 'Cuota fija de la tarifa', qty: days, unit: 'días', price: prices.feePerDay || prices.feePerMonth, priceUnit: prices.feePerDay ? '€/día' : '€/mes', amount: fee });
   // some suppliers bill regulated extras per kWh in a separate line (e.g. Repsol: SNOEE 0,00266 €/kWh)
   let extra = 0;
   if (prices.extraPerKwh) { extra = r2(prices.extraPerKwh * totalKwh); lines.push({ id: 'extra', group: 'fee', label: prices.extraLabel || 'Otros conceptos regulados', qty: totalKwh, unit: 'kWh', price: prices.extraPerKwh, priceUnit: '€/kWh', amount: extra }); }
@@ -104,9 +105,11 @@ export function simulateES(profile, prices, rules = RULES_ES_2026) {
   let other = 0;
   if (prices.otherAmount) { other = r2(+prices.otherAmount); lines.push({ id: 'other', group: 'fee', label: prices.otherLabel || (other < 0 ? 'Descuentos de la tarifa' : 'Cuotas de la tarifa'), qty: null, unit: '', price: null, priceUnit: '', amount: other }); }
 
-  const bonoSocial = r2(bonoPerDay * days);
+  // some offers (e.g. Enérgya-VM) embed the bono social financing in their energy/power prices: no separate line
+  const bonoIncluded = !!prices.bonoSocialIncluded;
+  const bonoSocial = bonoIncluded ? 0 : r2(bonoPerDay * days);
   const meterRent = r2(rentPerDay * days);
-  lines.push({ id: 'bono_social', group: 'regulated', label: 'Financiación Bono Social', qty: days, unit: 'días', price: bonoPerDay, priceUnit: '€/día', amount: bonoSocial });
+  lines.push({ id: 'bono_social', group: 'regulated', label: bonoIncluded ? 'Financiación Bono Social (incluida en los precios de la tarifa)' : 'Financiación Bono Social', qty: days, unit: 'días', price: bonoIncluded ? 0 : bonoPerDay, priceUnit: '€/día', amount: bonoSocial });
   lines.push({ id: 'meter_rent', group: 'regulated', label: 'Alquiler del contador', qty: days, unit: 'días', price: rentPerDay, priceUnit: '€/día', amount: meterRent });
 
   const powerAmount = r2(powerP1 + powerP2);
@@ -137,7 +140,7 @@ export function baselinePricesES(form) {
 /** Prices of an offer, with or without its welcome promotion. */
 export function offerPricesES(offer, { includePromo = true } = {}) {
   const src = !includePromo && offer.after ? { ...offer, ...offer.after } : offer;
-  return { energy: src.energy, power: src.power, feePerDay: src.feePerDay || 0, feePerMonth: src.feePerMonth || 0, extraPerKwh: src.extraPerKwh || 0, extraLabel: src.extraLabel || null };
+  return { energy: src.energy, power: src.power, feePerDay: src.feePerDay || 0, feePerMonth: src.feePerMonth || 0, extraPerKwh: src.extraPerKwh || 0, extraLabel: src.extraLabel || null, bonoSocialIncluded: !!src.bonoSocialIncluded };
 }
 
 /** Whether an offer can be contracted with this profile. */
@@ -156,6 +159,7 @@ export function offerApplicableES(offer, profile) {
 export function simulateAllES(dataset, profile, { includePromo = true, currentSupplierCode = null } = {}) {
   const out = [];
   for (const offer of dataset.offers || []) {
+    if (offer.prices === false || !offer.energy || !offer.power) continue;   // CNMC offer without derivable unit prices
     if (!offerApplicableES(offer, profile)) continue;
     const prices = offerPricesES(offer, { includePromo });
     const sim = simulateES(profile, prices, dataset.rules || RULES_ES_2026);
