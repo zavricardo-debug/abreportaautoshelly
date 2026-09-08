@@ -11,7 +11,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
-export const APP_VERSION = '1.8.0'; // shown in the footer + error messages (helps spot stale caches)
+export const APP_VERSION = '1.8.1'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
   country: 'PT',    // 'PT' (ERSE flow) or 'ES' (2.0TD flow, app-es.js)
@@ -614,7 +614,7 @@ function periodEnergyHtml(sim, isBaseRow) {
       (isBaseRow ? `<span class="pe-off">${fmtEur(r.now)}</span>` : `<span class="pe-now" title="com os preços da sua fatura${r.mixed ? ' (média ponderada ponta/cheias)' : ''}">${fmtEur(r.now)}</span><span class="pe-arrow">→</span><span class="pe-off">${fmtEur(r.off)}</span>` +
         `<span class="pe-d ${d < -0.005 ? 'good' : d > 0.005 ? 'bad' : 'zero'}">${d === 0 ? '=' : (d < 0 ? '−' : '+') + fmtEur(Math.abs(d))}</span>`) + '</div>';
   }).join('');
-  return `<div class="period-energy">${inner}</div>`;
+  return `<div class="period-energy${isBaseRow ? ' base' : ''}">${inner}</div>`;
 }
 
 /** Detail modal: table "energia por período – o que paga hoje vs. esta oferta". */
@@ -643,17 +643,17 @@ function periodEnergyTablePT(x, base) {
 function rowEl(r) {
   const tr = document.createElement('tr');
   tr.className = r.cls || '';
-  const diffCell = r.diff === null ? '<td class="num">—</td>' :
-    `<td class="num diff ${r.diff < -0.005 ? 'good' : r.diff > 0.005 ? 'bad' : ''}">${r.diff < 0 ? '−' : r.diff > 0 ? '+' : ''}${fmtEur(Math.abs(r.diff))}</td>`;
+  const diffCell = r.diff === null ? '<td class="num" data-label="Diferença">—</td>' :
+    `<td class="num diff ${r.diff < -0.005 ? 'good' : r.diff > 0.005 ? 'bad' : ''}" data-label="Diferença vs. a sua fatura">${r.diff < 0 ? '−' : r.diff > 0 ? '+' : ''}${fmtEur(Math.abs(r.diff))}</td>`;
   tr.innerHTML = `
     <td class="rank">${r.rank}</td>
-    <td><div class="offer-name">${esc(r.name)}</div>${r.sub ? `<div class="offer-sub">${esc(r.sub)}</div>` : ''}${r.badges?.length ? `<div class="badges">${r.badges.map(([c, t]) => `<span class="badge ${c}">${esc(t)}</span>`).join('')}</div>` : ''}</td>
-    <td class="num">${fmtNum(r.energy, 4)}${r.periods || ''}</td>
-    <td class="num">${fmtNum(r.power, 4)}</td>
-    <td class="num"><b>${fmtEur(r.total)}</b></td>
+    <td class="name" data-rank="${r.rank}"><div class="offer-name">${esc(r.name)}</div>${r.sub ? `<div class="offer-sub">${esc(r.sub)}</div>` : ''}${r.badges?.length ? `<div class="badges">${r.badges.map(([c, t]) => `<span class="badge ${c}">${esc(t)}</span>`).join('')}</div>` : ''}</td>
+    <td class="num" data-label="Energia €/kWh s/IVA">${fmtNum(r.energy, 4)}${r.periods || ''}</td>
+    <td class="num" data-label="Potência €/dia s/IVA">${fmtNum(r.power, 4)}</td>
+    <td class="num" data-label="Fatura estimada c/ IVA"><b>${fmtEur(r.total)}</b></td>
     ${diffCell}
-    <td class="num">${fmtEur(r.year, 0)}</td>
-    <td><button type="button" class="btn ghost small">Detalhe</button></td>`;
+    <td class="num" data-label="Por ano">${fmtEur(r.year, 0)}</td>
+    <td class="act"><button type="button" class="btn ghost small">Detalhe</button></td>`;
   $('button', tr).addEventListener('click', r.onDetail);
   return tr;
 }

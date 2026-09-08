@@ -525,7 +525,7 @@ function renderResultsES() {
   $('#es-results-sub').textContent = `Perfil: ${fmtNum(f.power.p1, 2)} kW punta / ${fmtNum(f.power.p2, 2)} kW valle · ${fmtNum(totalKwh, 0)} kWh en ${f.days} días (punta ${fmtNum(f.kwh.punta, 0)} · llano ${fmtNum(f.kwh.llano, 0)} · valle ${fmtNum(f.kwh.valle, 0)}${f.curve ? ' – reparto REAL de su curva horaria' : ' – reparto estimado'})` +
     (shifted ? ` · simulando trasladar el ${Math.round(ES.shift * 100)} % de punta y llano a valle (punta ${fmtNum(shifted.punta, 0)} · llano ${fmtNum(shifted.llano, 0)} · valle ${fmtNum(shifted.valle, 0)} kWh)` : '') + ` · ${ES.results.length} tarifas aplicables.` +
     (f.curve ? ' En "Detalle" de cada tarifa verá el coste de la energía hora a hora con su consumo real.' : '');
-  $('#es-th-days').textContent = `${f.days} días, con impuestos`;
+  $('#es-th-days').textContent = `${f.days} días, con imp. · vs. su factura · al año`;
 
   const best = rows[0];
   const cheaper = rows.filter((x) => x.sim.total < base.total - 0.005).length;
@@ -591,10 +591,10 @@ function renderPeriodTable(rows) {
   const rowHtml = (rank, name, prices, cls, baseEnergy) => {
     const amounts = PERIODS_ES.map((k) => kwh[k] * (priceOf(prices, k) || 0));
     const sum = amounts.reduce((x, y) => x + y, 0);
-    return `<tr class="${cls}"><td class="rank">${rank}</td><td><div class="offer-name">${esc(name)}</div></td>` +
-      PERIODS_ES.map((k, i) => `<td class="num">${fmtEur(amounts[i])}<span class="p-price">${fmtNum(priceOf(prices, k) || 0, 4)} €/kWh</span></td>`).join('') +
-      `<td class="num"><b>${fmtEur(sum)}</b></td><td class="num">${fmtNum(sum / total, 4)}</td>` +
-      (baseEnergy === null ? '<td class="num">—</td>' : `<td class="num diff ${sum - baseEnergy < -0.005 ? 'good' : sum - baseEnergy > 0.005 ? 'bad' : ''}">${signed(r2(sum - baseEnergy))}</td>`) + '</tr>';
+    return `<tr class="${cls}"><td class="rank">${rank}</td><td class="name" data-rank="${rank}"><div class="offer-name">${esc(name)}</div></td>` +
+      PERIODS_ES.map((k, i) => `<td class="num" data-label="${PERIOD_LABELS_ES[k]}">${fmtEur(amounts[i])}<span class="p-price">${fmtNum(priceOf(prices, k) || 0, 4)} €/kWh</span></td>`).join('') +
+      `<td class="num" data-label="Energía total"><b>${fmtEur(sum)}</b></td><td class="num" data-label="Precio medio €/kWh">${fmtNum(sum / total, 4)}</td>` +
+      (baseEnergy === null ? '<td class="num" data-label="vs. su factura">—</td>' : `<td class="num diff ${sum - baseEnergy < -0.005 ? 'good' : sum - baseEnergy > 0.005 ? 'bad' : ''}" data-label="vs. su factura">${signed(r2(sum - baseEnergy))}</td>`) + '</tr>';
   };
   const basePrices = basePricesOf(f);
   const baseEnergy = PERIODS_ES.reduce((a, k) => a + kwh[k] * (priceOf(basePrices, k) || 0), 0);
@@ -631,10 +631,11 @@ function badges(x) {
   return b;
 }
 
-function cell(v, baseV, bold = false, extra = '') {
+/** One cost cell: amount, delta vs. the same line of the bill underneath, optional extra block. `label` feeds the card layout (small screens). */
+function cell(label, v, baseV, { bold = false, extra = '', cls = '' } = {}) {
   const d = baseV === null || baseV === undefined ? null : r2(v - baseV);
   const dHtml = d === null ? '' : `<span class="cell-delta ${d < -0.005 ? 'good' : d > 0.005 ? 'bad' : 'zero'}">${d === 0 ? '=' : signed(d)}</span>`;
-  return `<td class="num">${bold ? '<b>' : ''}${fmtEur(v)}${bold ? '</b>' : ''}${dHtml}${extra}</td>`;
+  return `<td class="num${cls ? ' ' + cls : ''}" data-label="${esc(label)}">${bold ? '<b>' : ''}${fmtEur(v)}${bold ? '</b>' : ''}${dHtml}${extra}</td>`;
 }
 
 /** Energy of each 2.0TD period: what the bill's prices cost for those kWh vs. this tariff (kWh from the form / curve, what-if applied). */
@@ -653,7 +654,7 @@ function periodEnergyHtml(sim, base) {
       `<span class="pe-off">${fmtEur(off)}</span>` +
       (d === null ? '' : `<span class="pe-d ${d < -0.005 ? 'good' : d > 0.005 ? 'bad' : 'zero'}">${d === 0 ? '=' : signed(d)}</span>`) + '</div>';
   }).join('');
-  return `<div class="period-energy">${rows}</div>`;
+  return `<div class="period-energy${base ? '' : ' base'}">${rows}</div>`;
 }
 
 function rowEl(r) {
@@ -661,18 +662,19 @@ function rowEl(r) {
   tr.className = r.cls || '';
   const s = r.sim, b = r.base;
   const diff = b ? r2(s.total - b.total) : null;
+  const dcls = diff === null ? '' : diff < -0.005 ? 'good' : diff > 0.005 ? 'bad' : 'zero';
+  // TOTAL cell = total · difference vs. the bill (like every other column) · annual figure (with its annual difference)
+  const year = `<span class="cell-year">${fmtEur(s.totalPerYear, 0)}/año${diff === null ? '' : ` <span class="${dcls}">(${signed(diff * 365 / s.days, 0)})</span>`}</span>`;
   tr.innerHTML = `
     <td class="rank">${r.rank}</td>
-    <td><div class="offer-name">${esc(r.name)}</div>${r.sub ? `<div class="offer-sub">${esc(r.sub)}</div>` : ''}${r.badges?.length ? `<div class="badges">${r.badges.map(([c, t]) => `<span class="badge ${c}">${esc(t)}</span>`).join('')}</div>` : ''}</td>
-    ${cell(s.powerAmount, b?.powerAmount)}
-    ${cell(s.energyAmount, b?.energyAmount, false, periodEnergyHtml(s, b))}
-    ${cell(regulatedOf(s), b ? regulatedOf(b) : null)}
-    ${cell(s.ie, b?.ie)}
-    ${cell(s.iva, b?.iva)}
-    ${cell(s.total, null, true)}
-    ${diff === null ? '<td class="num">—</td>' : `<td class="num diff ${diff < -0.005 ? 'good' : diff > 0.005 ? 'bad' : ''}">${signed(diff)}<span class="cell-delta ${diff < -0.005 ? 'good' : diff > 0.005 ? 'bad' : 'zero'}">${signed(diff * 365 / s.days, 0)}/año</span></td>`}
-    <td class="num">${fmtEur(s.totalPerYear, 0)}</td>
-    <td><button type="button" class="btn ghost small">Detalle</button></td>`;
+    <td class="name" data-rank="${r.rank}"><div class="offer-name">${esc(r.name)}</div>${r.sub ? `<div class="offer-sub">${esc(r.sub)}</div>` : ''}${r.badges?.length ? `<div class="badges">${r.badges.map(([c, t]) => `<span class="badge ${c}">${esc(t)}</span>`).join('')}</div>` : ''}</td>
+    ${cell('Potencia', s.powerAmount, b?.powerAmount)}
+    ${cell('Energía', s.energyAmount, b?.energyAmount, { extra: periodEnergyHtml(s, b) })}
+    ${cell('Otros conceptos', regulatedOf(s), b ? regulatedOf(b) : null)}
+    ${cell('Impuesto eléctrico', s.ie, b?.ie)}
+    ${cell('IVA', s.iva, b?.iva)}
+    ${cell(`Total ${s.days} días`, s.total, b?.total, { bold: true, cls: 'total', extra: year })}
+    <td class="act"><button type="button" class="btn ghost small">Detalle</button></td>`;
   $('button', tr).addEventListener('click', r.onDetail);
   return tr;
 }

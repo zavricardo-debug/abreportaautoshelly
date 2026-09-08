@@ -215,8 +215,15 @@ test('Spanish bill: auto-detected, every cost line pre-filled, bill rebuilt to 8
   const regulated = rows.slice(1).map((r) => r.children[4].textContent);
   assert.ok(regulated.filter((t) => /^1,60\s*€=$/.test(t)).length >= regulated.length / 2, regulated.join(' | '));
   assert.ok(regulated.every((t) => /^1,60\s*€=$/.test(t) || /\+/.test(t)), 'regulated column never goes below the bill');
-  const totals = rows.slice(1).map((r) => Number(r.children[7].textContent.replace(/[^\d,]/g, '').replace(',', '.')));
+  // TOTAL cell = <b>total</b> + delta vs. the bill + annual figure: the bold part is the total
+  const totalOf = (r) => Number(r.children[7].querySelector('b').textContent.replace(/[^\d,]/g, '').replace(',', '.'));
+  const totals = rows.slice(1).map(totalOf);
   for (let i = 1; i < totals.length; i++) assert.ok(totals[i - 1] <= totals[i], 'sorted by total');
+  // the TOTAL cell also shows the difference vs. the bill and the annual figure (no separate columns → no horizontal scroll)
+  assert.match(rows[1].children[7].textContent, /€−\d+,\d\d\s?€\d[\d.]*\s?€\/año \(−\d[\d.]*\s?€\)$/, rows[1].children[7].textContent);
+  assert.equal(rows[0].children[7].querySelector('.cell-delta'), null, 'baseline total has no delta');
+  assert.equal(rows[1].children.length, 9, 'nine columns');
+  for (const td of rows[1].querySelectorAll('td.num')) assert.ok(td.dataset.label, 'every cost cell carries its label for the card layout');
   assert.ok(totals[0] < 80, `best total ${totals[0]}`);
   // Endesa (current supplier) rows lose the welcome promotion / new-client offers are hidden for it
   const endesaRows = rows.slice(1).filter((r) => /^Endesa/.test(r.querySelector('.offer-name').textContent));
@@ -375,10 +382,10 @@ test('Spanish flow with an hourly consumption CSV: real punta/llano/valle split 
   assert.equal(hb.querySelectorAll('table.hourly thead th').length, 4);
   d.querySelector('#modal-close').click();
   // what-if: shift 25 % of punta+llano to valle -> cheaper 3-period totals
-  const before = Number(rows[1].children[7].textContent.replace(/[^\d,]/g, '').replace(',', '.'));
+  const before = Number(rows[1].children[7].querySelector('b').textContent.replace(/[^\d,]/g, '').replace(',', '.'));
   const sh = d.querySelector('#es-flt-shift'); sh.value = '0.25'; sh.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.match(d.querySelector('#es-results-sub').textContent, /trasladar el 25 %/);
-  const after = Number(d.querySelectorAll('#es-results-table tbody tr')[1].children[7].textContent.replace(/[^\d,]/g, '').replace(',', '.'));
+  const after = Number(d.querySelectorAll('#es-results-table tbody tr')[1].children[7].querySelector('b').textContent.replace(/[^\d,]/g, '').replace(',', '.'));
   assert.ok(after < before, `shift lowers the best total: ${after} < ${before}`);
   // the hourly detail follows the what-if scenario and its total matches the tariff's energy line
   const bestRow = d.querySelectorAll('#es-results-table tbody tr')[1]; bestRow.querySelector('button').click();
