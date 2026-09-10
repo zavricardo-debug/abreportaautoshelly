@@ -1,8 +1,10 @@
 package com.example.shellydoor
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.location.Location
 import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.net.Uri
@@ -19,6 +21,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationServices
 
 /**
  * Ecrã principal: lista as moradas (cada uma independente, com a sua porta e Shelly).
@@ -93,7 +96,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (prefs.autoEnabled && hasFineLocation()) DoorServiceStarter.ensureRunning(this)
+
+        // "Ligo a app quando venho para casa": abrir a app É o gesto. No Modo
+        // Chegada não obrigamos a carregar em mais nada — se ainda não há
+        // sessão a decorrer, começa uma já e arma tudo. O botão continua a
+        // existir para parar, ou para renovar o tempo.
+        if (prefs.arrivalModeEnabled && !prefs.arrivalSessionActive() && hasFineLocation()) {
+            beginArrivalSession()
+            toast("A caminho de casa — a porta abre quando lá chegares (${prefs.arrivalSessionMinutes} min).")
+        } else if (prefs.autoEnabled && !prefs.arrivalModeEnabled && hasFineLocation()) {
+            DoorServiceStarter.ensureRunning(this)
+        }
         rebuild()
     }
 
@@ -337,13 +350,13 @@ class MainActivity : AppCompatActivity() {
             prefs.arrivalSessionActive() -> {
                 val s = prefs.arrivalSessionRemainingS()
                 btn.text = "⏹ A seguir-te (%d:%02d) — tocar para parar".format(s / 60, s % 60)
-                hint.text = "Moradas armadas. A porta abre assim que chegares. " +
-                    "Termina sozinho quando o tempo acabar."
+                hint.text = "Armado. Passa pelo ponto da porta e ela abre — sem teres de " +
+                    "estar longe X metros durante Y segundos. Termina sozinho."
             }
             prefs.arrivalModeEnabled -> {
-                btn.text = getString(R.string.btn_arrival_start)
-                hint.text = "Modo Chegada ligado: a app não corre em segundo plano. " +
-                    "Carrega aqui quando fores para casa."
+                btn.text = "🚗 Renovar tempo — vou para casa"
+                hint.text = "Modo Chegada ligado: basta ABRIR a app quando vieres para casa, " +
+                    "que a sessão começa sozinha. A app não corre em segundo plano."
             }
             else -> {
                 btn.text = getString(R.string.btn_arrival_start)
@@ -376,15 +389,48 @@ class MainActivity : AppCompatActivity() {
 
         if (!hasFineLocation()) { ensurePermissionsAndStart(); return }
 
-        prefs.startArrivalSession()
-        val engine = DoorDecisionEngine(prefs, WifiHomeChecker(this, prefs, store))
-        val doors = store.all()
-        doors.filter { it.enabled && it.hasPoint() }.forEach { engine.forceArm(it) }
-        store.updateAll(doors)
-
-        DoorServiceStarter.ensureRunning(this)
+        beginArrivalSession()
         toast("A seguir-te durante ${prefs.arrivalSessionMinutes} min — a porta abre quando chegares.")
         rebuild()
+    }
+
+    /**
+     * Arranca a sessão: arma já todas as moradas activas e liga o rastreio.
+     *
+     * Armar aqui é o ponto todo do modo. A partir do momento em que abres a
+     * app, a app assume que estás fora e a caminho — não tens de te afastar
+     * X metros durante Y segundos. Fica só a faltar passares pelo ponto da
+     * porta, com GPS decente e sem ir a correr.
+     */
+    @SuppressLint("MissingPermission")
+    private fun beginArrivalSession() {
+        prefs.startArrivalSession()
+        DoorServiceStarter.ensureRunning(this)
+
+        val engine = DoorDecisionEngine(prefs, WifiHomeChecker(this, prefs, store))
+        val doors = store.all().filter { it.enabled && it.hasPoint() }
+
+        // Arma já com a última posição conhecida (instantâneo, sem esperar por
+        // um fix novo). Se ainda não houver posição, arma como "fora" — o
+        // serviço corrige na primeira leitura real.
+        fun aplicar(loc: Location?) {
+            doors.forEach { d ->
+                val dist = loc?.let { DoorDecisionEngine.distanceTo(d, it) }
+                engine.armForArrival(d, dist)
+            }
+            store.updateAll(doors)
+            rebuild()
+        }
+
+        if (!hasFineLocation()) { aplicar(null); return }
+        try {
+            LocationServices.getFusedLocationProviderClient(this)
+                .lastLocation
+                .addOnSuccessListener { aplicar(it) }
+                .addOnFailureListener { aplicar(null) }
+        } catch (e: Exception) {
+            aplicar(null)
+        }
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()

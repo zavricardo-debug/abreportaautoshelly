@@ -76,11 +76,27 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
         // precisão do GPS, velocidade, pausa e cooldown.
         // ---------------------------------------------------------------
         if (prefs.arrivalSessionActive()) {
+            // Fora do raio: é o estado normal de quem vem a caminho. Marca que
+            // já esteve fora, que é a única prova de "não estou dentro de casa"
+            // que precisamos — sem metros extra e sem cronómetro.
             if (distanceM > radius) {
+                if (door.awaySinceAt == 0L) door.awaySinceAt = now
                 return silent(
                     door,
                     "Modo Chegada · a %.0f m (abre a %.0f m) · %ds".format(
                         distanceM, radius, prefs.arrivalSessionRemainingS()
+                    )
+                )
+            }
+
+            // Dentro do raio, mas a sessão começou aqui dentro e nunca saíste:
+            // abriste a app em casa (para mexer numa definição, por exemplo).
+            // Não dispara. Basta saíres do raio uma vez para ficar pronta.
+            if (door.awaySinceAt == 0L) {
+                return silent(
+                    door,
+                    "Modo Chegada · já estás no ponto (%.0f m) — sai do raio uma vez para armar".format(
+                        distanceM
                     )
                 )
             }
@@ -437,12 +453,33 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
 
     /** Devolve a morada ao estado armado (para testar no local). */
     fun forceArm(door: Door) {
+        val now = System.currentTimeMillis()
         door.armed = true
-        door.lastArmedAt = System.currentTimeMillis()
-        door.awaySinceAt = 0L
+        door.lastArmedAt = now
+        // Conta como "já esteve fora": foi um pedido explícito de armar.
+        door.awaySinceAt = now
         door.lastOpenAt = 0L
         door.pauseUntil = 0L
         door.lastReason = "Armada à mão ✓"
+    }
+
+    /**
+     * Arma para uma sessão do Modo Chegada, a partir da distância actual.
+     *
+     * Se estás FORA do raio, fica pronta a disparar quando chegares. Se estás
+     * DENTRO (abriste a app em casa), fica a aguardar que saias do raio uma vez
+     * — assim mexer nas definições sentado no sofá não abre a porta.
+     */
+    fun armForArrival(door: Door, distanceM: Float?) {
+        val now = System.currentTimeMillis()
+        door.armed = true
+        door.lastArmedAt = now
+        door.lastOpenAt = 0L
+        door.pauseUntil = 0L
+        val fora = distanceM == null || distanceM > door.radiusM
+        door.awaySinceAt = if (fora) now else 0L
+        door.lastReason =
+            if (fora) "Modo Chegada · pronta" else "Modo Chegada · sai do raio para armar"
     }
 
     /** Marca a morada como aberta: desarma, grava timestamps e a pausa opcional. */

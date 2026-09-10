@@ -181,7 +181,7 @@ Por defeito: 1</string>
     <string name="hint_away_override">vazio = usa o global</string>
     <string name="btn_arrival_start">🚗 Vou para casa — abrir a porta ao chegar</string>
     <string name="label_arrival_mode">Modo Chegada (poupar bateria)</string>
-    <string name="desc_arrival_mode">Com isto ligado, a app NÃO fica a trabalhar em segundo plano. Só segue a tua posição quando carregas em "Vou para casa". Poupa muita bateria, mas tens de abrir a app antes de chegares.</string>
+    <string name="desc_arrival_mode">Com isto ligado, a app NÃO fica a trabalhar em segundo plano. Basta ABRIR a app quando vieres para casa: a partir daí assume que estás fora e a chegar, e a porta abre só por passares pelo ponto (com GPS decente e sem ir a correr). Não é preciso afastares-te X metros durante Y segundos. Poupa muita bateria, mas tens de abrir a app antes de chegares.</string>
     <string name="label_arrival_minutes">Duração da sessão (minutos)</string>
     <string name="desc_arrival_minutes">Ao fim deste tempo a app desliga o rastreio sozinha, mesmo que não tenhas chegado. Evita ficar a gastar bateria esquecida.</string>
     <string name="hint_arrival_minutes">30</string>
