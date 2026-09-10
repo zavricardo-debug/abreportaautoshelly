@@ -34,6 +34,30 @@
             android:text="@string/settings_section_approach" />
 
         <CheckBox
+            android:id="@+id/cbArrivalMode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/label_arrival_mode" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_arrival_mode" />
+
+        <TextView
+            style="@style/SettingsLabel"
+            android:text="@string/label_arrival_minutes" />
+
+        <TextView
+            style="@style/SettingsCaption"
+            android:text="@string/desc_arrival_minutes" />
+
+        <EditText
+            android:id="@+id/etArrivalMinutes"
+            style="@style/SettingsField"
+            android:inputType="number"
+            android:hint="@string/hint_arrival_minutes" />
+
+        <CheckBox
             android:id="@+id/cbActiveTracking"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

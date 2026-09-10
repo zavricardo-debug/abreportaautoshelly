@@ -13,7 +13,8 @@ class BootReceiver : BroadcastReceiver() {
             "android.intent.action.LOCKED_BOOT_COMPLETED",
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 Log.i(TAG, "${intent.action} — a rearmar a automação")
-                if (Prefs(context).autoEnabled) {
+                val p = Prefs(context)
+                if (p.autoEnabled && !p.arrivalModeEnabled) {
                     DoorServiceStarter.ensureRunning(context.applicationContext)
                 }
             }

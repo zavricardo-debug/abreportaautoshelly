@@ -33,6 +33,8 @@ class GlobalSettingsActivity : AppCompatActivity() {
         val etFarInt = findViewById<EditText>(R.id.etFarInterval)
         val cbActive = findViewById<CheckBox>(R.id.cbActiveTracking)
         val cbWifiArmed = findViewById<CheckBox>(R.id.cbWifiBlocksArmed)
+        val cbArrival = findViewById<CheckBox>(R.id.cbArrivalMode)
+        val etArrivalMin = findViewById<EditText>(R.id.etArrivalMinutes)
 
         etSpeed.setText(prefs.maxSpeedMs.toString())
         etCooldown.setText((prefs.cooldownMs / 1000).toString())
@@ -47,6 +49,8 @@ class GlobalSettingsActivity : AppCompatActivity() {
         etFarInt.setText(prefs.farIntervalSec.toString())
         cbActive.isChecked = prefs.activeTracking
         cbWifiArmed.isChecked = prefs.wifiBlocksWhenArmed
+        cbArrival.isChecked = prefs.arrivalModeEnabled
+        etArrivalMin.setText(prefs.arrivalSessionMinutes.toString())
 
         findViewById<Button>(R.id.btnBattery).setOnClickListener { askIgnoreBatteryOptimizations() }
 
@@ -80,6 +84,15 @@ class GlobalSettingsActivity : AppCompatActivity() {
             prefs.farIntervalSec = (etFarInt.text.toString().toIntOrNull() ?: 45).coerceIn(5, 600)
             prefs.activeTracking = cbActive.isChecked
             prefs.wifiBlocksWhenArmed = cbWifiArmed.isChecked
+            val arrivalAntes = prefs.arrivalModeEnabled
+            prefs.arrivalModeEnabled = cbArrival.isChecked
+            prefs.arrivalSessionMinutes =
+                (etArrivalMin.text.toString().toIntOrNull() ?: 30).coerceIn(1, 720)
+            // Ao LIGAR o modo, corta já o que estiver a correr: é esse o objectivo.
+            if (!arrivalAntes && prefs.arrivalModeEnabled) {
+                prefs.stopArrivalSession()
+                DoorServiceStarter.stopNow(this)
+            }
 
             // Reiniciar o serviço para aplicar os novos ritmos de GPS.
             stopService(Intent(this, DoorService::class.java))

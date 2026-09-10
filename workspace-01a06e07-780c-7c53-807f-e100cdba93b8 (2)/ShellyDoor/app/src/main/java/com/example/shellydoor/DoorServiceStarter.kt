@@ -18,10 +18,30 @@ object DoorServiceStarter {
 
     private const val TAG = "DoorServiceStarter"
 
+    /** Pára já o serviço (usado ao terminar uma sessão do Modo Chegada). */
+    fun stopNow(context: Context) {
+        val app = context.applicationContext
+        try {
+            app.stopService(Intent(app, DoorService::class.java))
+        } catch (e: Exception) {
+            Log.e(TAG, "Falha ao parar serviço: ${e.message}", e)
+        }
+    }
+
     fun ensureRunning(context: Context) {
         val app = context.applicationContext
 
-        if (!Prefs(app).autoEnabled) {
+        val prefs = Prefs(app)
+
+        // Modo Chegada: fora de uma sessão o serviço NÃO deve existir. Isto é o
+        // que impede a app de voltar a ligar-se sozinha (arranque do telemóvel,
+        // geofence, abrir as definições) e de aquecer o telemóvel sem motivo.
+        if (prefs.arrivalModeEnabled && !prefs.arrivalSessionActive()) {
+            Log.i(TAG, "Modo Chegada sem sessão; não arranco o serviço.")
+            return
+        }
+
+        if (!prefs.arrivalModeEnabled && !prefs.autoEnabled) {
             Log.i(TAG, "Automação desligada; não arranco o serviço.")
             return
         }

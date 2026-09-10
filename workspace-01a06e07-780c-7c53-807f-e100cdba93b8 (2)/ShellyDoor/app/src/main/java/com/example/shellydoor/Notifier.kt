@@ -18,6 +18,7 @@ object Notifier {
 
     const val CHANNEL_STATUS = "door_status"
     const val CHANNEL_ALERT = "door_alert"
+    private const val NOTIF_ID_SESSION = 4242
     const val ACTION_OPEN_MANUAL = "com.example.shellydoor.OPEN_MANUAL"
     const val EXTRA_DOOR_ID = "door_id"
     const val NOTIF_ID_ALERT = 1001
@@ -42,6 +43,17 @@ object Notifier {
     /** Id de notificação próprio de cada morada (não se sobrepõem entre moradas). */
     private fun idFor(door: Door, offset: Int) =
         NOTIF_ID_ALERT + offset + (door.id.hashCode().toLong().let { kotlin.math.abs(it) } % 100).toInt() * 10
+
+    /** Avisa que a sessão do Modo Chegada acabou e que já não se está a rastrear. */
+    fun showSessionEnded(context: Context) {
+        val nm = context.getSystemService(NotificationManager::class.java)
+        val builder = Notification.Builder(context, CHANNEL_STATUS)
+            .setContentTitle("Modo Chegada terminado")
+            .setContentText("Já não estou a seguir a tua posição. Abre a app quando fores para casa.")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setAutoCancel(true)
+        nm.notify(NOTIF_ID_SESSION, builder.build())
+    }
 
     fun showOpenNotification(context: Context, door: Door, text: String) {
         val nm = context.getSystemService(NotificationManager::class.java)

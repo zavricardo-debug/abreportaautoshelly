@@ -15,7 +15,7 @@ class App : Application() {
         // Cria as moradas por defeito (Ladra, Alvalade, Argandona) apenas no 1.º arranque
         DoorStore(this).seedIfNeeded()
         // Se a automação estava ligada, re-arranca o serviço na abertura da app
-        if (Prefs(this).autoEnabled) {
+        if (Prefs(this).autoEnabled && !Prefs(this).arrivalModeEnabled) {
             Log.i("App", "A rearmar automação ao arrancar")
             DoorServiceStarter.ensureRunning(this)
         }

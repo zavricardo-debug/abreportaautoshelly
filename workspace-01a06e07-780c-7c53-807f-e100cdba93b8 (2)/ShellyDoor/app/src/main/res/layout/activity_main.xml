@@ -35,6 +35,19 @@
     </ScrollView>
 
     <Button
+        android:id="@+id/btnArrival"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textStyle="bold"
+        android:text="@string/btn_arrival_start" />
+
+    <TextView
+        android:id="@+id/tvArrivalHint"
+        style="@style/SettingsCaption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <Button
         android:id="@+id/btnAddDoor"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

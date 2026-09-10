@@ -124,6 +124,40 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_WIFI_BLOCKS_ARMED, false)
         set(v) = sp.edit().putBoolean(KEY_WIFI_BLOCKS_ARMED, v).apply()
 
+    // ---- Modo Chegada (sessão manual, sem serviço permanente) ----
+    /**
+     * Quando ligado, a app NÃO corre em segundo plano de forma permanente.
+     * Só rastreia quando arrancas uma "sessão de chegada" — abres a app a
+     * caminho de casa e ela fica à espera de te ver chegar à porta.
+     *
+     * É o modo que poupa bateria: fora da sessão, zero GPS e zero serviço.
+     */
+    var arrivalModeEnabled: Boolean
+        get() = sp.getBoolean(KEY_ARRIVAL_MODE, false)
+        set(v) = sp.edit().putBoolean(KEY_ARRIVAL_MODE, v).apply()
+
+    /** Instante em que a sessão de chegada termina sozinha. 0 = sem sessão. */
+    var arrivalSessionUntil: Long
+        get() = sp.getLong(KEY_ARRIVAL_UNTIL, 0L)
+        set(v) = sp.edit().putLong(KEY_ARRIVAL_UNTIL, v).apply()
+
+    /** Quantos minutos dura uma sessão de chegada antes de desistir sozinha. */
+    var arrivalSessionMinutes: Int
+        get() = sp.getInt(KEY_ARRIVAL_MINUTES, 30)
+        set(v) = sp.edit().putInt(KEY_ARRIVAL_MINUTES, v).apply()
+
+    fun arrivalSessionActive(): Boolean =
+        arrivalModeEnabled && System.currentTimeMillis() < arrivalSessionUntil
+
+    fun arrivalSessionRemainingS(): Long =
+        if (arrivalSessionActive()) (arrivalSessionUntil - System.currentTimeMillis()) / 1000 else 0L
+
+    fun startArrivalSession() {
+        arrivalSessionUntil = System.currentTimeMillis() + arrivalSessionMinutes * 60_000L
+    }
+
+    fun stopArrivalSession() { arrivalSessionUntil = 0L }
+
     // ---- Auth key GLOBAL (partilhado por todas as moradas) ----
     // Como todos os Shellys estão na mesma conta de nuvem, partilham o mesmo
     // auth_key. Se uma morada tiver o campo vazio, usa-se este valor global.
@@ -160,6 +194,9 @@ class Prefs(context: Context) {
         private const val KEY_COOLDOWN = "cooldownMs"
         private const val KEY_NET_GRACE = "networkGraceSeconds"
         private const val KEY_WIFI_BLOCKS_ARMED = "wifiBlocksWhenArmed"
+        private const val KEY_ARRIVAL_MODE = "arrivalModeEnabled"
+        private const val KEY_ARRIVAL_UNTIL = "arrivalSessionUntil"
+        private const val KEY_ARRIVAL_MINUTES = "arrivalSessionMinutes"
         private const val KEY_AUTH_KEY_GLOBAL = "cloudAuthKeyGlobal"
         private const val KEY_LAST_OPEN = "lastOpen"
         private const val KEY_LAST_RESULT = "lastResult"

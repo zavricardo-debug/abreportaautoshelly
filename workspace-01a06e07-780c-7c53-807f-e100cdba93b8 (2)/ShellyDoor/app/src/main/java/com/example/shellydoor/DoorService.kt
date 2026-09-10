@@ -43,6 +43,7 @@ class DoorService : Service() {
     private val wifi by lazy { WifiHomeChecker(this, prefs, store) }
     private val handler = Handler(Looper.getMainLooper())
     private var wifiPoll: Runnable? = null
+    private var sessionExpiry: Runnable? = null
 
     private var fused: FusedLocationProviderClient? = null
     private var locationCallback: LocationCallback? = null
@@ -62,6 +63,25 @@ class DoorService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // MODO CHEGADA: nada corre fora de uma sessão. Sem sessão activa o
+        // serviço desliga-se por completo — é isto que evita o telemóvel a
+        // aquecer e a bateria a cair com a app parada em casa o dia todo.
+        if (prefs.arrivalModeEnabled) {
+            if (!prefs.arrivalSessionActive()) {
+                Log.i(TAG, "Modo Chegada sem sessão activa — a desligar o serviço.")
+                stopEverythingAndQuit()
+                return START_NOT_STICKY
+            }
+            // Em sessão: rastreio rápido do princípio ao fim. A sessão é curta,
+            // por isso não vale a pena poupar aqui — o que interessa é abrir.
+            geoManager?.registerAll()
+            startWifiPolling()
+            startLocationUpdates(prefs.nearIntervalSec * 1000L)
+            scheduleSessionExpiry()
+            updateStatusNotification()
+            return START_STICKY
+        }
+
         if (prefs.autoEnabled) {
             geoManager?.registerAll()
             startWifiPolling()
@@ -74,7 +94,42 @@ class DoorService : Service() {
         return START_STICKY
     }
 
+    /** Larga tudo (GPS, Wi-Fi, geofences, notificação) e mata o serviço. */
+    private fun stopEverythingAndQuit() {
+        stopLocationUpdates()
+        stopWifiPolling()
+        sessionExpiry?.let { handler.removeCallbacks(it) }
+        sessionExpiry = null
+        geoManager?.unregister()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION") stopForeground(true)
+        }
+        stopSelf()
+    }
+
+    /** Fecha a sessão de chegada quando o tempo acabar, sem depender da UI. */
+    private fun scheduleSessionExpiry() {
+        sessionExpiry?.let { handler.removeCallbacks(it) }
+        val r = object : Runnable {
+            override fun run() {
+                if (!prefs.arrivalSessionActive()) {
+                    Log.i(TAG, "Sessão de chegada terminou — a desligar.")
+                    Notifier.showSessionEnded(this@DoorService)
+                    stopEverythingAndQuit()
+                } else {
+                    updateStatusNotification()
+                    handler.postDelayed(this, 5_000L)
+                }
+            }
+        }
+        sessionExpiry = r
+        handler.postDelayed(r, 5_000L)
+    }
+
     override fun onDestroy() {
+        sessionExpiry?.let { handler.removeCallbacks(it) }
         geoManager?.unregister()
         stopWifiPolling()
         stopLocationUpdates()

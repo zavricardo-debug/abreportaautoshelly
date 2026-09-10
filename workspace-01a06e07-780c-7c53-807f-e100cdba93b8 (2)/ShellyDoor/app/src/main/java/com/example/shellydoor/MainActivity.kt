@@ -73,6 +73,7 @@ class MainActivity : AppCompatActivity() {
         tvStatus = findViewById(R.id.tvStatus)
         doorList = findViewById(R.id.doorList)
 
+        findViewById<Button>(R.id.btnArrival).setOnClickListener { toggleArrival() }
         findViewById<Button>(R.id.btnAddDoor).setOnClickListener {
             val door = store.newDoor()
             openEditor(door.id)
@@ -165,6 +166,7 @@ class MainActivity : AppCompatActivity() {
     // ------------------------------------------------------------------
 
     private fun rebuild() {
+        updateArrivalUi()
         doorList.removeAllViews()
         val doors = store.all()
         if (doors.isEmpty()) {
@@ -327,6 +329,64 @@ class MainActivity : AppCompatActivity() {
 
     private fun disableAuto() { stopService(Intent(this, DoorService::class.java)) }
     private fun statusRow(s: String) { tvStatus.text = s }
+    /** Actualiza o botão e a legenda do Modo Chegada. */
+    private fun updateArrivalUi() {
+        val btn = findViewById<Button>(R.id.btnArrival)
+        val hint = findViewById<TextView>(R.id.tvArrivalHint)
+        when {
+            prefs.arrivalSessionActive() -> {
+                val s = prefs.arrivalSessionRemainingS()
+                btn.text = "⏹ A seguir-te (%d:%02d) — tocar para parar".format(s / 60, s % 60)
+                hint.text = "Moradas armadas. A porta abre assim que chegares. " +
+                    "Termina sozinho quando o tempo acabar."
+            }
+            prefs.arrivalModeEnabled -> {
+                btn.text = getString(R.string.btn_arrival_start)
+                hint.text = "Modo Chegada ligado: a app não corre em segundo plano. " +
+                    "Carrega aqui quando fores para casa."
+            }
+            else -> {
+                btn.text = getString(R.string.btn_arrival_start)
+                hint.text = "Toca para ligar o Modo Chegada: a app deixa de correr sempre " +
+                    "e só te segue quando pedires. Poupa bateria."
+            }
+        }
+    }
+
+    /**
+     * Arranca (ou pára) uma sessão do Modo Chegada.
+     *
+     * Arrancar a sessão ARMA já todas as moradas activas: abriste a app a
+     * caminho de casa, logo a intenção está provada e não faz sentido exigir o
+     * "afasta-te X metros durante Y segundos".
+     */
+    private fun toggleArrival() {
+        if (!prefs.arrivalModeEnabled) {
+            prefs.arrivalModeEnabled = true
+            toast("Modo Chegada ligado — a app deixa de correr em segundo plano.")
+        }
+
+        if (prefs.arrivalSessionActive()) {
+            prefs.stopArrivalSession()
+            DoorServiceStarter.stopNow(this)
+            toast("Sessão terminada. Já não estou a seguir a tua posição.")
+            rebuild()
+            return
+        }
+
+        if (!hasFineLocation()) { ensurePermissionsAndStart(); return }
+
+        prefs.startArrivalSession()
+        val engine = DoorDecisionEngine(prefs, WifiHomeChecker(this, prefs, store))
+        val doors = store.all()
+        doors.filter { it.enabled && it.hasPoint() }.forEach { engine.forceArm(it) }
+        store.updateAll(doors)
+
+        DoorServiceStarter.ensureRunning(this)
+        toast("A seguir-te durante ${prefs.arrivalSessionMinutes} min — a porta abre quando chegares.")
+        rebuild()
+    }
+
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
 
     /** Chamado pelo menu de definições globais para o atalho da bateria. */

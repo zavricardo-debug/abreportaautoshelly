@@ -65,6 +65,45 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
         val rearmAt = radius + marginFor(door)
 
         // ---------------------------------------------------------------
+        // MODO CHEGADA: a sessão substitui todo o processo de armar.
+        //
+        // Abriste a app a caminho de casa: isso é a prova de intenção. Não faz
+        // sentido exigir "afasta-te X metros durante Y segundos" — já estás a
+        // chegar. Também não se aplica a regra do Wi-Fi de casa, porque numa
+        // sessão manual é normal apanhares o router antes de entrar.
+        //
+        // Fica só o que é mesmo preciso para abrir em segurança: distância,
+        // precisão do GPS, velocidade, pausa e cooldown.
+        // ---------------------------------------------------------------
+        if (prefs.arrivalSessionActive()) {
+            if (distanceM > radius) {
+                return silent(
+                    door,
+                    "Modo Chegada · a %.0f m (abre a %.0f m) · %ds".format(
+                        distanceM, radius, prefs.arrivalSessionRemainingS()
+                    )
+                )
+            }
+            if (accuracyM > 0f && accuracyM > prefs.minAccuracyM) {
+                return deny(door, "GPS impreciso (±%.0f m) — a aguardar melhor sinal".format(accuracyM))
+            }
+            if (speedMs >= 0f && speedMs > prefs.maxSpeedMs) {
+                return deny(door, "Velocidade alta (%.1f m/s) — a passar?".format(speedMs))
+            }
+            if (prefs.isPaused()) {
+                return deny(door, "Automação em pausa (${prefs.pauseRemainingMillis() / 1000}s)")
+            }
+            if (door.isPaused()) {
+                return deny(door, "Morada em pausa (${(door.pauseUntil - now) / 1000}s)")
+            }
+            val sinceOpen = now - door.lastOpenAt
+            if (door.lastOpenAt > 0L && sinceOpen < prefs.cooldownMs) {
+                return deny(door, "Cooldown (${sinceOpen / 1000}s de ${prefs.cooldownMs / 1000}s)")
+            }
+            return Outcome.AllowOpen
+        }
+
+        // ---------------------------------------------------------------
         // 1) LONGE: é aqui que a morada ARMA.
         //
         // Armar exige estar longe DE FORMA CONTINUADA (`awayConfirmSeconds`),
@@ -261,7 +300,18 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
             )
         )
 
-        // 5) ARMADA — a condição que costuma faltar
+        // 5) ARMADA — no Modo Chegada a sessão substitui isto por completo
+        if (prefs.arrivalSessionActive()) {
+            c.add(
+                Condition(
+                    "Modo Chegada activo",
+                    Condition.State.OK,
+                    "sessão a decorrer (%d s)".format(prefs.arrivalSessionRemainingS()),
+                    "sessão aberta",
+                    "Não é preciso armar: abriste a app a caminho de casa."
+                )
+            )
+        } else {
         val awayFor = if (door.awaySinceAt > 0L) (now - door.awaySinceAt) / 1000 else 0L
         val atHomeNow = wifi.isAtHome(door)
         c.add(
@@ -283,6 +333,7 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
                     )
             )
         )
+        }
 
         // 6) Distância
         c.add(
