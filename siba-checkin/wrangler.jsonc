@@ -1,0 +1,44 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "siba-checkin",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+
+  // Static files (guest form + admin panel) are served from ./public by Cloudflare.
+  // Requests that do not match a file (e.g. /api/*, /r/<code>) run the Worker.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  },
+
+  // Database (Cloudflare D1 / SQLite). Create it with `npm run db:create`
+  // and paste the returned database_id below before deploying.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "siba-checkin",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Every 4 hours: send pending bulletins whose check-in date has arrived
+  // (SIBA only accepts Data_Entrada <= today) and retry transient failures.
+  "triggers": { "crons": ["15 */4 * * *"] },
+
+  "vars": {
+    "APP_NAME": "Check-in",
+    // "production" -> https://siba.ssi.gov.pt/baws/...   "development" -> https://siba.ssi.gov.pt/bawsdev/...
+    "SIBA_ENV": "production",
+    // Send to SIBA automatically as soon as the guest presses "Send" (if check-in date <= today).
+    // Set to "false" to require the administrator to review and send every form.
+    "AUTO_SEND": "true"
+  }
+  // Secrets (set with `npx wrangler secret put NAME`):
+  //   ADMIN_PASSWORD  - password for /admin
+  //   SESSION_SECRET  - random string used to sign the admin session cookie
+  //   TURNSTILE_SECRET (optional) with var TURNSTILE_SITE_KEY - Cloudflare Turnstile anti-bot on the guest form
+}

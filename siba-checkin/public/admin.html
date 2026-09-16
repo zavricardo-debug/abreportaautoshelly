@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Administração · Check-in SIBA</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  .status-draft{color:var(--muted)} .status-submitted{color:#7dd3fc} .status-sent{color:var(--ok)} .status-error{color:var(--err)} .status-cancelled{color:var(--dim)}
+  .guest-mini{font-size:12.5px;color:var(--muted)}
+  .prop-card{border:1px solid var(--line2);border-radius:14px;padding:12px 14px;margin-bottom:10px;background:var(--panel)}
+  .prop-card .head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .badge-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  @media (max-width:760px){ table.res thead{display:none} table.res tr{display:block;border-bottom:1px solid #1a2740;padding:8px 0} table.res td{display:block;border:none;padding:3px 4px} }
+</style>
+</head>
+<body>
+<main class="wrap wide">
+  <div class="card">
+    <div class="top">
+      <div><h1>Administração · Boletins de Alojamento</h1><p class="lead" id="subtitle">SIBA / AIMA</p></div>
+      <div class="actions" style="margin:0">
+        <span id="envChip" class="chip hidden"></span>
+        <button type="button" class="btn small hidden" id="logoutBtn">Sair</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGIN -->
+  <div id="login" class="card hidden" style="max-width:420px;margin:0 auto">
+    <h2>Entrar</h2>
+    <div id="notConfigured" class="notice warn hidden">A palavra-passe do administrador ainda não está definida. Execute <code>npx wrangler secret put ADMIN_PASSWORD</code> (ou crie o ficheiro <code>.dev.vars</code> em desenvolvimento).</div>
+    <label for="pw">Palavra-passe</label>
+    <input type="password" id="pw" autocomplete="current-password">
+    <div class="actions"><button type="button" class="btn primary" id="loginBtn">Entrar</button></div>
+    <p id="loginMsg" class="msg"></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="tabs">
+      <button type="button" data-tab="reservations" class="on">Reservas</button>
+      <button type="button" data-tab="properties">Unidade Hoteleira</button>
+      <button type="button" data-tab="help">Ajuda</button>
+    </div>
+
+    <!-- RESERVATIONS -->
+    <section id="tab-reservations">
+      <div class="kpis" id="kpis"></div>
+      <div class="card">
+        <div class="toolbar">
+          <input type="search" id="q" placeholder="Pesquisar nome, documento, referência…">
+          <select id="fStatus">
+            <option value="">Todos os estados</option>
+            <option value="draft">Não submetido</option>
+            <option value="submitted">Recebido (por enviar)</option>
+            <option value="sent">Comunicado ao SIBA</option>
+            <option value="error">Com erro</option>
+            <option value="cancelled">Cancelado</option>
+          </select>
+          <select id="fProperty"><option value="">Todas as unidades</option></select>
+          <button type="button" class="btn small" id="refreshBtn">Atualizar</button>
+          <span style="flex:1"></span>
+          <button type="button" class="btn small primary" id="newResBtn">+ Nova reserva</button>
+        </div>
+        <div id="resList"></div>
+      </div>
+    </section>
+
+    <!-- RESERVATION EDITOR -->
+    <section id="tab-editor" class="hidden">
+      <div class="card">
+        <div class="top">
+          <div><h1 id="edTitle">Reserva</h1><p class="lead" id="edSub"></p></div>
+          <div class="actions" style="margin:0"><button type="button" class="btn small" id="backBtn">← Voltar</button></div>
+        </div>
+        <div id="edStatus"></div>
+        <div class="grid">
+          <div><label>Unidade hoteleira <span class="req">*</span></label><select id="ed_property"></select></div>
+          <div><label>Referência da reserva</label><input id="ed_reference" maxlength="60"></div>
+          <div><label>Data de entrada <span class="req">*</span></label><input type="date" id="ed_check_in"><div class="field-err" data-for="check_in"></div></div>
+          <div><label>Data de saída</label><input type="date" id="ed_check_out"><div class="field-err" data-for="check_out"></div></div>
+          <div><label>E-mail do hóspede</label><input type="email" id="ed_guest_email" maxlength="140"></div>
+          <div><label>Telefone do hóspede</label><input id="ed_guest_phone" maxlength="30"></div>
+          <div class="full"><label>Notas internas</label><textarea id="ed_notes" maxlength="1000"></textarea></div>
+        </div>
+        <div id="linkRow" class="hidden" style="margin-top:14px">
+          <label>Link para o hóspede preencher / consultar</label>
+          <div class="copy"><input type="text" id="guestLink" readonly><button type="button" class="btn small" id="copyLink">Copiar</button><a class="btn small" id="openLink" target="_blank" rel="noopener">Abrir</a></div>
+          <div class="hint">Envie este link por e-mail/WhatsApp. O hóspede preenche os dados e carrega em ENVIAR.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Hóspedes (um boletim por hóspede)</h2>
+        <div id="edGuests"></div>
+        <button type="button" class="btn" id="edAddGuest">+ Adicionar hóspede</button>
+        <div class="hint" style="margin-top:8px">Cidadãos portugueses (PRT) ficam registados apenas localmente e não são enviados ao SIBA.</div>
+      </div>
+
+      <div class="card">
+        <div class="actions">
+          <button type="button" class="btn primary" id="edSave">Guardar</button>
+          <button type="button" class="btn primary" id="edSend">Enviar ao SIBA</button>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:500"><input type="checkbox" id="edForce" style="width:18px;height:18px"> Reenviar mesmo os já aceites</label>
+          <span style="flex:1"></span>
+          <button type="button" class="btn small" id="edCancel">Cancelar reserva</button>
+          <button type="button" class="btn small danger" id="edDelete">Apagar</button>
+        </div>
+        <p id="edMsg" class="msg" aria-live="polite"></p>
+        <div id="edResult"></div>
+      </div>
+
+      <div class="card">
+        <h2>Histórico de envios ao SIBA</h2>
+        <div id="edSubs"><p class="dim">Sem envios.</p></div>
+        <pre id="subDetail" class="hidden"></pre>
+      </div>
+    </section>
+
+    <!-- PROPERTIES -->
+    <section id="tab-properties" class="hidden">
+      <div class="card">
+        <div class="top"><h2 style="margin:0">Unidades hoteleiras registadas</h2><button type="button" class="btn small primary" id="newPropBtn">+ Nova unidade</button></div>
+        <div id="propList"></div>
+      </div>
+      <div class="card hidden" id="propForm">
+        <h2 id="propFormTitle">Unidade hoteleira</h2>
+        <p class="lead" style="margin-bottom:14px">Dados de identificação exigidos pelo SIBA (tal como constam no ofício de registo da AIMA/SEF).</p>
+        <div class="grid">
+          <div><label>Código Unidade Hoteleira (NIPC) <span class="req">*</span></label><input id="p_codigo_unidade" inputmode="numeric" maxlength="9" placeholder="9 dígitos"><div class="field-err" data-for="codigo_unidade"></div></div>
+          <div><label>Número de ordem da Unidade Hoteleira (Estabelecimento) <span class="req">*</span></label><input id="p_estabelecimento" inputmode="numeric" maxlength="4" placeholder="00"><div class="field-err" data-for="estabelecimento"></div></div>
+          <div><label>Nome da Unidade Hoteleira <span class="req">*</span></label><input id="p_nome" maxlength="40"><div class="field-err" data-for="nome"></div></div>
+          <div><label>Abreviatura do Nome <span class="req">*</span></label><input id="p_abreviatura" maxlength="15"><div class="field-err" data-for="abreviatura"></div></div>
+          <div class="full"><label>Morada do estabelecimento <span class="req">*</span></label><input id="p_morada" maxlength="40"><div class="field-err" data-for="morada"></div></div>
+          <div><label>Localidade <span class="req">*</span></label><input id="p_localidade" maxlength="30"><div class="field-err" data-for="localidade"></div></div>
+          <div class="grid" style="gap:8px">
+            <div><label>Código Postal <span class="req">*</span></label><input id="p_codigo_postal" inputmode="numeric" maxlength="4" placeholder="1000"><div class="field-err" data-for="codigo_postal"></div></div>
+            <div><label>Zona Postal <span class="req">*</span></label><input id="p_zona_postal" inputmode="numeric" maxlength="3" placeholder="001"><div class="field-err" data-for="zona_postal"></div></div>
+          </div>
+          <div><label>Telefone <span class="req">*</span></label><input id="p_telefone" inputmode="numeric" maxlength="10"><div class="field-err" data-for="telefone"></div></div>
+          <div><label>Fax</label><input id="p_fax" inputmode="numeric" maxlength="10"><div class="field-err" data-for="fax"></div></div>
+          <div><label>Nome Contacto <span class="req">*</span></label><input id="p_nome_contacto" maxlength="40"><div class="field-err" data-for="nome_contacto"></div></div>
+          <div><label>Email Contacto <span class="req">*</span></label><input id="p_email_contacto" type="email" maxlength="140"><div class="hint">O SIBA envia para aqui o ofício comprovativo de cada envio.</div><div class="field-err" data-for="email_contacto"></div></div>
+          <div><label>Chave de Activação <span class="req">*</span></label><input id="p_chave_activacao" type="password" autocomplete="new-password"><div class="hint">Chave de ativação/autenticação fornecida no ofício. Guardada apenas na base de dados.</div><div class="field-err" data-for="chave_activacao"></div></div>
+          <div><label>Identificador no link (slug)</label><input id="p_slug" maxlength="40" placeholder="ex.: ladra"><div class="hint">Link público: <code id="slugPreview">/r/…</code></div><div class="field-err" data-for="slug"></div></div>
+          <div><label style="display:inline-flex;align-items:center;gap:8px"><input type="checkbox" id="p_active" checked style="width:18px;height:18px"> Ativa (aceita novos check-ins)</label></div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn primary" id="propSave">Guardar unidade</button>
+          <button type="button" class="btn" id="propCancel">Cancelar</button>
+        </div>
+        <p id="propMsg" class="msg"></p>
+      </div>
+    </section>
+
+    <!-- HELP -->
+    <section id="tab-help" class="hidden">
+      <div class="card">
+        <h2>Como funciona</h2>
+        <ol style="padding-left:20px;font-size:14px;color:var(--muted);line-height:1.7">
+          <li>Registe a <b>Unidade Hoteleira</b> com os dados do ofício da AIMA/SEF (NIPC, estabelecimento, chave de ativação…). No portal SIBA o modo de envio tem de estar em <b>Web Service</b> (pedido para <a href="mailto:siba@sef.pt">siba@sef.pt</a> se necessário).</li>
+          <li>Crie uma <b>reserva</b> (ou deixe o hóspede criar através de <code>/r/&lt;slug&gt;</code>) e envie o <b>link</b> ao hóspede.</li>
+          <li>O hóspede preenche os dados do documento e carrega em <b>ENVIAR</b>. Se a data de entrada já chegou, o boletim é transmitido ao SIBA de imediato; se for futura, fica em fila e é enviado automaticamente no dia (tarefa agendada de 4 em 4 horas).</li>
+          <li>Se faltar algo, a reserva aparece com estado <b>Recebido</b> ou <b>Com erro</b>. Corrija aqui e carregue em <b>Enviar ao SIBA</b>.</li>
+          <li>Cada envio fica registado no <b>histórico</b> com o XML enviado e a resposta do SIBA (0 = aceite). O SIBA envia também um ofício comprovativo para o e-mail de contacto.</li>
+        </ol>
+        <div class="notice info" style="margin-top:14px">Prazo legal: 3 dias úteis após a entrada (e após a saída, quando aplicável). Nacionais portugueses não são comunicados ao SIBA.</div>
+        <div class="actions"><button type="button" class="btn small" id="runCron">Executar agora a tarefa de envio pendente</button><span id="cronMsg" class="muted"></span></div>
+      </div>
+      <div class="card">
+        <h2>Teste de ligação ao SIBA</h2>
+        <p class="lead" style="margin-bottom:12px">Envia <b>um boletim fictício</b> da unidade de testes do SEF (NIPC 121212121) para o <b>ambiente de desenvolvimento</b> do SIBA (<code id="selftestEndpoint">…</code>). Não usa a sua chave de ativação, não comunica nenhum hóspede real e não fica registado na base de dados. Serve para confirmar que a ligação, o SOAP e o formato XML são aceites antes do primeiro envio real.</p>
+        <div class="actions"><button type="button" class="btn small primary" id="selfTestBtn">Testar ligação ao SIBA</button><span id="selfTestMsg" class="muted"></span></div>
+        <div id="selfTestOut" class="hidden"></div>
+      </div>
+    </section>
+  </div>
+  <footer>Check-in · SIBA / AIMA · Cloudflare Workers + D1</footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  const STATUS_PT = { draft: "Não submetido", submitted: "Recebido", sent: "Comunicado", error: "Com erro", cancelled: "Cancelado" };
+  const GSTATUS_PT = { pending: "por enviar", sent: "aceite pelo SIBA", error: "erro" };
+  let COUNTRIES = [];
+  let PROPERTIES = [];
+  let CURRENT = null; // reservation bundle in editor
+  let editingProp = null;
+
+  async function api(method, path, body) {
+    const res = await fetch(path, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
+    let data = {}; try { data = await res.json(); } catch (e) {}
+    if (res.status === 401 && !path.endsWith("/login")) { showLogin(); throw new Error("Sessão expirada"); }
+    if (!res.ok && !data.errors && !data.result) throw new Error(data.error || data.message || res.statusText);
+    return { status: res.status, ok: res.ok, data };
+  }
+  function setMsg(id, text, cls) { const el = $(id); el.textContent = text || ""; el.className = "msg " + (cls || ""); }
+  function clearErrs(scope) { scope.querySelectorAll(".invalid").forEach((i) => i.classList.remove("invalid")); scope.querySelectorAll(".field-err").forEach((e) => { e.textContent = ""; e.classList.remove("show"); }); }
+  function showErrs(scope, errors, prefix) {
+    for (const e of errors || []) {
+      const input = scope.querySelector(`#${prefix}${e.field}`) || scope.querySelector(`[name="${e.field}"]`);
+      const box = scope.querySelector(`.field-err[data-for="${e.field}"]`);
+      if (input) input.classList.add("invalid");
+      if (box) { box.textContent = e.message; box.classList.add("show"); }
+    }
+  }
+  const fmtDate = (s) => s ? s.slice(0, 10).split("-").reverse().join("/") : "—";
+  const fmtTs = (s) => s ? new Date(s).toLocaleString("pt-PT") : "—";
+  function countryOpts(sel) {
+    let h = `<option value="">— selecionar —</option>`;
+    for (const c of [...COUNTRIES].sort((a, b) => a.pt.localeCompare(b.pt, "pt"))) h += `<option value="${c.code}"${c.code === sel ? " selected" : ""}>${esc(c.pt)} (${c.code})</option>`;
+    return h;
+  }
+
+  // ---------- auth ----------
+  function showLogin() { $("login").classList.remove("hidden"); $("app").classList.add("hidden"); $("logoutBtn").classList.add("hidden"); }
+  async function boot() {
+    const me = (await api("GET", "/api/admin/me")).data;
+    if (!me.configured) $("notConfigured").classList.remove("hidden");
+    if (!me.authenticated) { showLogin(); return; }
+    await start();
+  }
+  $("loginBtn").addEventListener("click", login);
+  $("pw").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+  async function login() {
+    setMsg("loginMsg", "A entrar…");
+    try { await api("POST", "/api/admin/login", { password: $("pw").value }); setMsg("loginMsg", ""); $("pw").value = ""; await start(); }
+    catch (e) { setMsg("loginMsg", e.message, "err"); }
+  }
+  $("logoutBtn").addEventListener("click", async () => { await api("POST", "/api/admin/logout"); location.reload(); });
+
+  async function start() {
+    $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("logoutBtn").classList.remove("hidden");
+    const cfg = (await api("GET", "/api/public/config")).data; COUNTRIES = cfg.countries;
+    await loadDashboard();
+    await loadReservations();
+    const hash = location.hash.match(/^#res-(\d+)$/); if (hash) openReservation(Number(hash[1]));
+  }
+
+  // ---------- tabs ----------
+  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+  function showTab(name) {
+    document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+    ["reservations", "editor", "properties", "help"].forEach((t) => $("tab-" + t).classList.toggle("hidden", t !== name));
+    if (name === "properties") renderProps();
+    if (name === "reservations") { loadDashboard(); loadReservations(); }
+  }
+
+  // ---------- dashboard / properties ----------
+  async function loadDashboard() {
+    const d = (await api("GET", "/api/admin/dashboard")).data;
+    PROPERTIES = d.properties;
+    $("envChip").classList.remove("hidden");
+    $("envChip").className = "chip " + (/bawsdev|localhost|127\.0\.0\.1/.test(d.siba_endpoint) ? "warn" : "ok");
+    $("envChip").textContent = /bawsdev/.test(d.siba_endpoint) ? "SIBA: desenvolvimento" : /localhost|127\.0\.0\.1/.test(d.siba_endpoint) ? "SIBA: simulador local" : "SIBA: produção";
+    $("envChip").title = d.siba_endpoint;
+    $("selftestEndpoint").textContent = d.siba_selftest_endpoint || "";
+    $("subtitle").textContent = `Envio automático: ${d.auto_send ? "ligado" : "desligado (revisão manual)"} · Hoje: ${fmtDate(d.today)}`;
+    const c = d.counts;
+    $("kpis").innerHTML = [["Por enviar", (c.submitted || 0), "status-submitted"], ["Não submetidos", (c.draft || 0), "status-draft"], ["Com erro", (c.error || 0), "status-error"], ["Comunicados", (c.sent || 0), "status-sent"], ["Total", (c.total || 0), ""]]
+      .map(([l, v, cls]) => `<div class="kpi"><b class="${cls}">${v}</b><span>${l}</span></div>`).join("");
+    const sel = $("fProperty"); const cur = sel.value;
+    sel.innerHTML = `<option value="">Todas as unidades</option>` + PROPERTIES.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join(""); sel.value = cur;
+    $("ed_property").innerHTML = PROPERTIES.map((p) => `<option value="${p.id}">${esc(p.nome)} (${esc(p.slug)})</option>`).join("");
+    if (!PROPERTIES.length) { showTab("properties"); openPropForm(null); setMsg("propMsg", "Comece por registar a sua unidade hoteleira.", "warn"); }
+  }
+
+  function renderProps() {
+    const origin = location.origin;
+    $("propList").innerHTML = PROPERTIES.length ? PROPERTIES.map((p) => `
+      <div class="prop-card">
+        <div class="head">
+          <div><b>${esc(p.nome)}</b> <span class="dim">· NIPC ${esc(p.codigo_unidade)} · Est. ${esc(p.estabelecimento)}</span>
+            <div class="guest-mini">${esc(p.morada)}, ${esc(p.codigo_postal)}-${esc(p.zona_postal)} ${esc(p.localidade)} · ${esc(p.email_contacto)}</div>
+            <div class="guest-mini">Link hóspedes: <a href="${origin}/r/${esc(p.slug)}" target="_blank" rel="noopener">${origin}/r/${esc(p.slug)}</a></div>
+          </div>
+          <div class="actions" style="margin:0">
+            ${p.active ? "" : '<span class="chip">inativa</span>'}
+            ${p.errors && p.errors.length ? `<span class="chip warn" title="${esc(p.errors.map((e) => e.message).join("; "))}">dados incompletos</span>` : '<span class="chip ok">pronta</span>'}
+            <button type="button" class="btn small" data-edit="${p.id}">Editar</button>
+          </div>
+        </div>
+      </div>`).join("") : `<p class="dim">Nenhuma unidade registada.</p>`;
+    $("propList").querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => openPropForm(Number(b.dataset.edit))));
+  }
+  $("newPropBtn").addEventListener("click", () => openPropForm(null));
+  $("propCancel").addEventListener("click", () => $("propForm").classList.add("hidden"));
+  const PFIELDS = ["codigo_unidade", "estabelecimento", "nome", "abreviatura", "morada", "localidade", "codigo_postal", "zona_postal", "telefone", "fax", "nome_contacto", "email_contacto", "chave_activacao", "slug"];
+  async function openPropForm(id) {
+    clearErrs($("propForm")); setMsg("propMsg", "");
+    editingProp = id;
+    let p = { estabelecimento: "00", active: 1 };
+    if (id) p = (await api("GET", `/api/admin/properties/${id}`)).data.property;
+    for (const f of PFIELDS) $("p_" + f).value = p[f] || "";
+    $("p_active").checked = !!p.active;
+    $("propFormTitle").textContent = id ? `Editar: ${p.nome}` : "Nova unidade hoteleira";
+    $("slugPreview").textContent = `/r/${p.slug || "…"}`;
+    $("propForm").classList.remove("hidden"); $("propForm").scrollIntoView({ behavior: "smooth" });
+  }
+  $("p_slug").addEventListener("input", () => { $("slugPreview").textContent = `/r/${$("p_slug").value || "…"}`; });
+  $("propSave").addEventListener("click", async () => {
+    clearErrs($("propForm")); setMsg("propMsg", "A guardar…");
+    const body = {}; for (const f of PFIELDS) body[f] = $("p_" + f).value; body.active = $("p_active").checked;
+    try {
+      const r = editingProp ? await api("PUT", `/api/admin/properties/${editingProp}`, body) : await api("POST", "/api/admin/properties", body);
+      if (!r.ok) { showErrs($("propForm"), r.data.errors, "p_"); setMsg("propMsg", r.data.error || "Corrija os campos assinalados", "err"); return; }
+      setMsg("propMsg", "Unidade guardada.", "ok");
+      await loadDashboard(); renderProps(); $("propForm").classList.add("hidden");
+    } catch (e) { setMsg("propMsg", e.message, "err"); }
+  });
+
+  // ---------- reservations list ----------
+  let searchTimer = null;
+  $("q").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadReservations, 300); });
+  $("fStatus").addEventListener("change", loadReservations);
+  $("fProperty").addEventListener("change", loadReservations);
+  $("refreshBtn").addEventListener("click", () => { loadDashboard(); loadReservations(); });
+  async function loadReservations() {
+    const qs = new URLSearchParams(); if ($("q").value.trim()) qs.set("q", $("q").value.trim()); if ($("fStatus").value) qs.set("status", $("fStatus").value); if ($("fProperty").value) qs.set("property_id", $("fProperty").value);
+    const rows = (await api("GET", "/api/admin/reservations?" + qs)).data.reservations;
+    if (!rows.length) { $("resList").innerHTML = `<p class="dim">Sem reservas.</p>`; return; }
+    $("resList").innerHTML = `<table class="res"><thead><tr><th>Entrada</th><th>Saída</th><th>Hóspedes</th><th>Unidade</th><th>Ref.</th><th>Estado</th><th></th></tr></thead><tbody>` +
+      rows.map((r) => `<tr class="clickable" data-id="${r.id}">
+        <td>${fmtDate(r.check_in)}</td><td>${fmtDate(r.check_out)}</td>
+        <td><b>${r.guest_count}</b> <span class="guest-mini">${esc(r.guest_names || "(sem dados)")}</span></td>
+        <td>${esc(r.property_nome)}</td><td>${esc(r.reference || "—")}</td>
+        <td class="status-${r.status}">${STATUS_PT[r.status] || r.status}${r.last_error ? `<div class="guest-mini status-error" title="${esc(r.last_error)}">${esc(r.last_error.slice(0, 60))}${r.last_error.length > 60 ? "…" : ""}</div>` : ""}</td>
+        <td class="right">${["submitted", "error"].includes(r.status) ? `<button type="button" class="btn small primary" data-send="${r.id}">Enviar</button>` : ""}</td>
+      </tr>`).join("") + `</tbody></table>`;
+    $("resList").querySelectorAll("tr[data-id]").forEach((tr) => tr.addEventListener("click", (e) => { if (e.target.closest("button")) return; openReservation(Number(tr.dataset.id)); }));
+    $("resList").querySelectorAll("[data-send]").forEach((b) => b.addEventListener("click", async () => {
+      b.disabled = true; b.innerHTML = '<span class="spinner"></span>';
+      try { const r = await api("POST", `/api/admin/reservations/${b.dataset.send}/send`, {}); alert(r.data.result.message); } catch (e) { alert(e.message); }
+      loadDashboard(); loadReservations();
+    }));
+  }
+
+  // ---------- editor ----------
+  $("newResBtn").addEventListener("click", () => openEditor(null));
+  $("backBtn").addEventListener("click", () => { location.hash = ""; showTab("reservations"); });
+  async function openReservation(id) { const b = (await api("GET", `/api/admin/reservations/${id}`)).data; openEditor(b); }
+  function openEditor(b) {
+    CURRENT = b; clearErrs($("tab-editor")); setMsg("edMsg", ""); $("edResult").innerHTML = ""; $("subDetail").classList.add("hidden");
+    const r = b ? b.reservation : null;
+    location.hash = r ? `res-${r.id}` : "";
+    $("edTitle").textContent = r ? `Reserva #${r.id}` : "Nova reserva";
+    $("edSub").textContent = r ? `Criada ${fmtTs(r.created_at)} por ${r.created_by === "guest" ? "hóspede" : "administrador"}${r.submitted_at ? " · submetida " + fmtTs(r.submitted_at) : ""}${r.sent_at ? " · comunicada " + fmtTs(r.sent_at) : ""}` : "";
+    $("ed_property").value = r ? r.property_id : ($("fProperty").value || (PROPERTIES[0] && PROPERTIES[0].id) || "");
+    $("ed_property").disabled = !!r;
+    $("ed_reference").value = r ? r.reference : ""; $("ed_check_in").value = r ? r.check_in : new Date().toISOString().slice(0, 10); $("ed_check_out").value = r && r.check_out ? r.check_out : "";
+    $("ed_guest_email").value = r ? r.guest_email : ""; $("ed_guest_phone").value = r ? r.guest_phone : ""; $("ed_notes").value = r ? r.notes : "";
+    $("edStatus").innerHTML = r ? `<div class="notice ${r.status === "sent" ? "ok" : r.status === "error" ? "err" : r.status === "submitted" ? "info" : ""}">Estado: <b>${STATUS_PT[r.status]}</b>${r.status === "submitted" ? (r.approved ? " · agendada: envio automático no dia do check-in" : " · aguarda envio pelo administrador") : ""}${r.last_error ? " — " + esc(r.last_error) : ""}${b.property_errors && b.property_errors.length ? "<br>⚠ Dados da unidade hoteleira incompletos: " + esc(b.property_errors.map((e) => e.message).join("; ")) : ""}</div>` : "";
+    if (r) { const link = `${location.origin}/r/${encodeURIComponent(b.property.slug)}/${r.access_code}`; $("guestLink").value = link; $("openLink").href = link; $("linkRow").classList.remove("hidden"); } else $("linkRow").classList.add("hidden");
+    $("edGuests").innerHTML = "";
+    if (b && b.guests.length) b.guests.forEach((g) => addEdGuest(g, (b.checks || []).find((c) => c.guest_id === g.id))); else addEdGuest();
+    ["edSend", "edCancel", "edDelete"].forEach((id) => $(id).classList.toggle("hidden", !r));
+    renderSubs(b ? b.submissions : []);
+    showTab("editor");
+  }
+  $("copyLink").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("guestLink").value); $("copyLink").textContent = "Copiado!"; setTimeout(() => ($("copyLink").textContent = "Copiar"), 1500); } catch (e) { $("guestLink").select(); } });
+
+  const GFIELDS = ["apelido", "nome", "nacionalidade", "data_nascimento", "local_nascimento", "tipo_documento", "documento_identificacao", "pais_emissor_documento", "pais_residencia_origem", "local_residencia_origem"];
+  function addEdGuest(g, check) {
+    g = g || {}; const el = document.createElement("div"); el.className = "guest";
+    const st = g.siba_status ? `<span class="chip ${g.siba_status === "sent" ? "ok" : g.siba_status === "error" ? "err" : ""}">${GSTATUS_PT[g.siba_status]}</span>` : "";
+    const pt = g.nacionalidade === "PRT" ? `<span class="chip info">PRT — não vai ao SIBA</span>` : "";
+    el.innerHTML = `
+      <div class="head"><h3>Hóspede ${$("edGuests").children.length + 1} ${st} ${pt}</h3><button type="button" class="btn small danger rm">Remover</button></div>
+      <input type="hidden" name="id" value="${g.id || ""}">
+      <div class="grid">
+        <div><label>Apelido <span class="req">*</span></label><input name="apelido" maxlength="40" value="${esc(g.apelido)}"><div class="field-err" data-for="apelido"></div></div>
+        <div><label>Nome(s) próprio(s)</label><input name="nome" maxlength="40" value="${esc(g.nome)}"><div class="field-err" data-for="nome"></div></div>
+        <div><label>Nacionalidade <span class="req">*</span></label><select name="nacionalidade">${countryOpts(g.nacionalidade)}</select><div class="field-err" data-for="nacionalidade"></div></div>
+        <div><label>Data de nascimento <span class="req">*</span></label><input type="date" name="data_nascimento" value="${esc(g.data_nascimento)}"><div class="field-err" data-for="data_nascimento"></div></div>
+        <div><label>Local de nascimento</label><input name="local_nascimento" maxlength="30" value="${esc(g.local_nascimento)}"><div class="field-err" data-for="local_nascimento"></div></div>
+        <div><label>Tipo de documento <span class="req">*</span></label><select name="tipo_documento"><option value="P"${(!g.tipo_documento || g.tipo_documento === "P") ? " selected" : ""}>P — Passaporte</option><option value="B"${g.tipo_documento === "B" ? " selected" : ""}>B — Bilhete de identidade</option><option value="O"${g.tipo_documento === "O" ? " selected" : ""}>O — Outro</option></select><div class="field-err" data-for="tipo_documento"></div></div>
+        <div><label>Número do documento <span class="req">*</span></label><input name="documento_identificacao" maxlength="16" value="${esc(g.documento_identificacao)}"><div class="field-err" data-for="documento_identificacao"></div></div>
+        <div><label>País emissor <span class="req">*</span></label><select name="pais_emissor_documento">${countryOpts(g.pais_emissor_documento)}</select><div class="field-err" data-for="pais_emissor_documento"></div></div>
+        <div><label>País de residência <span class="req">*</span></label><select name="pais_residencia_origem">${countryOpts(g.pais_residencia_origem)}</select><div class="field-err" data-for="pais_residencia_origem"></div></div>
+        <div><label>Localidade de residência <span class="req">*</span></label><input name="local_residencia_origem" maxlength="30" value="${esc(g.local_residencia_origem)}"><div class="field-err" data-for="local_residencia_origem"></div></div>
+      </div>`;
+    el.querySelector(".rm").addEventListener("click", () => { el.remove(); });
+    $("edGuests").appendChild(el);
+    if (check && check.errors && check.errors.length && !check.skip_siba) showErrs(el, check.errors.filter((e) => e.field !== "data_entrada" && e.field !== "data_saida"), "__");
+    return el;
+  }
+  $("edAddGuest").addEventListener("click", () => addEdGuest());
+  function readEdGuests() { return [...$("edGuests").children].map((el) => { const o = {}; const id = el.querySelector('[name="id"]').value; if (id) o.id = Number(id); for (const f of GFIELDS) o[f] = el.querySelector(`[name="${f}"]`).value.trim(); return o; }); }
+  function edPayload() {
+    return { property_id: Number($("ed_property").value), reference: $("ed_reference").value, check_in: $("ed_check_in").value, check_out: $("ed_check_out").value || null, guest_email: $("ed_guest_email").value, guest_phone: $("ed_guest_phone").value, notes: $("ed_notes").value, guests: readEdGuests() };
+  }
+  async function saveEditor() {
+    clearErrs($("tab-editor"));
+    const body = edPayload();
+    if (!body.check_in) { showErrs($("tab-editor"), [{ field: "check_in", message: "Obrigatório" }], "ed_"); throw new Error("Indique a data de entrada"); }
+    const r = CURRENT ? await api("PUT", `/api/admin/reservations/${CURRENT.reservation.id}`, body) : await api("POST", "/api/admin/reservations", body);
+    return r.data;
+  }
+  $("edSave").addEventListener("click", async () => {
+    setMsg("edMsg", "A guardar…");
+    try { const b = await saveEditor(); openEditor(b); setMsg("edMsg", "Guardado.", "ok"); } catch (e) { setMsg("edMsg", e.message, "err"); }
+  });
+  $("edSend").addEventListener("click", async () => {
+    setMsg("edMsg", "A enviar ao SIBA…"); $("edSend").disabled = true; $("edResult").innerHTML = "";
+    try {
+      const body = edPayload(); body.force = $("edForce").checked;
+      const r = await api("POST", `/api/admin/reservations/${CURRENT.reservation.id}/send`, body);
+      const res = r.data.result;
+      openEditor(r.data);
+      setMsg("edMsg", res.message, res.ok ? "ok" : "err");
+      if (res.errors && res.errors.length) {
+        const els = [...$("edGuests").children];
+        for (const ge of res.errors) { const el = els.find((e) => Number(e.querySelector('[name="id"]').value) === ge.guest_id); if (el) showErrs(el, ge.errors.filter((e) => e.field !== "data_entrada" && e.field !== "data_saida"), "__"); const dateErr = ge.errors.find((e) => e.field === "data_entrada" || e.field === "data_saida"); if (dateErr) showErrs($("tab-editor"), [{ field: dateErr.field === "data_entrada" ? "check_in" : "check_out", message: dateErr.message }], "ed_"); }
+      }
+      $("edResult").innerHTML = `<div class="notice ${res.ok ? (res.deferred ? "info" : "ok") : "err"}">${esc(res.message)}${res.skipped_guest_ids && res.skipped_guest_ids.length ? `<br><small>${res.skipped_guest_ids.length} hóspede(s) PRT não enviados (não obrigatório).</small>` : ""}</div>`;
+    } catch (e) { setMsg("edMsg", e.message, "err"); }
+    finally { $("edSend").disabled = false; }
+  });
+  $("edCancel").addEventListener("click", async () => {
+    if (!confirm("Cancelar esta reserva? O link do hóspede deixa de aceitar dados.")) return;
+    try { const r = await api("PUT", `/api/admin/reservations/${CURRENT.reservation.id}`, { status: "cancelled" }); openEditor(r.data); } catch (e) { setMsg("edMsg", e.message, "err"); }
+  });
+  $("edDelete").addEventListener("click", async () => {
+    if (!confirm("Apagar definitivamente esta reserva, hóspedes e histórico?")) return;
+    try { await api("DELETE", `/api/admin/reservations/${CURRENT.reservation.id}`); location.hash = ""; showTab("reservations"); } catch (e) { setMsg("edMsg", e.message, "err"); }
+  });
+  function renderSubs(subs) {
+    if (!subs || !subs.length) { $("edSubs").innerHTML = `<p class="dim">Sem envios.</p>`; return; }
+    $("edSubs").innerHTML = `<table><thead><tr><th>Data</th><th>Ficheiro n.º</th><th>Hóspedes</th><th>Origem</th><th>Resultado</th><th></th></tr></thead><tbody>` +
+      subs.map((s) => `<tr><td>${fmtTs(s.created_at)}</td><td>${s.file_number}</td><td>${JSON.parse(s.guest_ids || "[]").length}</td><td>${esc(s.triggered_by)}</td><td class="${s.ok ? "status-sent" : "status-error"}">${s.ok ? "Aceite (0)" : esc(s.result_code + " — " + s.result_message)}</td><td class="right"><button type="button" class="btn small" data-sub="${s.id}">XML</button></td></tr>`).join("") + `</tbody></table>`;
+    $("edSubs").querySelectorAll("[data-sub]").forEach((b) => b.addEventListener("click", async () => {
+      const s = (await api("GET", `/api/admin/submissions/${b.dataset.sub}`)).data.submission;
+      $("subDetail").textContent = `ENDPOINT: ${s.endpoint}\nHTTP: ${s.http_status}\nRESULTADO: ${s.result_code} ${s.result_message}\n\n--- XML ENVIADO (MovimentoBAL) ---\n${s.request_xml}\n\n--- RESPOSTA ---\n${s.response_raw}`;
+      $("subDetail").classList.remove("hidden");
+    }));
+  }
+  $("selfTestBtn").addEventListener("click", async () => {
+    const btn = $("selfTestBtn"); btn.disabled = true; $("selfTestMsg").textContent = "A contactar o SIBA…"; $("selfTestOut").classList.add("hidden");
+    try {
+      const r = (await api("POST", "/api/admin/siba-selftest")).data;
+      $("selfTestMsg").textContent = "";
+      $("selfTestOut").classList.remove("hidden");
+      $("selfTestOut").innerHTML = `<div class="notice ${r.ok ? "ok" : "err"}">${r.ok ? "✔ O SIBA aceitou o boletim de teste (retorno 0)" : "✘ Falhou: " + esc(r.code) + " — " + esc(r.message)}<br><span class="dim">${esc(r.endpoint)} · HTTP ${r.http_status || "—"} · ${r.duration_ms} ms · ficheiro n.º ${r.file_number}</span></div>
+        <details><summary class="dim" style="cursor:pointer">XML enviado</summary><pre>${esc(r.request_xml)}</pre></details>
+        <details><summary class="dim" style="cursor:pointer">Resposta do SIBA</summary><pre>${esc(r.response_raw || "(sem corpo)")}</pre></details>`;
+    } catch (e) { $("selfTestMsg").textContent = e.message; }
+    btn.disabled = false;
+  });
+  $("runCron").addEventListener("click", async () => { $("cronMsg").textContent = "A executar…"; try { const r = (await api("POST", "/api/admin/run-cron")).data; $("cronMsg").textContent = `Processadas ${r.processed} · enviadas ${r.sent} · falhadas ${r.failed}`; loadDashboard(); } catch (e) { $("cronMsg").textContent = e.message; } });
+
+  boot().catch((e) => { showLogin(); setMsg("loginMsg", e.message, "err"); });
+})();
+</script>
+</body>
+</html>

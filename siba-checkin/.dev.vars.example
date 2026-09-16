@@ -1,0 +1,9 @@
+# Copy to .dev.vars for local development (never commit .dev.vars).
+# In production set these with:  npx wrangler secret put ADMIN_PASSWORD   (and SESSION_SECRET)
+ADMIN_PASSWORD=change-me
+SESSION_SECRET=some-long-random-string
+# Optional: point SIBA calls at a mock/dev endpoint while testing
+# SIBA_ENDPOINT=http://127.0.0.1:9797/baws/boletinsalojamento.asmx
+# Optional Cloudflare Turnstile (anti-bot) for the public guest form
+# TURNSTILE_SITE_KEY=
+# TURNSTILE_SECRET=

@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Check-in</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main class="wrap">
+  <div class="card">
+    <div class="top">
+      <div class="lang" id="langSwitch">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="pt">PT</button>
+        <button type="button" data-lang="es">ES</button>
+        <button type="button" data-lang="fr">FR</button>
+        <button type="button" data-lang="de">DE</button>
+      </div>
+      <span id="statusChip" class="chip hidden"></span>
+    </div>
+    <h1 data-i18n="title">Online check-in</h1>
+    <p class="lead" id="propertyName"></p>
+    <p class="lead" data-i18n="lead"></p>
+  </div>
+
+  <div id="loadError" class="card hidden"><div class="notice err" data-i18n="err_load"></div></div>
+
+  <form id="form" class="hidden" novalidate>
+    <div class="card">
+      <h2 data-i18n="stay">Your stay</h2>
+      <div class="grid">
+        <div>
+          <label for="check_in"><span data-i18n="check_in">Check-in date</span> <span class="req">*</span></label>
+          <input type="date" id="check_in" name="check_in" required>
+          <div class="field-err" data-for="check_in"></div>
+        </div>
+        <div>
+          <label for="check_out" data-i18n="check_out">Check-out date</label>
+          <input type="date" id="check_out" name="check_out">
+          <div class="hint" data-i18n="check_out_hint"></div>
+          <div class="field-err" data-for="check_out"></div>
+        </div>
+        <div>
+          <label for="reference" data-i18n="reference">Booking reference</label>
+          <input type="text" id="reference" name="reference" maxlength="60" autocomplete="off">
+          <div class="hint" data-i18n="reference_hint"></div>
+        </div>
+        <div>
+          <label for="guest_email" data-i18n="email">Your e-mail</label>
+          <input type="email" id="guest_email" name="guest_email" maxlength="140" autocomplete="email">
+          <div class="hint" data-i18n="email_hint"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="guests">Guests</h2>
+      <div id="guests"></div>
+      <button type="button" class="btn" id="addGuest" data-i18n="add_guest">+ Add another guest</button>
+      <div class="notice info" data-i18n="pt_note" style="margin-top:14px"></div>
+    </div>
+
+    <div class="card">
+      <label style="display:flex;gap:10px;align-items:flex-start;font-size:13.5px;color:var(--text);font-weight:500">
+        <input type="checkbox" id="consent" style="width:20px;height:20px;margin-top:1px;flex:none">
+        <span data-i18n="consent"></span>
+      </label>
+      <div class="field-err" data-for="consent"></div>
+      <div id="turnstile" style="margin-top:12px"></div>
+      <div class="actions" style="flex-direction:column;align-items:stretch">
+        <button type="submit" class="btn primary big" id="sendBtn">
+          <span><span data-i18n="send">SEND</span> · <small style="font-weight:600;opacity:.8" data-i18n="send_sub">submit my details</small></span>
+        </button>
+        <button type="button" class="btn" id="saveBtn" data-i18n="save">Save for later</button>
+      </div>
+      <p id="msg" class="msg" role="status" aria-live="polite"></p>
+      <p class="hint" data-i18n="privacy" style="margin-top:10px"></p>
+    </div>
+  </form>
+
+  <div id="done" class="card hidden" style="text-align:center">
+    <div class="success-badge">✓</div>
+    <h1 data-i18n="done_title">Thank you!</h1>
+    <p class="lead" id="doneText" style="margin-top:10px"></p>
+    <div id="doneLink" class="hidden" style="margin-top:16px;text-align:left">
+      <p class="hint" data-i18n="link_hint"></p>
+      <div class="copy" style="margin-top:6px"><input type="text" id="linkBox" readonly><button type="button" class="btn small" id="copyBtn" data-i18n="copy">Copy</button></div>
+    </div>
+    <div class="actions" style="justify-content:center">
+      <button type="button" class="btn" id="editAgain" data-i18n="edit_again">Edit details</button>
+    </div>
+  </div>
+
+  <footer data-i18n="footer"></footer>
+</main>
+
+<script src="/i18n.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const I18N = window.I18N;
+  let LANG = "en";
+  let CONFIG = null;
+  let STATE = { slug: null, code: null, bundle: null, guestCounter: 0 };
+
+  // ---------- i18n ----------
+  const T = (k) => (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;
+  function applyLang(l, save) {
+    LANG = I18N[l] ? l : "en";
+    document.documentElement.lang = LANG;
+    document.title = T("title");
+    document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = T(el.getAttribute("data-i18n")); });
+    document.querySelectorAll("#langSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.lang === LANG));
+    document.querySelectorAll(".guest").forEach((g, i) => relabelGuest(g, i));
+    renderStatusChip();
+    if (save) try { localStorage.setItem("studio-lang", LANG); } catch (e) {}
+  }
+  document.querySelectorAll("#langSwitch button").forEach((b) => b.addEventListener("click", () => applyLang(b.dataset.lang, true)));
+
+  function countryName(c) {
+    try {
+      if (c.iso2 && c.iso2 !== "XK" && window.Intl && Intl.DisplayNames) {
+        const dn = new Intl.DisplayNames([LANG], { type: "region" });
+        const n = dn.of(c.iso2);
+        if (n && n !== c.iso2) return n;
+      }
+    } catch (e) {}
+    return LANG === "pt" ? c.pt : c.en;
+  }
+  function countryOptions(selected) {
+    const list = CONFIG.countries.map((c) => ({ code: c.code, name: countryName(c) })).sort((a, b) => a.name.localeCompare(b.name, LANG));
+    let html = `<option value="">${T("select")}</option>`;
+    for (const c of list) html += `<option value="${c.code}"${c.code === selected ? " selected" : ""}>${escapeHtml(c.name)}</option>`;
+    return html;
+  }
+  function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m])); }
+
+  // ---------- guests UI ----------
+  const GUEST_FIELDS = ["apelido", "nome", "nacionalidade", "data_nascimento", "local_nascimento", "tipo_documento", "documento_identificacao", "pais_emissor_documento", "pais_residencia_origem", "local_residencia_origem"];
+
+  function guestTemplate(g) {
+    g = g || {};
+    const locked = g.siba_status === "sent";
+    return `
+      <div class="head">
+        <h3><span class="gtitle"></span> <span class="chip ${locked ? "ok" : ""} gchip ${locked ? "" : "hidden"}">${locked ? T("status_sent") : ""}</span></h3>
+        <button type="button" class="btn small danger removeGuest ${locked ? "hidden" : ""}" data-i18n="remove">${T("remove")}</button>
+      </div>
+      <input type="hidden" name="id" value="${g.id || ""}">
+      <div class="grid">
+        <div><label><span data-i18n="surname">${T("surname")}</span> <span class="req">*</span></label>
+          <input name="apelido" maxlength="40" autocomplete="off" autocapitalize="characters" value="${escapeHtml(g.apelido)}" ${locked ? "readonly" : ""}><div class="field-err" data-for="apelido"></div></div>
+        <div><label data-i18n="given">${T("given")}</label>
+          <input name="nome" maxlength="40" autocomplete="off" autocapitalize="characters" value="${escapeHtml(g.nome)}" ${locked ? "readonly" : ""}><div class="hint" data-i18n="given_hint">${T("given_hint")}</div><div class="field-err" data-for="nome"></div></div>
+        <div><label><span data-i18n="nationality">${T("nationality")}</span> <span class="req">*</span></label>
+          <select name="nacionalidade" ${locked ? "disabled" : ""}>${countryOptions(g.nacionalidade)}</select><div class="field-err" data-for="nacionalidade"></div></div>
+        <div><label><span data-i18n="birth_date">${T("birth_date")}</span> <span class="req">*</span></label>
+          <input type="date" name="data_nascimento" max="${CONFIG.today}" value="${escapeHtml(g.data_nascimento)}" ${locked ? "readonly" : ""}><div class="field-err" data-for="data_nascimento"></div></div>
+        <div><label><span data-i18n="birth_place">${T("birth_place")}</span> <small class="dim">(<span data-i18n="optional">${T("optional")}</span>)</small></label>
+          <input name="local_nascimento" maxlength="30" autocomplete="off" value="${escapeHtml(g.local_nascimento)}" ${locked ? "readonly" : ""}><div class="field-err" data-for="local_nascimento"></div></div>
+        <div><label><span data-i18n="doc_type">${T("doc_type")}</span> <span class="req">*</span></label>
+          <select name="tipo_documento" ${locked ? "disabled" : ""}>
+            <option value="P" ${(!g.tipo_documento || g.tipo_documento === "P") ? "selected" : ""} data-i18n="doc_p">${T("doc_p")}</option>
+            <option value="B" ${g.tipo_documento === "B" ? "selected" : ""} data-i18n="doc_b">${T("doc_b")}</option>
+            <option value="O" ${g.tipo_documento === "O" ? "selected" : ""} data-i18n="doc_o">${T("doc_o")}</option>
+          </select><div class="field-err" data-for="tipo_documento"></div></div>
+        <div><label><span data-i18n="doc_number">${T("doc_number")}</span> <span class="req">*</span></label>
+          <input name="documento_identificacao" maxlength="16" autocomplete="off" autocapitalize="characters" value="${escapeHtml(g.documento_identificacao)}" ${locked ? "readonly" : ""}><div class="hint" data-i18n="doc_number_hint">${T("doc_number_hint")}</div><div class="field-err" data-for="documento_identificacao"></div></div>
+        <div><label><span data-i18n="doc_country">${T("doc_country")}</span> <span class="req">*</span></label>
+          <select name="pais_emissor_documento" ${locked ? "disabled" : ""}>${countryOptions(g.pais_emissor_documento)}</select><div class="field-err" data-for="pais_emissor_documento"></div></div>
+        <div><label><span data-i18n="res_country">${T("res_country")}</span> <span class="req">*</span></label>
+          <select name="pais_residencia_origem" ${locked ? "disabled" : ""}>${countryOptions(g.pais_residencia_origem)}</select><div class="field-err" data-for="pais_residencia_origem"></div></div>
+        <div><label><span data-i18n="res_city">${T("res_city")}</span> <span class="req">*</span></label>
+          <input name="local_residencia_origem" maxlength="30" autocomplete="off" value="${escapeHtml(g.local_residencia_origem)}" ${locked ? "readonly" : ""}><div class="field-err" data-for="local_residencia_origem"></div></div>
+      </div>`;
+  }
+
+  function relabelGuest(el, index) {
+    el.querySelector(".gtitle").textContent = `${T("guest")} ${index + 1}`;
+    el.querySelectorAll("[data-i18n]").forEach((n) => { n.textContent = T(n.getAttribute("data-i18n")); });
+  }
+
+  function addGuest(g) {
+    const el = document.createElement("div");
+    el.className = "guest";
+    el.dataset.locked = g && g.siba_status === "sent" ? "1" : "";
+    el.innerHTML = guestTemplate(g);
+    $("guests").appendChild(el);
+    relabelGuest(el, $("guests").children.length - 1);
+    el.querySelector(".removeGuest").addEventListener("click", () => {
+      if ($("guests").children.length <= 1) { el.querySelectorAll("input,select").forEach((i) => { if (i.type !== "hidden") i.value = ""; }); return; }
+      el.remove();
+      [...$("guests").children].forEach((c, i) => relabelGuest(c, i));
+    });
+    // auto-fill: issuing country & residence follow nationality until changed by the guest
+    const nat = el.querySelector('[name="nacionalidade"]');
+    nat.addEventListener("change", () => {
+      const iss = el.querySelector('[name="pais_emissor_documento"]');
+      const res = el.querySelector('[name="pais_residencia_origem"]');
+      if (!iss.value) iss.value = nat.value;
+      if (!res.value) res.value = nat.value;
+    });
+    el.querySelectorAll("input,select").forEach((i) => i.addEventListener("input", () => clearErr(i)));
+    return el;
+  }
+
+  function readGuests() {
+    return [...$("guests").children].map((el) => {
+      const o = {};
+      const idv = el.querySelector('[name="id"]').value;
+      if (idv) o.id = Number(idv);
+      for (const f of GUEST_FIELDS) { const input = el.querySelector(`[name="${f}"]`); o[f] = input ? input.value.trim() : ""; }
+      return o;
+    });
+  }
+
+  // ---------- errors ----------
+  function clearErr(input) {
+    input.classList.remove("invalid");
+    const e = input.parentElement.querySelector(`.field-err[data-for="${input.name}"]`);
+    if (e) { e.textContent = ""; e.classList.remove("show"); }
+  }
+  function setErr(scope, name, text) {
+    const input = scope.querySelector(`[name="${name}"]`);
+    const e = scope.querySelector(`.field-err[data-for="${name}"]`);
+    if (input) input.classList.add("invalid");
+    if (e) { e.textContent = text; e.classList.add("show"); }
+  }
+  function clearAllErrors() {
+    document.querySelectorAll(".invalid").forEach((i) => i.classList.remove("invalid"));
+    document.querySelectorAll(".field-err").forEach((e) => { e.textContent = ""; e.classList.remove("show"); });
+  }
+  function localValidate() {
+    clearAllErrors();
+    let ok = true;
+    const form = $("form");
+    const ci = $("check_in").value, co = $("check_out").value;
+    if (!ci) { setErr(form, "check_in", T("required")); ok = false; }
+    if (ci && co && co < ci) { setErr(form, "check_out", T("err_dates")); ok = false; }
+    const guests = [...$("guests").children];
+    guests.forEach((el) => {
+      if (el.dataset.locked) return;
+      const req = ["apelido", "nacionalidade", "data_nascimento", "documento_identificacao", "pais_emissor_documento", "pais_residencia_origem", "local_residencia_origem"];
+      for (const f of req) {
+        const i = el.querySelector(`[name="${f}"]`);
+        if (!i.value.trim()) { setErr(el, f, T("required")); ok = false; }
+      }
+      const dn = el.querySelector('[name="data_nascimento"]');
+      if (dn.value && dn.value >= CONFIG.today) { setErr(el, "data_nascimento", T("invalid")); ok = false; }
+      const doc = el.querySelector('[name="documento_identificacao"]');
+      if (doc.value && !/^[A-Za-z0-9 .\-\/]{1,20}$/.test(doc.value)) { setErr(el, "documento_identificacao", T("invalid")); ok = false; }
+    });
+    if (!$("consent").checked) { setErr(form, "consent", T("err_consent")); ok = false; }
+    if (!ok) { msg(T("fix"), "err"); const first = document.querySelector(".invalid, .field-err.show"); if (first) first.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    return ok;
+  }
+  function applyServerChecks(checks) {
+    if (!Array.isArray(checks)) return;
+    const els = [...$("guests").children];
+    for (const c of checks) {
+      const el = els.find((e) => Number(e.querySelector('[name="id"]').value) === c.guest_id);
+      if (!el) continue;
+      for (const e of c.errors) {
+        if (e.field === "data_entrada" || e.field === "data_saida") { setErr($("form"), e.field === "data_entrada" ? "check_in" : "check_out", e.message); continue; }
+        setErr(el, e.field, e.message);
+      }
+    }
+    const first = document.querySelector(".invalid"); if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  // ---------- messages / status ----------
+  let msgTimer = null;
+  function msg(text, cls) {
+    clearTimeout(msgTimer);
+    const el = $("msg"); el.textContent = text || ""; el.className = "msg " + (cls || "");
+    if (cls === "ok") msgTimer = setTimeout(() => { el.textContent = ""; el.className = "msg"; }, 6000);
+  }
+  function renderStatusChip() {
+    const chip = $("statusChip");
+    const r = STATE.bundle && STATE.bundle.reservation;
+    if (!r) { chip.classList.add("hidden"); return; }
+    const map = { draft: "", submitted: "info", sent: "ok", error: "warn", cancelled: "err" };
+    chip.className = "chip " + (map[r.status] || "");
+    chip.textContent = T("status_" + r.status);
+  }
+
+  // ---------- API ----------
+  async function api(method, path, body) {
+    const res = await fetch(path, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok && !(data && (data.checks || data.errors))) throw new Error((data && (data.error || data.message)) || res.statusText || T("err_generic"));
+    return { status: res.status, data: data || {} };
+  }
+
+  function payload() {
+    return {
+      slug: STATE.slug,
+      check_in: $("check_in").value,
+      check_out: $("check_out").value || null,
+      reference: $("reference").value,
+      guest_email: $("guest_email").value,
+      guests: readGuests(),
+      turnstile_token: turnstileToken(),
+    };
+  }
+  function turnstileToken() { const i = document.querySelector('[name="cf-turnstile-response"]'); return i ? i.value : ""; }
+  function resetTurnstile() { try { if (window.turnstile) window.turnstile.reset(); } catch (e) {} }
+
+  function fillFromBundle(b) {
+    STATE.bundle = b;
+    if (b.reservation && b.reservation.access_code) STATE.code = b.reservation.access_code;
+    $("propertyName").textContent = b.property ? b.property.nome + (b.property.localidade ? " · " + b.property.localidade : "") : "";
+    if (b.reservation) {
+      $("check_in").value = b.reservation.check_in || "";
+      $("check_out").value = b.reservation.check_out || "";
+      $("reference").value = b.reservation.reference || "";
+      $("guest_email").value = b.reservation.guest_email || "";
+      const lockDates = b.reservation.status === "sent" || b.reservation.status === "error";
+      $("check_in").readOnly = lockDates; $("check_out").readOnly = lockDates;
+    }
+    $("guests").innerHTML = "";
+    if (b.guests && b.guests.length) b.guests.forEach((g) => addGuest(g)); else addGuest();
+    renderStatusChip();
+    // update URL so the guest can bookmark it
+    if (STATE.code && STATE.slug) {
+      const want = `/r/${encodeURIComponent(STATE.slug)}/${STATE.code}`;
+      if (location.pathname !== want) history.replaceState(null, "", want);
+    }
+  }
+
+  function showDone(kind) {
+    $("form").classList.add("hidden");
+    $("done").classList.remove("hidden");
+    $("doneText").textContent = T(kind);
+    if (STATE.code) { $("doneLink").classList.remove("hidden"); $("linkBox").value = location.origin + `/r/${encodeURIComponent(STATE.slug)}/${STATE.code}`; }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  $("editAgain").addEventListener("click", () => { $("done").classList.add("hidden"); $("form").classList.remove("hidden"); });
+  $("copyBtn").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("linkBox").value); $("copyBtn").textContent = T("copied"); setTimeout(() => ($("copyBtn").textContent = T("copy")), 1500); } catch (e) { $("linkBox").select(); } });
+  $("addGuest").addEventListener("click", () => { if ($("guests").children.length < 12) addGuest(); });
+
+  async function save(silent) {
+    clearAllErrors();
+    const ci = $("check_in").value, co = $("check_out").value;
+    if (!ci) { setErr($("form"), "check_in", T("required")); return null; }
+    if (co && co < ci) { setErr($("form"), "check_out", T("err_dates")); return null; }
+    if (!silent) msg(T("saving"));
+    const body = payload();
+    const r = STATE.code
+      ? await api("PUT", `/api/public/reservation/${STATE.code}`, body)
+      : await api("POST", `/api/public/reservation`, body);
+    fillFromBundle(r.data);
+    if (!silent) msg(T("saved"), "ok");
+    return r.data;
+  }
+
+  $("saveBtn").addEventListener("click", async () => {
+    setBusy(true);
+    try { await save(false); } catch (e) { msg(e.message || T("err_generic"), "err"); } finally { setBusy(false); resetTurnstile(); }
+  });
+
+  $("form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    if (!localValidate()) return;
+    setBusy(true);
+    try {
+      msg(T("sending"));
+      if (!STATE.code) await save(true); // create the reservation first (gets the code)
+      const r = await api("POST", `/api/public/reservation/${STATE.code}/send`, payload());
+      fillFromBundle(r.data);
+      if (r.status === 422 || r.data.ok === false) { applyServerChecks(r.data.checks); msg(r.data.message || T("fix"), "err"); return; }
+      const res = r.data.reservation;
+      const allPt = (r.data.guests || []).length && (r.data.guests || []).every((g) => g.nacionalidade === "PRT");
+      if (res.status === "sent") showDone(allPt ? "done_pt" : "done_sent");
+      else if (r.data.siba_ok !== null && res.status === "submitted" && res.check_in > (r.data.today || CONFIG.today)) showDone("done_deferred");
+      else showDone("done_review");
+    } catch (e) {
+      msg(e.message || T("err_generic"), "err");
+    } finally { setBusy(false); resetTurnstile(); }
+  });
+
+  function setBusy(b) { $("sendBtn").disabled = b; $("saveBtn").disabled = b; }
+
+  // ---------- boot ----------
+  async function boot() {
+    let saved = null; try { saved = localStorage.getItem("studio-lang"); } catch (e) {}
+    const nav = (navigator.language || "en").slice(0, 2).toLowerCase();
+    applyLang(saved || (I18N[nav] ? nav : "en"), false);
+
+    const parts = location.pathname.split("/").filter(Boolean); // ["r", slug, code?]
+    STATE.slug = parts[0] === "r" ? decodeURIComponent(parts[1] || "") : (new URLSearchParams(location.search).get("p") || "");
+    STATE.code = parts[0] === "r" ? (parts[2] || null) : (new URLSearchParams(location.search).get("c") || null);
+
+    try {
+      CONFIG = (await api("GET", "/api/public/config")).data;
+      if (CONFIG.turnstile_site_key) {
+        const s = document.createElement("script"); s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js"; s.async = true; s.defer = true; document.head.appendChild(s);
+        $("turnstile").className = "cf-turnstile"; $("turnstile").setAttribute("data-sitekey", CONFIG.turnstile_site_key); $("turnstile").setAttribute("data-theme", "dark");
+      }
+      if (STATE.code) {
+        const b = (await api("GET", `/api/public/reservation/${STATE.code}`)).data;
+        STATE.slug = b.property.slug;
+        fillFromBundle(b);
+        if (b.reservation.status === "cancelled") { $("form").classList.add("hidden"); $("loadError").classList.remove("hidden"); $("loadError").querySelector(".notice").textContent = T("cancelled"); return; }
+        if (b.reservation.status === "sent") { showDone((b.guests || []).every((g) => g.nacionalidade === "PRT") ? "done_pt" : "done_sent"); }
+      } else if (STATE.slug) {
+        const p = (await api("GET", `/api/public/property/${encodeURIComponent(STATE.slug)}`)).data.property;
+        fillFromBundle({ property: p, reservation: null, guests: [] });
+        $("check_in").value = CONFIG.today;
+      } else {
+        throw new Error("no property");
+      }
+      $("form").classList.remove("hidden");
+      applyLang(LANG, false);
+    } catch (e) {
+      $("loadError").classList.remove("hidden");
+    }
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
