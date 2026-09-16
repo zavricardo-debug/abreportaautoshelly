@@ -79,17 +79,30 @@ npm run setup               # pergunta a password do /admin e trata do resto
 
 **Opção B — GitHub Actions** (nada é instalado no seu computador; o token fica só no GitHub):
 
-1. Crie um token em `dash.cloudflare.com → My Profile → API Tokens → Create Token`, modelo
-   **Edit Cloudflare Workers**, e acrescente a permissão **Account → D1 → Edit**.
-2. No repositório GitHub: `Settings → Secrets and variables → Actions → New repository secret`:
-   `CLOUDFLARE_API_TOKEN` (o token), `ADMIN_PASSWORD` (password do painel, mín. 6 caracteres) e,
-   só se a sua conta Cloudflare tiver acesso a várias contas, `CLOUDFLARE_ACCOUNT_ID`.
+1. **Token Cloudflare** — https://dash.cloudflare.com/profile/api-tokens → *Create Token* →
+   modelo **Edit Cloudflare Workers** → *Use template* → em *Permissions* carregue em
+   *+ Add more* e acrescente **Account · D1 · Edit** → em *Account Resources* escolha a sua
+   conta → *Continue to summary* → *Create Token*. Copie o token (só é mostrado uma vez).
+
+   O modelo já inclui o que o deploy precisa (Workers Scripts, Workers KV/Routes, Account
+   Settings, User Details); a única permissão extra é a **D1**, para criar a base de dados.
+2. **Secrets no GitHub** — `Settings → Secrets and variables → Actions → New repository secret`:
+
+   | Secret | Valor |
+   |---|---|
+   | `CLOUDFLARE_API_TOKEN` | o token do passo 1 |
+   | `ADMIN_PASSWORD` | password do painel `/admin` (mín. 6 caracteres) |
+   | `CLOUDFLARE_ACCOUNT_ID` | *opcional* — só se o seu login tiver várias contas Cloudflare (está em *Workers & Pages → Account details*) |
+
 3. `Actions → Deploy SIBA check-in to Cloudflare → Run workflow`. O resumo do job mostra o endereço
    do painel e o resultado do teste ao SIBA. A partir daí, cada alteração em `siba-checkin/` que
    chegue ao ramo `main` é publicada automaticamente.
 
-O script nunca imprime nem grava o token; os secrets são enviados ao Cloudflare por `stdin`.
-Depois da primeira execução, faça commit do `database_id` que ficou em `wrangler.jsonc`.
+Se a conta Cloudflare for nova e ainda não tiver subdomínio `workers.dev`, o instalador regista um
+(pode escolher o nome com a variável `WORKERS_SUBDOMAIN` em *Actions → Variables*). O token nunca é
+impresso nem gravado; os secrets são enviados ao Cloudflare por `stdin`. Depois da primeira execução,
+opcionalmente faça commit do `database_id` que o instalador escreveu em `wrangler.jsonc` (não é
+obrigatório — cada execução volta a descobri-lo).
 
 ## Instalação manual (passo a passo)
 

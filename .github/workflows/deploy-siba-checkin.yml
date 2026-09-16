@@ -1,13 +1,19 @@
 name: Deploy SIBA check-in to Cloudflare
 
-# Como usar (uma vez):
-#   GitHub → Settings → Secrets and variables → Actions → New repository secret
-#     CLOUDFLARE_API_TOKEN   token criado em dash.cloudflare.com → My Profile → API Tokens →
-#                            Create Token → modelo "Edit Cloudflare Workers" + adicionar "Account · D1 · Edit"
-#     CLOUDFLARE_ACCOUNT_ID  (só se a conta Cloudflare tiver acesso a mais do que uma conta)
-#     ADMIN_PASSWORD         password do painel /admin (mín. 6 caracteres; obrigatória no 1.º deploy)
-#   Depois: Actions → "Deploy SIBA check-in to Cloudflare" → Run workflow.
-#   Cada push em main que altere siba-checkin/ volta a publicar automaticamente.
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuração (uma vez) — GitHub → Settings → Secrets and variables → Actions → Secrets:
+#
+#   CLOUDFLARE_API_TOKEN   token criado em https://dash.cloudflare.com/profile/api-tokens
+#                          → Create Token → modelo "Edit Cloudflare Workers" → Use template
+#                          → em Permissions, "+ Add more" → Account · D1 · Edit
+#                          → Account Resources: a sua conta · Continue to summary → Create Token
+#   ADMIN_PASSWORD         password do painel /admin (mín. 6 caracteres; obrigatória no 1.º deploy)
+#   CLOUDFLARE_ACCOUNT_ID  (opcional) só se o seu login tiver acesso a várias contas Cloudflare
+#                          — está em dash.cloudflare.com → Workers & Pages → Account details
+#
+# Depois: Actions → "Deploy SIBA check-in to Cloudflare" → Run workflow.
+# Cada push em main que altere siba-checkin/ volta a publicar automaticamente.
+# ─────────────────────────────────────────────────────────────────────────────
 
 on:
   workflow_dispatch:
@@ -27,6 +33,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: siba-checkin
@@ -50,9 +57,22 @@ jobs:
       - name: Check repository secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::error::Falta o secret CLOUDFLARE_API_TOKEN (Settings → Secrets and variables → Actions). Ver comentário no topo do workflow."
+          missing=""
+          [ -z "$CLOUDFLARE_API_TOKEN" ] && missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -z "$ADMIN_PASSWORD" ] && missing="$missing ADMIN_PASSWORD"
+          if [ -n "$missing" ]; then
+            {
+              echo "## ⚠️ Faltam secrets no repositório:$missing"
+              echo
+              echo "Adicione-os em **Settings → Secrets and variables → Actions → New repository secret** e volte a correr o workflow."
+              echo
+              echo "- \`CLOUDFLARE_API_TOKEN\` — https://dash.cloudflare.com/profile/api-tokens → Create Token → modelo **Edit Cloudflare Workers** → *+ Add more* → **Account · D1 · Edit** → Create Token"
+              echo "- \`ADMIN_PASSWORD\` — password do painel /admin (mín. 6 caracteres)"
+              echo "- \`CLOUDFLARE_ACCOUNT_ID\` — opcional, só com várias contas Cloudflare"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Faltam secrets:$missing — ver o resumo do job para as instruções."
             exit 1
           fi
 
@@ -61,6 +81,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          # opcional: domínio próprio do Worker, se o subdomínio workers.dev estiver desativado
-          WORKER_URL: ${{ vars.WORKER_URL }}
+          # opcionais (Settings → Secrets and variables → Actions → Variables)
+          WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}   # nome do subdomínio workers.dev a registar, se a conta ainda não tiver
+          WORKER_URL: ${{ vars.WORKER_URL }}                 # domínio próprio do Worker, se o subdomínio workers.dev estiver desativado
         run: node tools/setup-cloudflare.mjs --ci
