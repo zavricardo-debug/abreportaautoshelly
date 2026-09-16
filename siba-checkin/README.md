@@ -63,7 +63,35 @@ Administrador ──► /admin  (unidade hoteleira, reservas, botão "Enviar ao 
    `O método de envio selecionado … não lhe permite efetuar esta operação` ⇒ modo de envio ainda
    não é Web Service. Corrija em **Unidade Hoteleira** e volte a carregar em **Enviar ao SIBA**.
 
-## Instalação (uma vez)
+## Instalação automática (recomendado)
+
+Um único comando cria a base de dados D1, aplica as migrações, publica o Worker, define os
+secrets e faz o teste de ligação ao SIBA. É idempotente — pode repetir sempre que quiser.
+
+**Opção A — no seu computador** (precisa de Node 22+ e de uma conta Cloudflare):
+
+```bash
+cd siba-checkin
+npm ci
+npx wrangler login          # abre o browser; em alternativa: export CLOUDFLARE_API_TOKEN=...
+npm run setup               # pergunta a password do /admin e trata do resto
+```
+
+**Opção B — GitHub Actions** (nada é instalado no seu computador; o token fica só no GitHub):
+
+1. Crie um token em `dash.cloudflare.com → My Profile → API Tokens → Create Token`, modelo
+   **Edit Cloudflare Workers**, e acrescente a permissão **Account → D1 → Edit**.
+2. No repositório GitHub: `Settings → Secrets and variables → Actions → New repository secret`:
+   `CLOUDFLARE_API_TOKEN` (o token), `ADMIN_PASSWORD` (password do painel, mín. 6 caracteres) e,
+   só se a sua conta Cloudflare tiver acesso a várias contas, `CLOUDFLARE_ACCOUNT_ID`.
+3. `Actions → Deploy SIBA check-in to Cloudflare → Run workflow`. O resumo do job mostra o endereço
+   do painel e o resultado do teste ao SIBA. A partir daí, cada alteração em `siba-checkin/` que
+   chegue ao ramo `main` é publicada automaticamente.
+
+O script nunca imprime nem grava o token; os secrets são enviados ao Cloudflare por `stdin`.
+Depois da primeira execução, faça commit do `database_id` que ficou em `wrangler.jsonc`.
+
+## Instalação manual (passo a passo)
 
 ```bash
 cd siba-checkin
