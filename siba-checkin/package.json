@@ -1,0 +1,25 @@
+{
+  "name": "siba-checkin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Guest check-in (Boletins de Alojamento) for Cloudflare Workers + D1, with automatic submission to SIBA (AIMA).",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "setup": "node tools/setup-cloudflare.mjs",
+    "db:create": "wrangler d1 create siba-checkin",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "cf-typegen": "wrangler types",
+    "mock:siba": "node tools/mock-siba.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260916.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.0.0"
+  }
+}
