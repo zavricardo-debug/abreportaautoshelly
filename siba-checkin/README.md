@@ -15,8 +15,9 @@ Administrador ──► /admin  (unidade hoteleira, reservas, botão "Enviar ao 
 
 - **Formulário do hóspede** (EN/PT/ES/FR/DE, telemóvel) com todos os campos do Boletim de
   Alojamento: apelido, nome, nacionalidade (tabela ICAO do SIBA — ex.: Alemanha = `D`),
-  data/local de nascimento, tipo/número/país do documento, país e localidade de residência,
-  datas de entrada/saída. Vários hóspedes por reserva. Botão **ENVIAR**.
+  data/local de nascimento, tipo/número/país do documento, país e localidade de residência
+  (com opção «mesma residência que o hóspede 1» para famílias/grupos), datas de entrada/saída.
+  Vários hóspedes por reserva. Botão **ENVIAR**.
 - **Validação** conforme as regras do SIBA (maiúsculas, caracteres permitidos nos nomes,
   n.º de documento só `A-Z0-9`, códigos de país válidos, datas coerentes, tamanhos máximos).
 - **Envio ao SIBA** imediato quando o hóspede carrega em ENVIAR (se a data de entrada já
