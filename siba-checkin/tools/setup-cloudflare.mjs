@@ -2,6 +2,7 @@
 /**
  * Instalação automática no Cloudflare — idempotente (pode correr as vezes que quiser).
  *
+ *   0. pré-voo: validação do token de API (se fornecido) e permissões de D1
  *   1. cria a base de dados D1 "siba-checkin" (se ainda não existir) na Europa Ocidental
  *   2. escreve o database_id em wrangler.jsonc
  *   3. aplica as migrações na base de dados remota
@@ -124,7 +125,7 @@ const slug = (s) =>
     .slice(0, 63);
 
 // ---------------------------------------------------------------------------
-// 0. dependencies + authentication
+// 0. dependencies + authentication + pre-flight
 // ---------------------------------------------------------------------------
 if (!existsSync(wranglerBin)) {
   log("A instalar dependências (npm ci)…");
@@ -133,6 +134,17 @@ if (!existsSync(wranglerBin)) {
 }
 
 log("A verificar a autenticação no Cloudflare…");
+if (API_TOKEN) {
+  const ver = await cfApi("/user/tokens/verify");
+  if (!ver.ok || ver.result?.status !== "active") {
+    const errDesc = ver.errors.map((e) => `${e.code} ${e.message}`).join("; ") || (ver.http ? `HTTP ${ver.http}` : "token inválido");
+    fail(
+      `O CLOUDFLARE_API_TOKEN fornecido é inválido ou expirou (${errDesc}).\n` +
+        "   Verifique o token em https://dash.cloudflare.com/profile/api-tokens.",
+    );
+  }
+}
+
 const who = wrangler(["whoami"], { capture: true, quiet: true });
 if (who.status !== 0 || /not authenticated/i.test(who.out)) {
   process.stdout.write(who.out);
@@ -154,6 +166,18 @@ if (!accountId && accountIds.length > 1) {
 }
 if (accountId) process.env.CLOUDFLARE_ACCOUNT_ID = accountId; // makes every wrangler call below unambiguous
 const loginEmail = (who.out.match(/associated with the email ([^\s.]+(?:\.[^\s.]+)*@[^\s]+?)\.?(?:\s|$)/) || [])[1] || "";
+
+// Pre-flight check: D1 permissions on the account
+if (API_TOKEN && accountId) {
+  const d1Check = await cfApi(`/accounts/${accountId}/d1/database`);
+  if (!d1Check.ok) {
+    fail(
+      "O CLOUDFLARE_API_TOKEN não tem permissão para aceder ao D1 nesta conta.\n" +
+        "   Edite o token em https://dash.cloudflare.com/profile/api-tokens e adicione a permissão «Account · D1 · Edit».",
+    );
+  }
+  console.log("   token verificado: ativo e com permissão D1");
+}
 
 // ---------------------------------------------------------------------------
 // 1. D1 database

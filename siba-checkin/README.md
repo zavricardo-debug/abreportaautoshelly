@@ -98,7 +98,7 @@ npm run setup               # pergunta a password do /admin e trata do resto
    do painel e o resultado do teste ao SIBA. A partir daí, cada alteração em `siba-checkin/` que
    chegue ao ramo `main` é publicada automaticamente.
 
-Se a conta Cloudflare for nova e ainda não tiver subdomínio `workers.dev`, o instalador regista um
+O instalador valida previamente o token e as permissões D1 (*pre-flight*). Se a conta Cloudflare for nova e ainda não tiver subdomínio `workers.dev`, o instalador regista um
 (pode escolher o nome com a variável `WORKERS_SUBDOMAIN` em *Actions → Variables*). O token nunca é
 impresso nem gravado; os secrets são enviados ao Cloudflare por `stdin`. Depois da primeira execução,
 opcionalmente faça commit do `database_id` que o instalador escreveu em `wrangler.jsonc` (não é
