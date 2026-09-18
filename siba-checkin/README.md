@@ -15,8 +15,9 @@ Administrador ──► /admin  (unidade hoteleira, reservas, botão "Enviar ao 
 
 - **Formulário do hóspede** (EN/PT/ES/FR/DE, telemóvel) com todos os campos do Boletim de
   Alojamento: apelido, nome, nacionalidade (tabela ICAO do SIBA — ex.: Alemanha = `D`),
-  data/local de nascimento, tipo/número/país do documento, país e localidade de residência,
-  datas de entrada/saída. Vários hóspedes por reserva. Botão **ENVIAR**.
+  data/local de nascimento, tipo/número/país do documento, país e localidade de residência
+  (com opção «mesma residência que o hóspede 1» para famílias/grupos), datas de entrada/saída.
+  Vários hóspedes por reserva. Botão **ENVIAR**.
 - **Validação** conforme as regras do SIBA (maiúsculas, caracteres permitidos nos nomes,
   n.º de documento só `A-Z0-9`, códigos de país válidos, datas coerentes, tamanhos máximos).
 - **Envio ao SIBA** imediato quando o hóspede carrega em ENVIAR (se a data de entrada já
@@ -98,7 +99,7 @@ npm run setup               # pergunta a password do /admin e trata do resto
    do painel e o resultado do teste ao SIBA. A partir daí, cada alteração em `siba-checkin/` que
    chegue ao ramo `main` é publicada automaticamente.
 
-Se a conta Cloudflare for nova e ainda não tiver subdomínio `workers.dev`, o instalador regista um
+O instalador valida previamente o token e as permissões D1 (*pre-flight*). Se a conta Cloudflare for nova e ainda não tiver subdomínio `workers.dev`, o instalador regista um
 (pode escolher o nome com a variável `WORKERS_SUBDOMAIN` em *Actions → Variables*). O token nunca é
 impresso nem gravado; os secrets são enviados ao Cloudflare por `stdin`. Depois da primeira execução,
 opcionalmente faça commit do `database_id` que o instalador escreveu em `wrangler.jsonc` (não é

@@ -364,6 +364,17 @@
   $("copyLink").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("guestLink").value); $("copyLink").textContent = "Copiado!"; setTimeout(() => ($("copyLink").textContent = "Copiar"), 1500); } catch (e) { $("guestLink").select(); } });
 
   const GFIELDS = ["apelido", "nome", "nacionalidade", "data_nascimento", "local_nascimento", "tipo_documento", "documento_identificacao", "pais_emissor_documento", "pais_residencia_origem", "local_residencia_origem"];
+
+  function relabelEdGuests() {
+    [...$("edGuests").children].forEach((el, index) => {
+      const h3 = el.querySelector(".head h3");
+      const chips = [...el.querySelectorAll(".head .chip")].map((c) => c.outerHTML).join(" ");
+      if (h3) h3.innerHTML = `Hóspede ${index + 1} ${chips}`;
+      const wrap = el.querySelector(".same-addr-wrap");
+      if (wrap) wrap.classList.toggle("hidden", index === 0);
+    });
+  }
+
   function addEdGuest(g, check) {
     g = g || {}; const el = document.createElement("div"); el.className = "guest";
     const st = g.siba_status ? `<span class="chip ${g.siba_status === "sent" ? "ok" : g.siba_status === "error" ? "err" : ""}">${GSTATUS_PT[g.siba_status]}</span>` : "";
@@ -380,14 +391,88 @@
         <div><label>Tipo de documento <span class="req">*</span></label><select name="tipo_documento"><option value="P"${(!g.tipo_documento || g.tipo_documento === "P") ? " selected" : ""}>P — Passaporte</option><option value="B"${g.tipo_documento === "B" ? " selected" : ""}>B — Bilhete de identidade</option><option value="O"${g.tipo_documento === "O" ? " selected" : ""}>O — Outro</option></select><div class="field-err" data-for="tipo_documento"></div></div>
         <div><label>Número do documento <span class="req">*</span></label><input name="documento_identificacao" maxlength="16" value="${esc(g.documento_identificacao)}"><div class="field-err" data-for="documento_identificacao"></div></div>
         <div><label>País emissor <span class="req">*</span></label><select name="pais_emissor_documento">${countryOpts(g.pais_emissor_documento)}</select><div class="field-err" data-for="pais_emissor_documento"></div></div>
+        <div class="full same-addr-wrap hidden">
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text);font-weight:500;user-select:none;margin-top:2px">
+            <input type="checkbox" class="same-addr-check" style="width:17px;height:17px;cursor:pointer">
+            <span>Mesma residência que o hóspede 1</span>
+          </label>
+        </div>
         <div><label>País de residência <span class="req">*</span></label><select name="pais_residencia_origem">${countryOpts(g.pais_residencia_origem)}</select><div class="field-err" data-for="pais_residencia_origem"></div></div>
         <div><label>Localidade de residência <span class="req">*</span></label><input name="local_residencia_origem" maxlength="30" value="${esc(g.local_residencia_origem)}"><div class="field-err" data-for="local_residencia_origem"></div></div>
       </div>`;
-    el.querySelector(".rm").addEventListener("click", () => { el.remove(); });
+    el.querySelector(".rm").addEventListener("click", () => {
+      el.remove();
+      relabelEdGuests();
+    });
     $("edGuests").appendChild(el);
+    relabelEdGuests();
+
+    const chk = el.querySelector(".same-addr-check");
+    const resCountry = el.querySelector('[name="pais_residencia_origem"]');
+    const resCity = el.querySelector('[name="local_residencia_origem"]');
+
+    function syncEdFromGuest1() {
+      const first = $("edGuests").children[0];
+      if (!first || first === el) return;
+      const p1 = first.querySelector('[name="pais_residencia_origem"]').value;
+      const c1 = first.querySelector('[name="local_residencia_origem"]').value;
+      resCountry.value = p1;
+      resCity.value = c1;
+      clearErrs(el);
+    }
+
+    if (chk) {
+      const first = $("edGuests").children[0];
+      if (first && first !== el && g.pais_residencia_origem) {
+        const p1 = first.querySelector('[name="pais_residencia_origem"]')?.value;
+        const c1 = first.querySelector('[name="local_residencia_origem"]')?.value;
+        if (p1 && g.pais_residencia_origem === p1 && g.local_residencia_origem === c1) {
+          chk.checked = true;
+        }
+      }
+      chk.addEventListener("change", () => {
+        if (chk.checked) syncEdFromGuest1();
+      });
+    }
+
+    const onManualEdAddrChange = () => {
+      const first = $("edGuests").children[0];
+      if (!first || first === el || !chk) return;
+      const p1 = first.querySelector('[name="pais_residencia_origem"]').value;
+      const c1 = first.querySelector('[name="local_residencia_origem"]').value;
+      if (resCountry.value !== p1 || resCity.value !== c1) {
+        chk.checked = false;
+      }
+    };
+    resCountry.addEventListener("change", onManualEdAddrChange);
+    resCity.addEventListener("input", onManualEdAddrChange);
+
     if (check && check.errors && check.errors.length && !check.skip_siba) showErrs(el, check.errors.filter((e) => e.field !== "data_entrada" && e.field !== "data_saida"), "__");
     return el;
   }
+
+  function syncEdFollowers() {
+    const first = $("edGuests").children[0];
+    if (!first) return;
+    const p1 = first.querySelector('[name="pais_residencia_origem"]')?.value || "";
+    const c1 = first.querySelector('[name="local_residencia_origem"]')?.value || "";
+    for (let i = 1; i < $("edGuests").children.length; i++) {
+      const g = $("edGuests").children[i];
+      const chk = g.querySelector(".same-addr-check");
+      if (chk && chk.checked) {
+        const rc = g.querySelector('[name="pais_residencia_origem"]');
+        const cc = g.querySelector('[name="local_residencia_origem"]');
+        if (rc) rc.value = p1;
+        if (cc) cc.value = c1;
+      }
+    }
+  }
+  $("edGuests").addEventListener("input", (e) => {
+    if (e.target.name === "local_residencia_origem") syncEdFollowers();
+  });
+  $("edGuests").addEventListener("change", (e) => {
+    if (e.target.name === "pais_residencia_origem" || e.target.name === "local_residencia_origem") syncEdFollowers();
+  });
   $("edAddGuest").addEventListener("click", () => addEdGuest());
   function readEdGuests() { return [...$("edGuests").children].map((el) => { const o = {}; const id = el.querySelector('[name="id"]').value; if (id) o.id = Number(id); for (const f of GFIELDS) o[f] = el.querySelector(`[name="${f}"]`).value.trim(); return o; }); }
   function edPayload() {

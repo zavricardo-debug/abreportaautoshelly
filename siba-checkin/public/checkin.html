@@ -171,6 +171,12 @@
           <input name="documento_identificacao" maxlength="16" autocomplete="off" autocapitalize="characters" value="${escapeHtml(g.documento_identificacao)}" ${locked ? "readonly" : ""}><div class="hint" data-i18n="doc_number_hint">${T("doc_number_hint")}</div><div class="field-err" data-for="documento_identificacao"></div></div>
         <div><label><span data-i18n="doc_country">${T("doc_country")}</span> <span class="req">*</span></label>
           <select name="pais_emissor_documento" ${locked ? "disabled" : ""}>${countryOptions(g.pais_emissor_documento)}</select><div class="field-err" data-for="pais_emissor_documento"></div></div>
+        <div class="full same-addr-wrap hidden">
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text);font-weight:500;user-select:none;margin-top:2px">
+            <input type="checkbox" class="same-addr-check" style="width:17px;height:17px;cursor:pointer" ${locked ? "disabled" : ""}>
+            <span data-i18n="same_address">${T("same_address")}</span>
+          </label>
+        </div>
         <div><label><span data-i18n="res_country">${T("res_country")}</span> <span class="req">*</span></label>
           <select name="pais_residencia_origem" ${locked ? "disabled" : ""}>${countryOptions(g.pais_residencia_origem)}</select><div class="field-err" data-for="pais_residencia_origem"></div></div>
         <div><label><span data-i18n="res_city">${T("res_city")}</span> <span class="req">*</span></label>
@@ -181,6 +187,8 @@
   function relabelGuest(el, index) {
     el.querySelector(".gtitle").textContent = `${T("guest")} ${index + 1}`;
     el.querySelectorAll("[data-i18n]").forEach((n) => { n.textContent = T(n.getAttribute("data-i18n")); });
+    const wrap = el.querySelector(".same-addr-wrap");
+    if (wrap) wrap.classList.toggle("hidden", index === 0 || !!el.dataset.locked);
   }
 
   function addGuest(g) {
@@ -189,23 +197,91 @@
     el.dataset.locked = g && g.siba_status === "sent" ? "1" : "";
     el.innerHTML = guestTemplate(g);
     $("guests").appendChild(el);
-    relabelGuest(el, $("guests").children.length - 1);
+    const index = $("guests").children.length - 1;
+    relabelGuest(el, index);
     el.querySelector(".removeGuest").addEventListener("click", () => {
       if ($("guests").children.length <= 1) { el.querySelectorAll("input,select").forEach((i) => { if (i.type !== "hidden") i.value = ""; }); return; }
       el.remove();
       [...$("guests").children].forEach((c, i) => relabelGuest(c, i));
     });
+
+    const chk = el.querySelector(".same-addr-check");
+    const resCountry = el.querySelector('[name="pais_residencia_origem"]');
+    const resCity = el.querySelector('[name="local_residencia_origem"]');
+
+    function syncFromGuest1() {
+      const first = $("guests").children[0];
+      if (!first || first === el) return;
+      const p1 = first.querySelector('[name="pais_residencia_origem"]').value;
+      const c1 = first.querySelector('[name="local_residencia_origem"]').value;
+      resCountry.value = p1;
+      resCity.value = c1;
+      clearErr(resCountry);
+      clearErr(resCity);
+    }
+
+    if (chk) {
+      if (index > 0 && g && g.pais_residencia_origem) {
+        const first = $("guests").children[0];
+        if (first && first !== el) {
+          const p1 = first.querySelector('[name="pais_residencia_origem"]')?.value;
+          const c1 = first.querySelector('[name="local_residencia_origem"]')?.value;
+          if (p1 && g.pais_residencia_origem === p1 && g.local_residencia_origem === c1) {
+            chk.checked = true;
+          }
+        }
+      }
+      chk.addEventListener("change", () => {
+        if (chk.checked) syncFromGuest1();
+      });
+    }
+
+    const onManualAddrChange = () => {
+      const first = $("guests").children[0];
+      if (!first || first === el || !chk) return;
+      const p1 = first.querySelector('[name="pais_residencia_origem"]').value;
+      const c1 = first.querySelector('[name="local_residencia_origem"]').value;
+      if (resCountry.value !== p1 || resCity.value !== c1) {
+        chk.checked = false;
+      }
+    };
+    resCountry.addEventListener("change", onManualAddrChange);
+    resCity.addEventListener("input", onManualAddrChange);
+
     // auto-fill: issuing country & residence follow nationality until changed by the guest
     const nat = el.querySelector('[name="nacionalidade"]');
     nat.addEventListener("change", () => {
       const iss = el.querySelector('[name="pais_emissor_documento"]');
       const res = el.querySelector('[name="pais_residencia_origem"]');
       if (!iss.value) iss.value = nat.value;
-      if (!res.value) res.value = nat.value;
+      if (!res.value && !(chk && chk.checked)) res.value = nat.value;
     });
     el.querySelectorAll("input,select").forEach((i) => i.addEventListener("input", () => clearErr(i)));
     return el;
   }
+
+  function syncFollowers() {
+    const first = $("guests").children[0];
+    if (!first) return;
+    const p1 = first.querySelector('[name="pais_residencia_origem"]')?.value || "";
+    const c1 = first.querySelector('[name="local_residencia_origem"]')?.value || "";
+    for (let i = 1; i < $("guests").children.length; i++) {
+      const g = $("guests").children[i];
+      const chk = g.querySelector(".same-addr-check");
+      if (chk && chk.checked && !g.dataset.locked) {
+        const rc = g.querySelector('[name="pais_residencia_origem"]');
+        const cc = g.querySelector('[name="local_residencia_origem"]');
+        if (rc) { rc.value = p1; clearErr(rc); }
+        if (cc) { cc.value = c1; clearErr(cc); }
+      }
+    }
+  }
+  $("guests").addEventListener("input", (e) => {
+    if (e.target.name === "local_residencia_origem") syncFollowers();
+  });
+  $("guests").addEventListener("change", (e) => {
+    if (e.target.name === "pais_residencia_origem" || e.target.name === "local_residencia_origem") syncFollowers();
+  });
 
   function readGuests() {
     return [...$("guests").children].map((el) => {
