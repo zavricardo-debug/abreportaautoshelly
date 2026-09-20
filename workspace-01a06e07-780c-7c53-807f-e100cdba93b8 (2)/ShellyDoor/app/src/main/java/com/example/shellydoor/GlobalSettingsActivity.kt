@@ -71,7 +71,8 @@ class GlobalSettingsActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnSaveGlobal).setOnClickListener {
             prefs.maxSpeedMs = etSpeed.text.toString().toFloatOrNull() ?: prefs.maxSpeedMs
-            prefs.cooldownMs = (etCooldown.text.toString().toLongOrNull() ?: 30) * 1000
+            prefs.cooldownMs = ((etCooldown.text.toString().toLongOrNull() ?: 300L)
+                .coerceIn(0L, 3600L)) * 1000
             prefs.pauseMinutes = etPauseMin.text.toString().toIntOrNull() ?: 10
             prefs.autoPauseAfterOpen = cbAutoPause.isChecked
             prefs.networkGraceSeconds = etGrace.text.toString().toIntOrNull() ?: 60

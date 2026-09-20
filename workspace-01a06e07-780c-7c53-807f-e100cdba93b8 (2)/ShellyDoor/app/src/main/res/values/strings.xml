@@ -27,7 +27,7 @@
     <string name="hint_door_enabled">Automação desta morada ativa?</string>
     <string name="hint_radius">Raio de disparo (metros) — mín. realista 20–40m (o GPS não faz melhor)</string>
     <string name="hint_speed">Velocidade máx para abrir (m/s) — ex. 8 (a pé nunca bloqueia)</string>
-    <string name="hint_cooldown">Cooldown (segundos) entre aberturas — ex. 30</string>
+    <string name="hint_cooldown">Cooldown (segundos) entre aberturas — ex. 300</string>
     <string name="hint_wifi_kill">Ligado ao Wi-Fi de casa = bloquear abertura</string>
     <string name="hint_home_ssid">SSID de casa (vírgulas se vários) — ex. MeuRouter</string>
     <string name="hint_pause_min">Duração da pausa (minutos) — ex. 10</string>
@@ -105,8 +105,7 @@ Por defeito: 4</string>
 Por defeito: 45</string>
 
     <string name="label_cooldown">Cooldown entre aberturas (segundos)</string>
-    <string name="desc_cooldown">Tempo mínimo antes de a MESMA morada poder abrir outra vez. Evita impulsos duplicados. É contado por morada: abrir uma não trava as outras.
-Por defeito: 30</string>
+    <string name="desc_cooldown">Tempo mínimo antes de a MESMA morada poder abrir outra vez. Por defeito 300 s (5 min): depois de entrares, o GPS dentro das escadas do prédio salta muito e sem esta pausa a porta podia voltar a disparar contigo já lá dentro. É contado por morada: abrir uma não trava as outras.</string>
 
     <string name="label_pause_min">Duração da pausa (minutos)</string>
     <string name="desc_pause_min">Quanto tempo dura a pausa do botão ⏸. Só trava a abertura automática — o botão manual funciona sempre.

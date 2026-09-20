@@ -33,7 +33,7 @@ class Prefs(context: Context) {
 
     /** Intervalo mínimo (ms) entre duas aberturas automáticas DA MESMA morada. */
     var cooldownMs: Long
-        get() = sp.getLong(KEY_COOLDOWN, 30_000L)
+        get() = sp.getLong(KEY_COOLDOWN, 300_000L)   // 5 min
         set(v) = sp.edit().putLong(KEY_COOLDOWN, v).apply()
 
     var lastOpenTimestamp: Long

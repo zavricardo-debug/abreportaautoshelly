@@ -80,12 +80,23 @@ class DoorDecisionEngine(private val prefs: Prefs, private val wifi: WifiHomeChe
             // já esteve fora, que é a única prova de "não estou dentro de casa"
             // que precisamos — sem metros extra e sem cronómetro.
             if (distanceM > radius) {
-                if (door.awaySinceAt == 0L) door.awaySinceAt = now
+                if (door.awaySinceAt == 0L && door.armed) door.awaySinceAt = now
                 return silent(
                     door,
                     "Modo Chegada · a %.0f m (abre a %.0f m) · %ds".format(
                         distanceM, radius, prefs.arrivalSessionRemainingS()
                     )
+                )
+            }
+
+            // Já abriu nesta chegada: não volta a abrir. Sem isto, um salto do
+            // GPS (típico dentro das escadas do prédio, onde se perdem os
+            // satélites e a posição salta dezenas de metros) marcava outra vez
+            // "esteve fora" e disparava a porta com a pessoa lá dentro.
+            if (!door.armed) {
+                return silent(
+                    door,
+                    "Modo Chegada · já abriu nesta chegada (a %.0f m)".format(distanceM)
                 )
             }
 
