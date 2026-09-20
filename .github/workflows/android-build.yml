@@ -24,11 +24,37 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Fixa a versao da action. A flutuante (@v3) comecou a falhar em ~10 s
+      # sem alteracoes do nosso lado, e sem SDK nao ha compilacao nenhuma.
       - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+        id: sdk
+        continue-on-error: true
+        uses: android-actions/setup-android@v3.2.1
+        with:
+          packages: ""
+
+      # Alternativa, caso a action volte a partir-se: instala o command-line
+      # tools a mao. Assim a build deixa de depender de uma so action.
+      - name: Configurar Android SDK (alternativa manual)
+        if: steps.sdk.outcome == 'failure'
+        run: |
+          set -eux
+          ANDROID_SDK_ROOT="$HOME/android-sdk"
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          cd "$ANDROID_SDK_ROOT/cmdline-tools"
+          curl -fsSL -o tools.zip \
+            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q tools.zip && rm tools.zip
+          mv cmdline-tools latest 2>/dev/null || true
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
 
       - name: Instalar plataforma e build-tools (compileSdk 34)
         run: |
+          set -eux
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
       # O projeto não traz gradle wrapper, por isso instalamos o Gradle nós.
