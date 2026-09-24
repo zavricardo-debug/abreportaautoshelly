@@ -31,7 +31,7 @@ export const SIBA_TEST_UNIT: PropertyInfo = {
   codigo_postal: "1000",
   zona_postal: "234",
   telefone: "214017744",
-  fax: "214017766",
+  fax: "",
   nome_contacto: "Nuno teste",
   email_contacto: "teste.teste@sef.pt",
   chave_activacao: "999999999",
@@ -258,7 +258,7 @@ export function buildMovimentoBAL(
   x += tag("Codigo_Postal", p.codigo_postal);
   x += tag("Zona_Postal", p.zona_postal);
   x += tag("Telefone", p.telefone);
-  if (p.fax) x += tag("Fax", p.fax);
+  x += tag("Fax", p.fax || "");
   x += tag("Nome_Contacto", p.nome_contacto);
   x += tag("Email_Contacto", p.email_contacto);
   x += "  </Unidade_Hoteleira>\n";

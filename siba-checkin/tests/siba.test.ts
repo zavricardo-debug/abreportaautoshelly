@@ -108,8 +108,8 @@ test("MovimentoBAL XML matches BAL.XSD structure", () => {
   // Unidade_Hoteleira, order of elements
   const uh = xml.slice(xml.indexOf("<Unidade_Hoteleira>"), xml.indexOf("</Unidade_Hoteleira>"));
   const order = [...uh.matchAll(/<([A-Za-z_]+)>/g)].map((m) => m[1]).slice(1);
-  assert.deepEqual(order, ["Codigo_Unidade_Hoteleira", "Estabelecimento", "Nome", "Abreviatura", "Morada", "Localidade", "Codigo_Postal", "Zona_Postal", "Telefone", "Nome_Contacto", "Email_Contacto"]);
-  assert.ok(!uh.includes("<Fax>"), "empty fax omitted");
+  assert.deepEqual(order, ["Codigo_Unidade_Hoteleira", "Estabelecimento", "Nome", "Abreviatura", "Morada", "Localidade", "Codigo_Postal", "Zona_Postal", "Telefone", "Fax", "Nome_Contacto", "Email_Contacto"]);
+  assert.ok(uh.includes("<Fax></Fax>"), "empty fax is still emitted as an empty element");
   // Boletim elements
   assert.equal((xml.match(/<Boletim_Alojamento>/g) || []).length, 2);
   const b1 = xml.slice(xml.indexOf("<Boletim_Alojamento>"), xml.indexOf("</Boletim_Alojamento>"));
