@@ -1,4 +1,5 @@
 import { extractPdfText } from './lib/pdf-text.js';
+import { validateForm } from './lib/form-check.js';
 import { parseInvoiceText } from './lib/parser.js';
 import { parseInvoiceTextES, detectCountry } from './lib/parser-es.js';
 import { simulate, simulateAll, baselinePrices, nearestStandardPower, STANDARD_POWERS, PERIOD_KEYS, PERIOD_LABELS, RULES_2026 } from './lib/simulator.js';
@@ -11,7 +12,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const TODAY = new Date().toISOString().slice(0, 10);
-export const APP_VERSION = '1.8.3'; // shown in the footer + error messages (helps spot stale caches)
+export const APP_VERSION = '1.8.4'; // shown in the footer + error messages (helps spot stale caches)
 
 const state = {
   country: 'PT',    // 'PT' (ERSE flow) or 'ES' (2.0TD flow, app-es.js)
@@ -302,8 +303,8 @@ function renderEnergyRows(option, byPeriod = {}, auto = false) {
     row.className = 'period-row';
     row.innerHTML = `
       <div class="plabel">${PERIOD_LABELS[k]}</div>
-      <label>Consumo (kWh)<input type="number" name="kwh_${i}" data-i="${i}" class="kwh ${auto && d.kwh != null ? 'auto' : ''}" step="1" min="0" value="${d.kwh ?? ''}" required></label>
-      <label>Preço (€/kWh s/IVA)<input type="number" name="ep_${i}" data-i="${i}" class="eprice ${auto && d.price != null ? 'auto' : ''}" step="0.000001" min="0" value="${d.price != null ? +d.price.toFixed(6) : ''}" required></label>
+      <label>Consumo (kWh)<input type="number" name="kwh_${i}" data-i="${i}" class="kwh ${auto && d.kwh != null ? 'auto' : ''}" step="any" min="0" value="${d.kwh ?? ''}" required></label>
+      <label>Preço (€/kWh s/IVA)<input type="number" name="ep_${i}" data-i="${i}" class="eprice ${auto && d.price != null ? 'auto' : ''}" step="any" min="0" value="${d.price != null ? +d.price.toFixed(6) : ''}" required></label>
       <label>Valor (€ s/IVA)<output class="eamount" data-i="${i}">${d.amount != null ? fmtEur(d.amount) : '—'}</output></label>`;
     wrap.appendChild(row);
   });
@@ -386,7 +387,8 @@ function bindForm() {
     }
     updateDerived();
   });
-  f.addEventListener('submit', (e) => { e.preventDefault(); runComparison(); });
+  // novalidate on the form: hidden/disabled controls must never block the button silently – validate here and say what is wrong
+  f.addEventListener('submit', (e) => { e.preventDefault(); if (validateForm(f, $('#form-error'), 'pt')) runComparison(); });
 }
 
 function readEnergyRows() {

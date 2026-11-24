@@ -87,7 +87,7 @@
 
     <div id="parse-warnings"></div>
 
-    <form id="values-form" class="grid-form" autocomplete="off">
+    <form id="values-form" class="grid-form" autocomplete="off" novalidate>
       <fieldset>
         <legend>Contrato e período</legend>
         <label>Potência contratada (kVA)
@@ -164,10 +164,10 @@
         <legend>Termo de Potência + Termo Fixo Acesso às Redes</legend>
         <div class="row3">
           <label>Termo de Potência (€/dia)
-            <input type="number" name="powerPrice" id="f-powerprice" step="0.000001" min="0" required>
+            <input type="number" name="powerPrice" id="f-powerprice" step="any" min="0" required>
           </label>
           <label>Termo Fixo Acesso às Redes (€/dia)
-            <input type="number" name="tarPrice" id="f-tarprice" step="0.000001" min="0">
+            <input type="number" name="tarPrice" id="f-tarprice" step="any" min="0">
           </label>
           <label>Total €/dia (comparável ao mercado)
             <output id="o-powerday">—</output>
@@ -180,18 +180,18 @@
         <legend>Taxas e impostos (lidos da fatura)</legend>
         <div class="row3">
           <label>Contribuição Audiovisual (€)
-            <input type="number" name="cav" id="f-cav" step="0.01" min="0">
+            <input type="number" name="cav" id="f-cav" step="any" min="0">
           </label>
           <label>Taxa Exploração DGEG (€)
-            <input type="number" name="dgeg" id="f-dgeg" step="0.01" min="0">
+            <input type="number" name="dgeg" id="f-dgeg" step="any" min="0">
           </label>
           <label>Imposto Especial Consumo (€)
-            <input type="number" name="iec" id="f-iec" step="0.01" min="0">
+            <input type="number" name="iec" id="f-iec" step="any" min="0">
           </label>
         </div>
         <div class="row3">
           <label>Total da fatura de luz (c/ IVA) – opcional
-            <input type="number" name="invoiceTotal" id="f-invoicetotal" step="0.01" min="0">
+            <input type="number" name="invoiceTotal" id="f-invoicetotal" step="any" min="0">
           </label>
           <label>Fornecedor atual
             <select name="supplier" id="f-supplier"><option value="">— desconhecido —</option></select>
@@ -200,6 +200,7 @@
             <button type="submit" class="btn primary">Comparar com o mercado →</button>
           </label>
         </div>
+        <div class="alert error hidden" id="form-error" style="grid-column:1/-1"></div>
       </fieldset>
     </form>
 
@@ -299,14 +300,14 @@
 
     <div id="es-parse-warnings"></div>
 
-    <form id="values-form-es" class="grid-form" autocomplete="off">
+    <form id="values-form-es" class="grid-form" autocomplete="off" novalidate>
       <fieldset>
         <legend>Contrato y periodo</legend>
         <label>Potencia punta-llano P1 (kW)
-          <input type="number" name="p1kw" id="es-p1kw" step="0.001" min="0.1" max="15" required>
+          <input type="number" name="p1kw" id="es-p1kw" step="any" min="0.1" max="15" required>
         </label>
         <label>Potencia valle P2 (kW)
-          <input type="number" name="p2kw" id="es-p2kw" step="0.001" min="0.1" max="15">
+          <input type="number" name="p2kw" id="es-p2kw" step="any" min="0.1" max="15">
         </label>
         <label>Días facturados
           <input type="number" name="days" id="es-days" min="1" max="400" step="1" required>
@@ -326,10 +327,10 @@
         <legend>Potencia (kW × €/kW·día × días)</legend>
         <div class="row3">
           <label>P1 punta-llano (€/kW·día)
-            <input type="number" name="pp1" id="es-pp1" step="0.000001" min="0" required>
+            <input type="number" name="pp1" id="es-pp1" step="any" min="0" required>
           </label>
           <label>P2 valle (€/kW·día)
-            <input type="number" name="pp2" id="es-pp2" step="0.000001" min="0" required>
+            <input type="number" name="pp2" id="es-pp2" step="any" min="0" required>
           </label>
           <label>Importe potencia P1 / P2
             <output><span id="es-o-pp1">—</span> / <span id="es-o-pp2">—</span></output>
@@ -343,13 +344,13 @@
         <label class="check" style="grid-column:1/-1"><input type="checkbox" name="single" id="es-single" checked> Mi factura tiene un <b>precio único</b> para todas las horas</label>
         <div class="row3">
           <label>Consumo punta (kWh)
-            <input type="number" name="kwh_punta" id="es-kwh-punta" step="0.001" min="0" required>
+            <input type="number" name="kwh_punta" id="es-kwh-punta" step="any" min="0" required>
           </label>
           <label>Consumo llano (kWh)
-            <input type="number" name="kwh_llano" id="es-kwh-llano" step="0.001" min="0" required>
+            <input type="number" name="kwh_llano" id="es-kwh-llano" step="any" min="0" required>
           </label>
           <label>Consumo valle (kWh)
-            <input type="number" name="kwh_valle" id="es-kwh-valle" step="0.001" min="0" required>
+            <input type="number" name="kwh_valle" id="es-kwh-valle" step="any" min="0" required>
           </label>
         </div>
         <p class="hint" id="es-split-hint"></p>
@@ -388,7 +389,7 @@
 
         <div class="row3" id="es-single-row">
           <label>Precio único (€/kWh)
-            <input type="number" name="ep_single" id="es-ep-single" step="0.000001" min="0">
+            <input type="number" name="ep_single" id="es-ep-single" step="any" min="0">
           </label>
           <label>Importe energía
             <output id="es-o-e-single">—</output>
@@ -396,13 +397,13 @@
         </div>
         <div class="row3">
           <label>Precio punta (€/kWh)
-            <input type="number" name="ep_punta" id="es-ep-punta" step="0.000001" min="0">
+            <input type="number" name="ep_punta" id="es-ep-punta" step="any" min="0">
           </label>
           <label>Precio llano (€/kWh)
-            <input type="number" name="ep_llano" id="es-ep-llano" step="0.000001" min="0">
+            <input type="number" name="ep_llano" id="es-ep-llano" step="any" min="0">
           </label>
           <label>Precio valle (€/kWh)
-            <input type="number" name="ep_valle" id="es-ep-valle" step="0.000001" min="0">
+            <input type="number" name="ep_valle" id="es-ep-valle" step="any" min="0">
           </label>
           <label>Importe punta<output id="es-o-e-punta">—</output></label>
           <label>Importe llano<output id="es-o-e-llano">—</output></label>
@@ -415,25 +416,25 @@
         <legend>Conceptos regulados e impuestos (leídos de la factura)</legend>
         <div class="row3">
           <label>Financiación Bono Social (€/día)
-            <input type="number" name="bono" id="es-bono" step="0.000001" min="0">
+            <input type="number" name="bono" id="es-bono" step="any" min="0">
           </label>
           <label>Alquiler del contador (€/día)
-            <input type="number" name="rent" id="es-rent" step="0.000001" min="0">
+            <input type="number" name="rent" id="es-rent" step="any" min="0">
           </label>
           <label>Impuesto electricidad (%)
-            <input type="number" name="ie" id="es-ie" step="0.0000001" min="0" max="10">
+            <input type="number" name="ie" id="es-ie" step="any" min="0" max="10">
           </label>
           <label>IVA / IGIC / IPSI (%)
-            <input type="number" name="iva" id="es-iva" step="0.01" min="0" max="25">
+            <input type="number" name="iva" id="es-iva" step="any" min="0" max="25">
           </label>
           <label>Descuentos / cuotas de su tarifa (€, sin imp.; negativo = descuento)
-            <input type="number" name="other" id="es-other" step="0.01" placeholder="0,00">
+            <input type="number" name="other" id="es-other" step="any" placeholder="0,00">
           </label>
           <label>Servicios adicionales (€, sin imp.; sólo IVA)
-            <input type="number" name="services" id="es-services" step="0.01" min="0" placeholder="0,00">
+            <input type="number" name="services" id="es-services" step="any" min="0" placeholder="0,00">
           </label>
           <label>TOTAL de la factura (€, con impuestos) – opcional
-            <input type="number" name="total" id="es-total" step="0.01" min="0">
+            <input type="number" name="total" id="es-total" step="any" min="0">
           </label>
         </div>
         <div class="alert info" id="es-check" style="grid-column:1/-1"></div>
@@ -446,6 +447,7 @@
         <div class="actions" style="grid-column:1/-1">
           <button type="submit" class="btn primary">Comparar todos los conceptos con el mercado →</button>
         </div>
+        <div class="alert error hidden" id="es-form-error" style="grid-column:1/-1"></div>
       </fieldset>
     </form>
 
@@ -604,6 +606,6 @@
   <span id="app-version" title="Versão da aplicação"></span>
 </footer>
 
-<script type="module" src="app.js?v=1.8.3"></script>
+<script type="module" src="app.js?v=1.8.4"></script>
 </body>
 </html>

@@ -349,6 +349,7 @@ public/
   data/ofertas.json                  ofertas ERSE (gerado)
   data/ofertas-es.json               tarifas españolas guardadas (fallback do modo em direto CNMC)
   lib/cnmc.js, app-cnmc.js           mercado completo ES: API do comparador CNMC, derivação/verificação de preços, marcas
+  lib/form-check.js                  validação dos formulários (novalidate + mensagem visível; campos escondidos nunca bloqueiam o botão)
   vendor/pdfjs/                      pdf.js (gerado por npm run vendor)
   samples/                           faturas de exemplo fictícias (Endesa simples, EDP bi-horária, Endesa España 2.0TD),
                                      curva horaria ES (CSV) e diagrama de carga E-Redes (xlsx + csv)

@@ -3,6 +3,7 @@
 // user clicks "No tengo PDF (España)". All strings of this flow are in Spanish, the
 // same words the bill uses (Potencia, Energía, Bono Social, Alquiler, Impuesto, IVA).
 import { simulateES, simulateAllES, splitConsumption, cnmcLink, PERIODS_ES, PERIOD_LABELS_ES, RULES_ES_2026 } from './lib/simulator-es.js';
+import { validateForm } from './lib/form-check.js';
 import { parseConsumptionCSV, sliceCurve, applyShare, shiftToValle, CALENDAR_TEXT_ES } from './lib/consumption-es.js';
 import { sheetRowsToCsv } from './lib/xlsx-lite.js';
 import { decodeCurveBuffer, parseAnySheet, previewOfDecoded } from './app-curve-pt.js';
@@ -349,12 +350,14 @@ function bindForm() {
     if (e.target.id === 'es-single') toggleSingle();
     updateDerivedES();
   });
-  f.addEventListener('submit', (e) => { e.preventDefault(); runComparisonES(); });
+  // novalidate on the form: hidden/disabled controls must never block the button silently – validate here and say what is wrong
+  f.addEventListener('submit', (e) => { e.preventDefault(); if (validateForm(f, $('#es-form-error'), 'es')) runComparisonES(); });
 }
 
 function toggleSingle() {
   const single = $('#es-single').checked;
   $('#es-single-row').classList.toggle('hidden', !single);
+  $('#es-ep-single').disabled = !single;   // the inactive price mode takes no part in the form validation
   for (const k of PERIODS_ES) {
     const inp = $(`#es-ep-${k}`);
     inp.disabled = single; inp.required = !single;

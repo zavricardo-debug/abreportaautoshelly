@@ -680,7 +680,16 @@ test('step 1 has a dedicated upload for the consumption file: .xls (Excel 97-200
   assert.deepEqual(kwhRows(), [72]);
   const fopt = d.querySelector('#f-option'); fopt.value = '3'; fopt.dispatchEvent(new window.Event('input', { bubbles: true }));
   assert.deepEqual(kwhRows(), [12, 30, 30], 'flat 1 kW in February, ciclo diário: ponta 2 h, cheias 12 h, vazio 10 h per day');
+  // without an invoice the current prices are unknown: the form asks for them (visible message) before comparing
   d.querySelector('#values-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.ok(!d.querySelector('#form-error').classList.contains('hidden'));
+  assert.match(d.querySelector('#form-error').textContent, /Preço|Potência/);
+  assert.ok(d.querySelector('#step-results').classList.contains('hidden'));
+  const setv = (el, v) => { el.value = v; el.dispatchEvent(new window.Event('input', { bubbles: true })); };
+  setv(d.querySelector('#f-powerprice'), '0.1438');
+  d.querySelectorAll('#energy-rows input.eprice').forEach((el) => setv(el, '0.15'));
+  d.querySelector('#values-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.ok(d.querySelector('#form-error').classList.contains('hidden'));
   assert.ok(d.querySelectorAll('#results-table tbody tr').length > 10);
   assert.match(d.querySelector('#results-sub').textContent, /consumo por período REAL/);
   // HTML table saved as .xls (portal export) via the step-1 input
@@ -895,4 +904,81 @@ test('Spanish flow – CNMC unreachable: the bundled list is used and the status
   } finally {
     globalThis.fetch = fileFetch;
   }
+});
+
+/* ------------------------------------------------------------------ form validation (browser constraint API) */
+// jsdom submits programmatically without the browser's constraint validation, but real browsers refuse to submit a form
+// with an invalid control – silently when the control is hidden ("An invalid form control is not focusable"). These tests
+// check what the browser would check: every enabled, visible control of the pre-filled forms must be valid.
+const invalidOf = (form) => [...form.querySelectorAll('input,select')].filter((el) => !el.disabled && !el.closest('.hidden') && !el.checkValidity()).map((el) => `${el.id || el.name}=${el.value}`);
+const hiddenInvalidOf = (form) => [...form.querySelectorAll('input,select')].filter((el) => !el.disabled && !el.checkValidity()).map((el) => `${el.id || el.name}=${el.value}`);
+
+test('Spanish form pre-filled from every bill fixture passes the browser constraint validation (step/min/pattern) – including hidden controls', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  for (const fx of ['gana-es-2026.txt', 'endesa-es-2026.txt', 'endesa-es-2026-servicios.txt']) {
+    const window = await boot();
+    const d = window.document;
+    for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+    window.__test_text(readFileSync(resolve(__dirname, `fixtures/${fx}`), 'utf8'));
+    const form = d.querySelector('#values-form-es');
+    assert.ok(form.hasAttribute('novalidate'), 'validation is done in JS (hidden controls must never block the button silently)');
+    assert.deepEqual(invalidOf(form), [], `${fx}: invalid visible controls`);
+    // the 7-decimal derived prices (0,83 € / 31 días = 0,0267742 €/día; 45,53 € / 353 kWh = 0,1289802 €/kWh) used to fail step="0.000001"
+    assert.deepEqual(hiddenInvalidOf(form), [], `${fx}: invalid controls (any)`);
+    assert.ok(form.checkValidity(), `${fx}: form.checkValidity()`);
+    // and the submit really runs the comparison
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.ok(!d.querySelector('#step-results-es').classList.contains('hidden'), `${fx}: results shown`);
+    assert.ok(d.querySelector('#es-form-error').classList.contains('hidden'));
+  }
+});
+
+test('Gana bill: the inactive single-price input is disabled (not just hidden) so it cannot block the submit; switching modes re-enables it', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  window.__test_text(readFileSync(resolve(__dirname, 'fixtures/gana-es-2026.txt'), 'utf8'));
+  assert.ok(!d.querySelector('#es-single').checked);
+  assert.ok(d.querySelector('#es-ep-single').disabled, 'single price disabled in per-period mode');
+  assert.ok(['punta', 'llano', 'valle'].every((k) => !d.querySelector(`#es-ep-${k}`).disabled));
+  const single = d.querySelector('#es-single'); single.checked = true; single.dispatchEvent(new window.Event('input', { bubbles: true }));
+  assert.ok(!d.querySelector('#es-ep-single').disabled);
+  assert.ok(['punta', 'llano', 'valle'].every((k) => d.querySelector(`#es-ep-${k}`).disabled));
+  assert.deepEqual(invalidOf(d.querySelector('#values-form-es')), []);
+});
+
+test('submit with a missing/invalid value: visible message next to the button, no comparison; fixed value → comparison runs (ES and PT)', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  window.__test_text(readFileSync(resolve(__dirname, 'fixtures/gana-es-2026.txt'), 'utf8'));
+  const set = (sel, v) => { const el = d.querySelector(sel); el.value = v; el.dispatchEvent(new window.Event('input', { bubbles: true })); };
+  set('#es-p1kw', '');                    // required
+  set('#es-cp', '332');                   // pattern [0-9]{5}
+  const form = d.querySelector('#values-form-es');
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.ok(d.querySelector('#step-results-es').classList.contains('hidden'), 'no results');
+  const err = d.querySelector('#es-form-error');
+  assert.ok(!err.classList.contains('hidden'));
+  assert.match(err.textContent, /No se puede comparar todavía/);
+  assert.match(err.textContent, /Potencia punta-llano P1/);
+  assert.match(err.textContent, /Código postal|postal/i);
+  set('#es-p1kw', '4.6'); set('#es-cp', '33208');
+  form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.ok(err.classList.contains('hidden'));
+  assert.ok(!d.querySelector('#step-results-es').classList.contains('hidden'));
+
+  // Portuguese form: same mechanism
+  d.querySelector('#btn-manual').click();
+  set('#f-power', '3.45'); set('#f-option', '1'); set('#f-days', '31');
+  set('#energy-rows input.kwh', '');      // required
+  set('#f-powerprice', '0.1438710');       // 7 decimals: must not be a step mismatch any more
+  d.querySelector('#values-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  const perr = d.querySelector('#form-error');
+  assert.ok(!perr.classList.contains('hidden'));
+  assert.match(perr.textContent, /Ainda não é possível comparar/);
+  assert.match(perr.textContent, /Consumo \(kWh\)/);
+  set('#energy-rows input.kwh', '157.5'); set('#energy-rows input.eprice', '0.1584713');
+  d.querySelector('#values-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.ok(perr.classList.contains('hidden'));
+  assert.ok(!d.querySelector('#step-results').classList.contains('hidden'));
 });
