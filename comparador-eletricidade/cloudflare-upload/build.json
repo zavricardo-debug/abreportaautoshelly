@@ -1,13 +1,13 @@
 {
-  "builtAt": "2026-11-24T11:28:54.631Z",
-  "appVersion": "1.8.2",
+  "builtAt": "2026-11-24T14:26:54.067Z",
+  "appVersion": "1.8.3",
   "pdfjs": "pdfjs-4.10.38",
   "dataset": {
     "source": "ERSE – Simulador de Preços de Energia (simuladorprecos.erse.pt)",
-    "publishedAt": "2026-09-02T16:43:25",
-    "generatedAt": "2026-11-24T11:05:14.935Z",
-    "offers": 809,
-    "priceRows": 17114
+    "publishedAt": "2026-11-17T16:01:41",
+    "generatedAt": "2026-11-24T14:24:33.672Z",
+    "offers": 699,
+    "priceRows": 14816
   },
   "datasetES": {
     "offers": 24,

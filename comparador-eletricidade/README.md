@@ -117,7 +117,7 @@ npm run data:build                        # ou a partir do ZIP mais recente em d
 O JSON gerado inclui a data de publicação (mostrada no cabeçalho do site). Também há um endpoint
 `POST /api/refresh-data` no `server.mjs` que corre a atualização no servidor.
 
-Dataset atual: ZIP ERSE de **2026-09-02** (809 ofertas, 28 comercializadores, 17 114 linhas de preços).
+Dataset atual: ZIP ERSE de **2026-11-17** (699 ofertas, 26 comercializadores, 14 816 linhas de preços; ZIP em `data-src/`, também disponível no espelho <https://github.com/ofelgueiras2/ofelgueiras2.github.io/tree/main/ERSE>).
 
 ## Tarifas españolas (`public/data/ofertas-es.json`)
 

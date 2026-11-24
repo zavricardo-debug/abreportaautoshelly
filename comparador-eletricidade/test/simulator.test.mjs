@@ -83,8 +83,9 @@ test('dataset: simulateAll ranks offers and finds the regulated tariff', { skip:
   for (let i = 1; i < all.length; i++) assert.ok(all[i - 1].sim.total <= all[i].sim.total, 'sorted by total');
   const tur = all.find((x) => x.offer.id === 'TUR');
   assert.ok(tur, 'regulated tariff present');
-  assert.deepEqual(offerPrices(tur.offer, profile), { tf: 0.1917, energy: [0.1654] });
-  close(tur.sim.total, 37.29);
+  // ERSE dataset of 2026-11-17: TUR 3,45 kVA simples = TF 0,1917 €/dia, TV 0,1711 €/kWh (0,1654 in the 2026-09-02 dataset)
+  assert.deepEqual(offerPrices(tur.offer, profile), { tf: 0.1917, energy: [0.1711] });
+  close(tur.sim.total, 38.24);
   // Endesa offers never get the new-client discount when Endesa is the current supplier
   const end = all.filter((x) => x.offer.supplierCode === 'END');
   assert.ok(end.length > 0);

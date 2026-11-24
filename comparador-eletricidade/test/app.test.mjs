@@ -66,7 +66,8 @@ test('app boots, fills manual values, compares and renders results', { skip: !ex
   assert.ok(cards.length >= 3, 'summary cards rendered');
   assert.match(cards[0].textContent, /40,87/);
   assert.match(cards[0].textContent, /real: 40,87/);
-  assert.match(cards.find((c) => /Tarifa regulada/.test(c.textContent)).textContent, /37,29/);
+  // regulated tariff (TUR 3,45 kVA simples): TF 0,1917 €/dia + TV 0,1711 €/kWh in the ERSE dataset of 2026-11-17 (0,1654 until 2026-09)
+  assert.match(cards.find((c) => /Tarifa regulada/.test(c.textContent)).textContent, /38,24/);
 
   const rows = [...d.querySelectorAll('#results-table tbody tr')];
   assert.ok(rows.length > 10, `rows rendered (${rows.length})`);
