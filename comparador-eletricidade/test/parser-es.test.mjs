@@ -220,3 +220,122 @@ TOTAL 89,84 € 91,20 €`;
   assert.equal(p.subtotals.energia, 46.37);
   assert.ok(!p.warnings.some((w) => /no coincide/.test(w)), p.warnings.join(' | '));
 });
+
+test('parses the Gana Energía ("Tarifa 24 horas", 2.0TD) bill template: table layout with plain € prices, P1/P2/P3 labels, SNOEE line, summary box', () => {
+  // Layout: "Del 20-10-2026 al 19-11-2026 (Total 31 días) P1: 4,6 kW 0,089434€ 12,75€" (power, price printed as a plain €),
+  // "… P1: 65 kWh 0,129000 € 8,38 € P1 De lunes a viernes…" (energy, glossary column glued to the line),
+  // "B. Social Orden TED/634/2026 0,77 €", "Aportación Regulada … Eficiencia Energética 0,95 €",
+  // "Impuesto Eléctrico" + "5,112696% sobre 72,75x1,00 3,72 €" (heading and figures on separate lines),
+  // summary box repeating the taxes, readings "P1 7386,00kWh 7451,00kWh 65,00kWh", "Potencia contratada: P1 4,6kW, P2 4,6kW".
+  const r = parseInvoiceTextES(fixture('gana-es-2026.txt'));
+  assert.equal(r.country, 'ES');
+  assert.equal(r.supplier, 'Gana Energía', 'the distribuidora "EDP - Hidrocantábrico" must not be taken for the comercializadora');
+  assert.equal(r.supplierCode, 'GANA');
+  assert.equal(r.contractName, 'Tarifa 24 horas');
+  assert.equal(r.regulated, false);
+  assert.equal(r.postalCode, '33208', 'supply point postal code, not the registered office (46004)');
+  assert.deepEqual(r.period, { start: '2026-10-20', end: '2026-11-19' });
+  assert.equal(r.days, 31);
+  assert.deepEqual(r.power, { p1: 4.6, p2: 4.6 });
+
+  // potencia: 2 × (4,6 kW × 0,089434 €/kW·día × 31 días = 12,75 €)
+  assert.equal(r.powerTerm.p1.kw, 4.6); assert.equal(r.powerTerm.p1.days, 31);
+  close(r.powerTerm.p1.price, 0.089434); assert.equal(r.powerTerm.p1.amount, 12.75);
+  assert.equal(r.powerTerm.p2.kw, 4.6); close(r.powerTerm.p2.price, 0.089434); assert.equal(r.powerTerm.p2.amount, 12.75);
+  assert.equal(r.powerTerm.amount, 25.5);
+
+  // energía: P1 65 kWh 8,38 € · P2 72 kWh 9,29 € · P3 216 kWh 27,86 € (all at 0,129000 €/kWh) = 353 kWh, 45,53 €
+  assert.equal(r.energy.single, false);
+  assert.equal(r.energy.kwh, 353);
+  assert.equal(r.energy.amount, 45.53);
+  assert.deepEqual(Object.fromEntries(Object.entries(r.energy.byPeriod).map(([k, v]) => [k, [v.kwh, v.amount]])), { punta: [65, 8.38], llano: [72, 9.29], valle: [216, 27.86] });
+  for (const k of ['punta', 'llano', 'valle']) close(r.energy.byPeriod[k].price, 0.129);
+  assert.deepEqual(r.energy.readings, { punta: 65, llano: 72, valle: 216 });
+  assert.deepEqual(r.energy.consumption, { punta: 65, llano: 72, valle: 216 });
+
+  // otros conceptos: B. Social 0,77 € · Alquiler de equipos 31 días 0,83 € · SNOEE 0,95 € (= 2,55 €)
+  assert.equal(r.bonoSocial.amount, 0.77); assert.equal(r.bonoSocial.days, 31);
+  assert.equal(r.meterRent.amount, 0.83); assert.equal(r.meterRent.days, 31);
+  assert.equal(r.fees.length, 1);
+  assert.match(r.fees[0].label, /Eficiencia Energética/);
+  assert.equal(r.feeAmount, 0.95);
+  assert.equal(r.discountAmount, 0); assert.equal(r.serviceAmount, 0);
+
+  // impuestos: IE 5,112696 % sobre 72,75 = 3,72 € · IVA 21 % sobre 77,30 = 16,23 € · total 93,53 €
+  assert.equal(r.ie.amount, 3.72); assert.equal(r.ie.base, 72.75); close(r.ie.rate, 0.05112696);
+  assert.equal(r.iva.amount, 16.23); assert.equal(r.iva.base, 77.3); assert.equal(r.iva.rate, 0.21); assert.equal(r.iva.tax, 'IVA');
+  assert.equal(r.total, 93.53);
+  assert.deepEqual(r.subtotals, { potencia: 25.5, energia: 45.53, otros: 2.55, 'base imponible': 77.3 });
+  // the summary box ("Impuesto Eléctrico (5,112696%) 3,72€", "IVA (21%) 16,23€") does not double count the taxes
+  assert.equal(r.items.filter((i) => i.id === 'ie').length, 2);
+  assert.equal(r.items.filter((i) => i.id === 'power').length, 2);
+  assert.equal(r.items.filter((i) => i.id === 'energy').length, 3);
+  const sum = +(r.powerTerm.amount + r.energy.amount + r.bonoSocial.amount + r.meterRent.amount + r.feeAmount + r.ie.amount + r.iva.amount).toFixed(2);
+  assert.equal(sum, 93.53, 'every € of the bill is identified');
+  assert.deepEqual(r.warnings, []);
+});
+
+test('Gana-style lines in isolation: glued units, price as a plain €, period label before the figure, readings glued to a chart legend', () => {
+  const p = parseInvoiceTextES(`Potencia contratada: P1 3,45kW, P2 5,75kW
+Del 01-02-2026 al 28-02-2026 (Total 28 días) P1: 3,45 kW 0,089434€ 8,64€
+Del 01-02-2026 al 28-02-2026 (Total 28 días) P2: 5,75 kW 0,041554€ 6,69€ Periodos de energía:
+Del 01-02-2026 al 28-02-2026 (Total 28 días) P1: 100 kWh 0,150000 € 15,00 € P1 De lunes a viernes: de 10:00h a 14:00
+Del 01-02-2026 al 28-02-2026 (Total 28 días) P2: 50 kWh 0,140000 € 7,00 €
+Del 01-02-2026 al 28-02-2026 (Total 28 días) P3: 200 kWh 0,100000 € 20,00 € Periodo Llano
+B. Social Orden TED/634/2026 0,69 € P3 De lunes a viernes: de 00:00 a 08:00
+Alquiler de Equipos del 01-02-2026 al 28-02-2026 28 días 0,75 €
+Impuesto Eléctrico La potencia también se divide en
+5,112696% sobre 58,02x1,00 2,97 € franjas: P1
+IVA
+21% sobre Base imponible 61,74€ 12,97 € festivos).
+Total importe factura 74,71 €
+P1 1000,00kWh 1100,00kWh 100,00kWh
+0,85% Alquiler de contador P2 2000,00kWh 2050,00kWh 50,00kWh
+P3 3000,00kWh 3200,00kWh 200,00kWh`);
+  assert.deepEqual(p.power, { p1: 3.45, p2: 5.75 });
+  assert.equal(p.powerTerm.p1.amount, 8.64); close(p.powerTerm.p1.price, 0.089434); assert.equal(p.powerTerm.p1.days, 28);
+  assert.equal(p.powerTerm.p2.amount, 6.69); close(p.powerTerm.p2.price, 0.041554);
+  assert.deepEqual(Object.fromEntries(Object.entries(p.energy.byPeriod).map(([k, v]) => [k, [v.kwh, v.price, v.amount]])), { punta: [100, 0.15, 15], llano: [50, 0.14, 7], valle: [200, 0.1, 20] });
+  assert.deepEqual(p.energy.readings, { punta: 100, llano: 50, valle: 200 });
+  assert.equal(p.bonoSocial.amount, 0.69); assert.equal(p.bonoSocial.days, 28);
+  assert.equal(p.meterRent.amount, 0.75);
+  assert.equal(p.ie.amount, 2.97); assert.equal(p.ie.base, 58.02);
+  assert.equal(p.iva.amount, 12.97); assert.equal(p.iva.base, 61.74);
+  assert.equal(p.total, 74.71);
+  assert.equal(p.days, 28);
+});
+
+test('supplier detection: the most mentioned comercializadora wins, the distribuidora is ignored', () => {
+  assert.equal(parseInvoiceTextES('Factura Gana Energía\nDistribuidora: EDP - HIDROCANTABRICO DIST. ELECTRICA S.A.U.\nclientes@ganaenergia.com\nTotal 10,00 €').supplierCode, 'GANA');
+  assert.equal(parseInvoiceTextES('EDP Comercializadora S.A.U.\nDistribuidora: i-DE Redes Eléctricas Inteligentes (Iberdrola)\nTotal 10,00 €').supplierCode, 'EDP');
+  assert.equal(parseInvoiceTextES('Energía XXI Comercializadora de Referencia (grupo Endesa) PVPC\nTotal 10,00 €').supplierCode, 'PVPC');
+});
+
+test('Endesa document with a separate "factura de servicios" (Protección 360) and a "resumen total de las facturas": electricity figures stay clean', () => {
+  // Real layout: electricity invoice (89,84 €) + services invoice (4,78 € + IVA 1,00 € = 5,78 €) + summary "Total importe a pagar 95,62 €";
+  // the readings table is glued to the end of the legal text lines, the chart legend ("> 21,33% Impuestos") to the detail lines.
+  const r = parseInvoiceTextES(fixture('endesa-es-2026-servicios.txt'));
+  assert.equal(r.supplierCode, 'ENDESA');
+  assert.equal(r.contractName, 'Libre Endesa', '"Segmento de cargos: 1" of the same row is not part of the name');
+  assert.equal(r.postalCode, '33208');
+  assert.deepEqual(r.period, { start: '2026-07-19', end: '2026-08-19' }); assert.equal(r.days, 31);
+  assert.deepEqual(r.power, { p1: 4.6, p2: 4.6 });
+  assert.equal(r.powerTerm.amount, 22.71); assert.equal(r.energy.amount, 46.37); assert.equal(r.energy.kwh, 277.224);
+  assert.equal(r.energy.single, true); close(r.energy.price, 0.167283);
+  assert.deepEqual(r.energy.readings, { punta: 97, llano: 60, valle: 119 }, 'readings glued to the legal text are still read');
+  assert.equal(r.bonoSocial.amount, 0.77); assert.equal(r.meterRent.amount, 0.83);
+  assert.equal(r.ie.amount, 3.57); assert.equal(r.ie.base, 69.85);
+  assert.equal(r.iva.amount, 15.59, 'the IVA of the services invoice (1,00 €) is not added to the electricity IVA');
+  assert.equal(r.iva.base, 74.25);
+  assert.equal(r.total, 89.84, 'total of the electricity invoice');
+  assert.equal(r.totalToPay, 95.62, 'grand total of the document');
+  assert.deepEqual(r.servicesInvoice, { lines: [{ label: 'Protección 360 Plus', amount: 4.78, invoice: 'services' }], amount: 4.78, iva: 1, total: 5.78 });
+  assert.equal(r.serviceAmount, 4.78);
+  assert.deepEqual(r.subtotals, { potencia: 22.71, energia: 46.37, otros: 1.6, impuestos: 19.16, varios: 1.6 });
+  assert.deepEqual(r.items.map((i) => i.id), ['power', 'power', 'energy', 'bonoSocial', 'meterRent', 'ie', 'iva', 'service', 'servicesIva']);
+  assert.ok(!r.warnings.some((w) => /no coincide/.test(w)), r.warnings.join(' | '));
+  assert.ok(r.warnings.some((w) => /factura de servicios aparte/.test(w) && /95,62/.test(w)));
+  // the anonymised fixture of the same bill without the services pages gives the same electricity figures
+  const e = parseInvoiceTextES(fixture('endesa-es-2026.txt'));
+  assert.equal(e.total, 89.84); assert.equal(e.totalToPay, null); assert.equal(e.servicesInvoice, null);
+});

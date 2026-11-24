@@ -1,0 +1,166 @@
+DATOS DE LA FACTURA DE ELECTRICIDAD
+Nº factura: P26CON000000000
+Referencia: 500000000000
+Fecha emisión factura: 26/08/2026
+Periodo de facturación: del 19/07/2026 a 19/08/2026 (31 días)
+Fecha de cargo: 02 de septiembre de 2026
+....................................................................................................................................................................
+Endesa Energía, S.A. Unipersonal.
+CIF A81948077.
+NOMBRE APELLIDO APELLIDO
+C/Ribera del Loira, nº 60 28042 - Madrid.
+CALLE EJEMPLO 12 2 DCH
+33208 GIJON/XIXON
+ASTURIAS
+RESUMEN DE LA FACTURA DE ELECTRICIDAD Y DATOS DE PAGO
+..................................................
+Potencia 22,71 € Forma de pago: Domiciliación bancaria
+Energía 46,37 €
+IBAN: ES00000000000000000*****
+Otros 1,60 €
+Impuestos 19,16 € Cod.Mandato: E00000000000000000000000
+...........................................................................................................................................
+Total 89,84 € Versión: 0000
+(Detalle de la factura en el reverso)
+Su pago se justifica con el correspondiente apunte bancario
+INFORMACIÓN DEL CONSUMO ELÉCTRICO
+...........................
+De 19/07/2026 a 19/08/2026 (31 días)
+kWh Evolución del consumo
+....................................................................................................................................................
+840
+Consumo Total 277,224 kWh 720
+600
+480
+360
+240
+120
+0
+JUL AGO SEP OCT NOV DIC ENE FEB MAR ABR MAY JUN JUL AGO
+25 25 25 25 25 25 26 26 26 26 26 26 26 26
+Consumo Real
+Media
+Coste en esta factura 2,90 €/día
+Coste últimos 14 meses 2,99 €/día
+Consumo último año 4.427 kWh
+Las potencias máximas demandadas en el último año han sido 3,910 kW en P1 (punta) y
+3,910 kW en P3 (valle).
+Esta información está disponible desde 20/07/2026
+El consumo medio mensual de los consumidores que están en su mismo código postal
+y tienen potencias contratadas inferiores o iguales a 15 kW, para su periodo de
+facturación es de 145,280 kWh.
+Sección 8ª, Hoja M-205.381, CIF A81948077. Domicilio Social: C/Ribera del Loira, nº60 28042 - Madrid.
+Endesa Energía, S.A. Unipersonal. Inscrita en el Registro Mercantil de Madrid. Tomo 12.797, Libro 0, Folio 208,
+C. Uría, 8, Centro, 33202 Gijón, Asturias, España
+VX10O020-D-27/08/26 N0000000LNNNN
+DATOS DEL CONTRATO DE ELECTRICIDAD
+.......................................................
+Titular del contrato: NOMBRE APELLIDO APELLIDO CUPS: ES0021000000000000AB0F
+NIF: 00000000T Distribuidora: HIDROCANTABRICO DISTRIBUCION ELECTRICA, S.A.
+Dirección de suministro: CALLE EJEMPLO 12 2 DCH, 33208 Referencia del contrato de acceso: 001000000000
+GIJON/XIXON, ASTURIAS Peaje de transporte y distribución: 2.0TD
+Contrato de mercado libre: Libre Endesa Segmento de cargos: 1
+Referencia de contrato de suministro: 130000000000 Nº contador: 40000000
+Potencias contratadas: punta-llano 4,600 kW; valle 4,600 kW
+Fin de contrato de suministro: 23/01/2026 (renovación anual
+automática)
+Permanencia: No
+DETALLE DE LA FACTURA DE ELECTRICIDAD DESTINO DEL IMPORTE DE LA FACTURA
+Potencia ......................................................................................................................... 22,71 € El importe total de su factura tiene este destino:
+P1 (Punta-Llano) 4,600 kW x 0,117686 Eur/kW x 31 días .............................16,78 €
+> 52,47% Energía. Incluye, entre otros, el coste de la energía en el mercado, los pagos por
+Pot. P3 4,600 kW x 0,041554 Eur/kW x 31 días ...............................................5,93 € capacidad y la retribución al Operador del Sistema (REE) y al Operador de Mercado (OMIE).
+Energía ........................................................................................................................... 46,37 € > 0,92% Alquiler de contador
+Consumo 277,224 kWh x 0,167283 Eur/kWh ...................................................46,37 € > 21,33% Impuestos
+Varios ................................................................................................................................ 1,60 € > 15,03% Peajes de transporte y distribución. Retribuyen las redes de transporte y distribución.
+Financiación Bono Social 31 días x 0,024688 Eur/día .....................................0,77 € > 10,25% Cargos: Incluyen la retribución a las renovables, cogeneración y residuos (RECORE)
+Alquiler del contador ( 31 días x 0,026774 Eur/día ) ........................................0,83 € 42,74%, las anualidades del déficit 39,21%, el sobrecoste de generación en TNP (territorios
+no peninsulares) 17,51% y otros 0,54%.
+Impuestos ...................................................................................................................... 19,16 €
+Impuesto electricidad ( 69,85 Eur X 5,1126963 %) ...........................................3,57 €
+INFORMACIÓN DEL CONSUMO ELÉCTRICO
+IVA normal 21 % s/ 74,25 ...................................................................................15,59 €
+A efectos de facturación de los peajes y cargos
+TOTAL 89,84 €
+Periodo 19/07/2026 19/08/2026 Multipl. Ajuste Consumo
+Lectura Lectura
+Incluido en el importe facturado está el coste del peaje de transporte y distribución, que ha sido real real
+de 13,50 € (9,28 € potencia, 4,22 € por energía activa), y de los cargos, que ha sido de 9,21 €
+(1,82 € potencia, 7,39 € por energía activa). Los precios de peajes de transporte y distribución Energía kWh
+han sido publicados en la Resolución de 18 de diciembre de 2025 de la CNMC (BOE 22-12-2025) Punta 7.161,000 7.258,000 1,00 0,000 97,000
+y los de los cargos en la Orden TED 1524/2025 (BOE 27-12-2025). El precio del alquiler del Llano 6.746,000 6.806,000 1,00 0,000 60,000
+contador ha sido publicado en la Orden IET 1491/2013 de 3 de agosto. Valle 11.006,000 11.125,000 1,00 0,000 119,000
+Puede consultar el detalle del consumo horario (CCH) desde nuestra web o desde la
+INFORMACIÓN PARA EL CONSUMIDOR web de la distribuidora (https://misconsumos.eredesdistribucion.es)
+Código QR y enlace https://comparador.cnmc.gob.es para acceder al INFORMACIÓN DE SU PRODUCTO
+Comparador de Ofertas de la CNMC:
+AHEEEHAPCBPLOGCKJBEOMCPAMGMNCCKJPAPCEMPJLKCMJOICMEPAHKIELCPJANPIBPMPIAGJPIKMINGDGPAHEEEHA Con esta tarifa disfrutarás de un precio estable, con el que te
+BNFFFNBPMKFPMGBHJLELBPAKIOACAHFHALJLIPEPIKJPNKMKBOBPBOAHFHAPBOFOICMKAKAHJOAKACMDMPBNFFFNB
+DNDGMHFFLLFEGAFNOJOMHMNGCILPCBDDFOALIKPJDHBNIBEGFOPEDOCCDCGOFEAOPGBGAJKMIFLOMPKMEKHPJAJAH despreocuparás de las oscilaciones del mercado.
+CEFCGPFEOAJBLFPKECPJAKJOMKAHHJNHBPOBCHBNIJNLINOADGKINBPBLEDOEPJDEJDIJECMINFDEBDEKHMNIHDCI
+PKIGHEFKBOMDCJIHHNMIGBOLBKNAINEGNHMMCKEJKNOAHPBCNOMAPFMPDMIHPJLOBMMMDPJCKBCKFEMDGHHILJMPO
+JJKNANFPEFCHLBNFOKHDKNHDBMPBBIAKLHDAKDPFAIIDMKEEKEHADOBCFJLOFMHMCFMDIANINECMJPHMKPHCJLFFH
+OEGOFEFMJOEJJDBPLHBCLGFJEDOEIDCINBDPHOAONPKCJBHBHPJHIHMIDNPKMOEDMJHINEAIIFIHOIDMCIEPEJFJF
+EFDMAHFHALDDOHBOJEDGLCNJEFOHAHFHAPJAJENAIDOPHIJFIJEKIIAHFHADOBMILFLOBPKDFCEMIEAGAHFHAAKKK ATENCIÓN AL CLIENTE
+NCDFHAFEBKOEBCPEPDAANMPPPICJDHCGCGLGMNOADHJNIGELIEPJBGFEHCAMNNEIIONBDIHOIEBMEPEMHHACADBHP
+KOCDDIFHCNEALDCOEGEGOEGGNBFLFNDLLFFIBGJFIBMIKEHIHHIGJPDBGPHKNGBGCJDMJEAILHNFDJHDJOFIDODEI
+MAHICPFKKAHJBHAABAGBKDLMKECKCMJELDPGIONJKEGEGPJAOPFGEBKJEMLDIBIMJFAILPADLBHICMHFALBAODGNP
+FEIBFLFELHHKCIONEAIGBLJPDOLECLBNPBIEOEHDCBIOIBGOONHKFLOODKAKNPGKAPHDLJHIJGKODPLMLGMNKPFNC
+HHKJGJFHMACGMBJMLNGHPEGEOIFKMEHCCMCLCIDNCGECIKHNFNAAOAAHLDBJJOLHMIMMNNHKPPKDLACPJLFCHOHIM
+ALCHIFFBMKPLJJELPGMPDBBCAIIDANBFEMIIOONMICGLHCLMIGEIKKIBBJIDJLAOBEAKHPGHLAMIPNDIEBFFMPMIP ¿Tienes dudas?¿Necesitas asesoramiento?
+LGMEAMFMBBFJMAECOEKOPLHDGJBGBMFNBCDHODBADKKGOLEIPPPNEABNFNAOJEMILODDMJPOBFLKHGLNBMFNBFHLL
+IAINJNFCILEMKHPIAHDDEIAJEIHGFLJGMJNADJJEMAFJIEPPHIAMMKGOFOJKAGKCIJAMMMGPPPEDLJLJHPJMNNDBI Llama a nuestro teléfono de Atención,
+OBBFPGFGOAAOJBBJJEAJKKGAGFPBOBFIBGHJLKMMKNPOHGJLIOKGPPFKIFGHPBJKOMBKGHJGMKJIDMBPKKNNEGMBH
+BJGFKCFOHMNBOFHKNKONIHNECOCCIAJHCECJKDHLHMBNIANOMIPDHINBIEMMJEEOCHDDNJBKOMEMLOKDFMACCIBLD contratación y reclamaciones.
+IIDKFMFCMOAPDHBMBFGKHBMJJIEBCPBKIPDGDOALIFENKEHFFMJLIOOINEEKIHNHKBANKGOOOHMFCAPICBIMODFNB
+AGLFOGFOFLCPEAEMPPCHJDDEBJPPDGAGNBJBMAEDIMNFAIIMJDMLIHCOBFLFDBPKEEMOAHKHPJHIMEJGNMNOHBOOG
+ENNFNNEHIABAEJICOMDANCEKBENJAHFHAFKJOBOBBDJMCGPEKEHNHFAHFHAMIMLOAGMDMJGMJEAODPLBAHFHAIDLD
+APBBBPAPJGGAAMFAOKFBDPDNNEHJBCFGDBHHFDLCJAFEODHODGAEMAHFGDHNDOLDHJJIJEIKHGAHHJFJCDFBHEHGN 800 760 909
+HHHHHHHPHHHPHHHHPHPPPHHHPHHHPHHPPPPHPHPHPPPPHHHHPHHHPPHHHPPHHPHPHHHPHHPHHHPPPPPHHPHHPHPHP
+GRATUITO Y DISPONIBLE 24h
+www.endesaclientes.com
+atencionalcliente@endesaonline.com
+C/ Ribera del Loira 60 - 28042 Madrid (solo correo postal)
+Endesa Energía está adherida al Sistema Arbitral de Consumo. Para ampliar la
+información sobre las reclamaciones que pueden ser tratadas a través del arbitraje
+consultar www.endesaclientes.com.
+Una vez realizada la reclamación ante la compañía eléctrica, y si persiste la discrepancia
+sobre el contacto de suministro o facturaciones, también estará disponible la Oficina
+Municipal de información al Consumidor (O.M.I.C) de la localidad o, en su caso, la
+Dirección General de Consumo o de Industria de la comunidad autónoma.
+Averías / Urgencias distribuidora
+900 907 001 - HIDROCANTABRICO DISTRIBUCION ELECTRICA,
+S.A.
+Asistencia Técnica de Servicios
+Equipamientos, Mantenimientos y Reparaciones en el hogar
+900 858 685 (tlf. gratuito, disponible 24h)
+DETALLE DE LA FACTURA DE SERVICIOS
+................................................................
+Electric Contrato: OR-0000000000 Nº factura: X326NC00000000
+Protección 360 Plus 4,78 €
+Fecha emisión factura: 05/08/2026
+Periodo: 01/08/2026 al 31/08/2026
+Fecha operación: 05/08/2026
+IVA GENERAL 21% Contrato: OR-0000000000
+Cliente: NOMBRE APELLIDO APELLIDO
+IVA GENERAL 21% (s/ 4,78 €) 1,00 €
+NIF: 00000000T
+....................................................................................................................................................
+Dirección: Calle EJEMPLO 12 GIJON/XIXON
+Emisor: Endesa Energía, S.A. Unipersonal. CIF A81948077.
+TOTAL IMPORTE FACTURA 5,78 €
+C/Ribera del Loira, nº 60 28042 - Madrid.
+RESUMEN TOTAL DE LAS FACTURAS
+Factura de Electricidad 89,84 €
+Factura de servicios 5,78 €
+...........................................................................................................................................
+Total importe a pagar 95,62 €
+VX10O020-D-27/08/26 N0000000LNNNN
+NOMBRE, ¿sabes cuánto
+gastan tus electrodomésticos?
+Descubre infoEnergía, tu herramienta de
+asesoramiento energético gratuita, y
+ahorra en tu factura.
+Infórmate en endesa.com/infoenergia
+HAZ CLIC AQUÍ
+VX10O020-D-27/08/26 S0000000LNNNN

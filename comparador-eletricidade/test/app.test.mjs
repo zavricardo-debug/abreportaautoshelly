@@ -249,6 +249,104 @@ test('Spanish bill: auto-detected, every cost line pre-filled, bill rebuilt to 8
   assert.equal(new Set(names).size, names.length);
 });
 
+test('Gana Energía bill template (Tarifa 24 horas): form pre-filled per period, SNOEE line in "otros", postal code, bill rebuilt to 93,53 €', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+
+  const parsed = window.__test_text(readFileSync(resolve(__dirname, 'fixtures/gana-es-2026.txt'), 'utf8'));
+  assert.equal(parsed.country, 'ES');
+  assert.equal(d.body.dataset.country, 'ES');
+  const v = (sel) => d.querySelector(sel).value;
+  assert.match(d.querySelector('#es-supplier-tag').textContent, /Gana Energía · Tarifa 24 horas/);
+  assert.equal(v('#es-supplier'), 'GANA');
+  assert.equal(v('#es-p1kw'), '4.6'); assert.equal(v('#es-p2kw'), '4.6');
+  assert.equal(v('#es-days'), '31');
+  assert.equal(d.querySelector('#es-period').dataset.start, '2026-10-20');
+  assert.equal(v('#es-cp'), '33208', 'postal code of the supply point read from the bill');
+  assert.ok(d.querySelector('#es-cp').classList.contains('auto'));
+  assert.equal(v('#es-pp1'), '0.089434'); assert.equal(v('#es-pp2'), '0.089434');
+  assert.ok(!d.querySelector('#es-single').checked, 'three energy lines → per-period prices');
+  for (const k of ['punta', 'llano', 'valle']) assert.equal(v(`#es-ep-${k}`), '0.129');
+  assert.equal(v('#es-kwh-punta'), '65'); assert.equal(v('#es-kwh-llano'), '72'); assert.equal(v('#es-kwh-valle'), '216');
+  assert.equal(v('#es-bono'), '0.024688', 'B. Social prints the amount only → regulated €/día (31 × 0,024688 = 0,77 €)');
+  assert.ok(Math.abs(+v('#es-rent') - 0.83 / 31) < 1e-6, 'Alquiler de Equipos prints days + amount only → €/día derived from the bill (0,83 / 31)');
+  assert.ok(Math.abs(+v('#es-ie') - 5.112696) < 1e-6);
+  assert.equal(v('#es-iva'), '21');
+  assert.equal(v('#es-other'), '0.95', 'Aportación SNOEE (0,95 €) goes to "otros conceptos de la tarifa"');
+  assert.equal(v('#es-services'), '');
+  assert.equal(v('#es-total'), '93.53');
+  assert.match(d.querySelector('#es-parse-warnings').textContent, /6 de 6 conceptos/);
+  assert.ok(!/No encontrados/.test(d.querySelector('#es-parse-warnings').textContent));
+  assert.match(d.querySelector('#es-o-energy-total').textContent, /45,5[34]/);
+  // rebuilt: 25,50 + 45,53 + 0,95 + 0,77 + 0,83 + IE 3,72 + IVA 16,23 = 93,53 on the bill; Gana rounds 65 × 0,129 = 8,385 down to
+  // 8,38 while the simulator gives 8,39 (→ IVA 16,24, total 93,55): within the 5 cent tolerance, the bill still "coincide"
+  const check = d.querySelector('#es-check').textContent;
+  assert.match(check, /93,5[3-5]/);
+  assert.match(check, /coincide/);
+  assert.match(check, /Descuentos\/cuotas 0,95/);
+
+  const billLines = [...d.querySelectorAll('#es-bill-lines tbody tr')];
+  const lineText = (r) => [...r.children].map((c) => c.textContent.trim());
+  const expectLines = { 'Potencia P1 (punta-llano)': '12,75', 'Potencia P2 / P3 (valle)': '12,75', 'Energía punta': '8,38', 'Energía llano': '9,29', 'Energía valle': '27,86', 'Cuotas de su tarifa': '0,95', 'Financiación Bono Social': '0,77', 'Alquiler del contador': '0,83', 'Impuesto electricidad': '3,72', 'IVA 21 %': '16,23', 'TOTAL': '93,53' };
+  for (const [label, amount] of Object.entries(expectLines)) {
+    const r = billLines.find((x) => lineText(x)[0] === label);
+    assert.ok(r, `bill line ${label}`);
+    assert.match(lineText(r)[3], new RegExp(amount), `${label}: "importe leído" is exactly what the bill prints`);
+  }
+  assert.equal(billLines.length, 11);
+  assert.match(lineText(billLines.find((x) => lineText(x)[0] === 'Cuotas de su tarifa'))[1], /Eficiencia Energética/, 'the SNOEE line is named');
+  // only the punta line differs by the supplier's rounding (8,385 → 8,38 printed, 8,39 recomputed)
+  const diffs = billLines.map((r) => [lineText(r)[0], lineText(r)[5].replace(/\s/g, '')]).filter(([, dcell]) => dcell !== '=' && dcell !== '');
+  assert.deepEqual(diffs, [['Energía punta', '+0,01€'], ['IVA 21 %', '+0,01€'], ['TOTAL', '+0,02€']], JSON.stringify(diffs));
+
+  d.querySelector('#values-form-es').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.ok(!d.querySelector('#step-results-es').classList.contains('hidden'));
+  const cards = [...d.querySelectorAll('#es-summary-grid .sum')];
+  assert.match(cards[0].textContent, /93,53/);
+  assert.match(cards[1].textContent, /potencia 25,50/);
+  const rows = [...d.querySelectorAll('#es-results-table tbody tr')];
+  assert.ok(rows[0].classList.contains('baseline'));
+  const cellsBase = [...rows[0].children].map((c) => c.textContent);
+  assert.match(cellsBase[2], /25,50/); assert.match(cellsBase[3], /45,5[34]/); assert.match(cellsBase[7], /93,5[3-5]/);
+  const link = new URL(d.querySelector('#es-cnmc-link').href);
+  assert.equal(link.searchParams.get('iniA'), '2026-10-20');
+  assert.equal(link.searchParams.get('cp'), '33208');
+});
+
+test('Endesa document with a separate services invoice: total to pay 95,62 € = electricity 89,84 € + Protección 360 (4,78 € + IVA); services stay out of the comparison', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
+  const window = await boot();
+  const d = window.document;
+  for (let i = 0; i < 50 && !/tarifas ES ·/.test(d.querySelector('#dataset-pill-es').textContent); i++) await new Promise((r) => setTimeout(r, 20));
+  window.__test_text(readFileSync(resolve(__dirname, 'fixtures/endesa-es-2026-servicios.txt'), 'utf8'));
+  const v = (sel) => d.querySelector(sel).value;
+  assert.equal(v('#es-supplier'), 'ENDESA');
+  assert.equal(v('#es-cp'), '33208');
+  assert.equal(v('#es-ep-single'), '0.167283');
+  assert.equal(v('#es-iva'), '21');
+  assert.equal(v('#es-services'), '4.78', 'services of the separate invoice, without IVA');
+  assert.equal(v('#es-other'), '');
+  assert.equal(v('#es-total'), '95.62', 'total to pay');
+  const summary = d.querySelector('#es-parse-warnings').textContent;
+  assert.match(summary, /6 de 6 conceptos/);
+  assert.match(summary, /Total a pagar: 95,62\s?€ \(factura de electricidad 89,84\s?€ \+ factura de servicios 5,78\s?€/);
+  const check = d.querySelector('#es-check').textContent;
+  assert.match(check, /95,62/); assert.match(check, /coincide/); assert.match(check, /Servicios adicionales 5,78\s?€ \(IVA incl\.\)/);
+  const billLines = [...d.querySelectorAll('#es-bill-lines tbody tr')];
+  const lineText = (r) => [...r.children].map((c) => c.textContent.trim());
+  const byLabel = (l) => lineText(billLines.find((x) => lineText(x)[0] === l));
+  assert.match(byLabel('Servicios adicionales (fuera de la tarifa eléctrica)')[3], /4,78/);
+  assert.match(byLabel('IVA 21 %')[3], /16,59/, 'IVA read = 15,59 (electricity) + 1,00 (services invoice)');
+  assert.match(byLabel('TOTAL')[3], /95,62/);
+  for (const r of billLines) assert.equal(lineText(r)[5], '=', `${lineText(r)[0]} matches`);
+  d.querySelector('#values-form-es').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+  const cards = [...d.querySelectorAll('#es-summary-grid .sum')];
+  assert.match(cards[0].textContent, /89,84/);                       // the electricity bill is what is compared
+  assert.match(cards[0].textContent, /factura real: 95,62\s?€ \(incluye 5,78\s?€ de servicios adicionales, fuera de la comparación\)/);
+  const rows = [...d.querySelectorAll('#es-results-table tbody tr')];
+  assert.match([...rows[0].children][7].textContent, /89,84/);
+});
+
 test('Spanish manual mode: defaults, 3-period prices and reconstruction check', { skip: !existsSync(datasetPath) && 'run npm run data:build first' }, async () => {
   const window = await boot();
   const d = window.document;

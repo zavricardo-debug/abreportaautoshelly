@@ -116,6 +116,7 @@ export function fillFormES(p, rawText) {
   ES.parsed = p;
   ES.rawText = rawText || '';
   const R = rules();
+  const cpTyped = $('#es-cp').value.trim() && !$('#es-cp').classList.contains('auto');   // typed by the user → kept
   $$('#values-form-es input').forEach((i) => i.classList.remove('auto'));
   $('#es-supplier-tag').textContent = p?.supplier ? `Factura ${p.supplier}${p.contractName ? ' · ' + p.contractName : ''}` : '';
 
@@ -128,6 +129,8 @@ export function fillFormES(p, rawText) {
   $('#es-supplier').value = p?.supplierCode && $(`#es-supplier option[value="${p.supplierCode}"]`) ? p.supplierCode : (p?.supplierCode ? 'OTHER' : '');
   setVal('#es-pp1', p?.powerTerm?.p1?.price, p);
   setVal('#es-pp2', p?.powerTerm?.p2?.price ?? p?.powerTerm?.p1?.price, p);
+  // postal code of the supply point (used for the CNMC query/deep link); a value typed by the user is kept
+  if (p?.postalCode && !cpTyped) { $('#es-cp').value = p.postalCode; $('#es-cp').classList.add('auto'); }
 
   // energy
   const single = p ? !!p.energy?.single || !p.energy?.byPeriod || !Object.keys(p.energy.byPeriod).length : true;
@@ -162,7 +165,8 @@ export function fillFormES(p, rawText) {
   setVal('#es-iva', (p?.iva?.rate ?? R.iva) * 100, p && p.iva);
   setVal('#es-other', p ? r2((p.discountAmount || 0) + (p.feeAmount || 0)) || '' : '', p && ((p.discountAmount || 0) !== 0 || (p.feeAmount || 0) !== 0));
   setVal('#es-services', p ? (p.serviceAmount || '') : '', p && (p.serviceAmount || 0) !== 0);
-  setVal('#es-total', p?.total, p && p.total !== null);
+  // "Total de su factura" = what is paid: electricity invoice + a separate services invoice when the document has one
+  setVal('#es-total', p?.totalToPay ?? p?.total, p && p.total !== null);
 
   // warnings / found lines
   const w = $('#es-parse-warnings'); w.innerHTML = '';
@@ -174,7 +178,7 @@ export function fillFormES(p, rawText) {
     ok.className = `alert ${missing.length > 2 ? 'warn' : 'ok'}`;
     ok.innerHTML = `<b>Factura española (2.0TD) · ${found.length} de 6 conceptos encontrados</b>: ${found.map((k) => labels[k]).join(', ') || '—'}.` +
       (missing.length ? `<br>No encontrados: ${missing.map((k) => labels[k]).join(', ')} – complete los valores manualmente si es necesario.` : '') +
-      (p.total !== null ? ` Total de la factura: <b>${fmtEur(p.total)}</b>.` : '');
+      (p.total !== null ? (p.totalToPay ? ` Total a pagar: <b>${fmtEur(p.totalToPay)}</b> (factura de electricidad ${fmtEur(p.total)} + factura de servicios ${fmtEur(r2(p.totalToPay - p.total))}, fuera de la comparación).` : ` Total de la factura: <b>${fmtEur(p.total)}</b>.`) : '');
     w.appendChild(ok);
     if (p.warnings?.length) { const el = document.createElement('div'); el.className = 'alert warn'; el.innerHTML = `<ul>${p.warnings.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`; w.appendChild(el); }
   } else {
@@ -441,13 +445,19 @@ function renderBillLines(f, sim, services) {
   } else {
     for (const k of PERIODS_ES) rows.push(row(`Energía ${PERIOD_LABELS_ES[k].toLowerCase()}`, `${fmtNum(f.kwh[k], 3)} kWh`, `${fmtNum(f.energyPrice[k], 6)} €/kWh`, p?.energy?.byPeriod?.[k]?.amount ?? null, sim.lines.find((l) => l.id === `energy_${k}`)?.amount ?? 0));
   }
-  if (f.otherAmount) rows.push(row(f.otherAmount < 0 ? 'Descuentos de su tarifa' : 'Cuotas de su tarifa', '', '', p ? r2((p.discountAmount || 0) + (p.feeAmount || 0)) : null, sim.other));
+  if (f.otherAmount) {
+    // the lines behind the amount, as printed on the bill (e.g. "Aportación Regulada … Eficiencia Energética" = SNOEE contribution)
+    const names = [...(p?.discounts || []), ...(p?.fees || [])].map((x) => x.label).filter(Boolean);
+    rows.push(row(f.otherAmount < 0 ? 'Descuentos de su tarifa' : 'Cuotas de su tarifa', names.length ? `<span class="muted">${names.map((x) => esc(x.length > 100 ? x.slice(0, 60) + '…' + x.slice(-36) : x)).join(' · ')}</span>` : '', '', p ? r2((p.discountAmount || 0) + (p.feeAmount || 0)) : null, sim.other));
+  }
   rows.push(row('Financiación Bono Social', `${f.days} días`, `${fmtNum(f.bonoPerDay, 6)} €/día`, p?.bonoSocial?.amount ?? null, sim.bonoSocial));
   rows.push(row('Alquiler del contador', `${f.days} días`, `${fmtNum(f.rentPerDay, 6)} €/día`, p?.meterRent?.amount ?? null, sim.meterRent));
   if (f.servicesAmount) rows.push(row('Servicios adicionales (fuera de la tarifa eléctrica)', '', 'sin impuesto eléctrico', p?.serviceAmount || null, r2(f.servicesAmount), 'muted'));
   rows.push(row('Impuesto electricidad', `s/ ${fmtEur(sim.ieBase)}`, `${fmtNum(f.ieRate * 100, 7)} %`, p?.ie?.amount ?? null, sim.ie));
   const servicesIva = r2(services - (f.servicesAmount || 0));
-  rows.push(row(`IVA ${Math.round(f.ivaRate * 100)} %`, `s/ ${fmtEur(r2(sim.ivaBase + (f.servicesAmount || 0)))}`, `${Math.round(f.ivaRate * 100)} %`, p?.iva?.amount ?? null, r2(sim.iva + servicesIva)));
+  // a separate services invoice prints its own IVA line: read = IVA of the electricity invoice + IVA of the services invoice
+  const readIva = p?.iva?.amount === null || p?.iva?.amount === undefined ? null : r2(p.iva.amount + (p.servicesInvoice?.iva || 0));
+  rows.push(row(`IVA ${Math.round(f.ivaRate * 100)} %`, `s/ ${fmtEur(r2(sim.ivaBase + (f.servicesAmount || 0)))}`, `${Math.round(f.ivaRate * 100)} %`, readIva, r2(sim.iva + servicesIva)));
   rows.push(row('TOTAL', '', '', f.invoiceTotal ?? p?.total ?? null, r2(sim.total + services), 'total'));
   tb.innerHTML = rows.join('');
 }

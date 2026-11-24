@@ -183,6 +183,21 @@ energía); los servicios adicionales (mantenimiento, seguros…) sólo llevan IV
 comparación con las tarifas. `npm run pdf:text -- factura.pdf --parse` detecta el país y ejecuta el
 parser correspondiente.
 
+Plantillas de factura cubiertas por los fixtures de `test/fixtures/` (cada una tiene un test que fija
+todos sus importes, así una nueva versión del parser no puede dejar de leerlas):
+
+| Fixture | Plantilla | Particularidades que el parser maneja |
+|---|---|---|
+| `endesa-es-2026.txt` | Endesa «Libre Endesa» (2.0TD), 89,84 € | líneas «4,600 kW x 0,117686 Eur/kW x 31 días», precio único, lecturas por periodo, subtotales de sección |
+| `endesa-es-2026-servicios.txt` | el mismo documento Endesa completo con **factura de servicios aparte** («Protección 360 Plus» 4,78 € + IVA 1,00 €) y «Resumen total de las facturas» | el IVA y el total de la factura de servicios no se mezclan con los de la electricidad; `total` = 89,84 € (electricidad), `totalToPay` = 95,62 €; los servicios quedan fuera de la comparación; tabla de lecturas pegada al texto legal; «Contrato de mercado libre: Libre Endesa Segmento de cargos: 1» |
+| `gana-es-2026.txt` | Gana Energía «Tarifa 24 horas» (2.0TD), 93,53 € | tabla «Potencia · Precio kW/día · Total» con el precio impreso como € a secas («P1: 4,6 kW 0,089434€ 12,75€»), energía en tres líneas P1/P2/P3 al mismo precio (la etiqueta que manda es la anterior a la cifra, no el texto del glosario pegado al final), «B. Social Orden TED/634/2026 0,77 €» sin precio diario, «Alquiler de Equipos … 31 días 0,83 €», «Aportación Regulada … Eficiencia Energética 0,95 €» (SNOEE, se lee como cuota de la tarifa y entra en la base del impuesto eléctrico), «Impuesto Eléctrico» con las cifras en la línea siguiente («5,112696% sobre 72,75x1,00 3,72 €»), resumen que repite los impuestos (no se duplican), lecturas «P1 7386,00kWh 7451,00kWh 65,00kWh», «Potencia contratada: P1 4,6kW, P2 4,6kW», comercializadora Gana (y no la distribuidora «EDP‑Hidrocantábrico»), código postal del suministro |
+
+Para añadir una plantilla nueva: `npm run pdf:text -- factura.pdf > test/fixtures/<nombre>.txt`
+(anonimizar nombre, NIF, IBAN, dirección, CUPS y referencias; dejar los importes), `--parse` para
+ver qué se lee, corregir `parser-es.js` y añadir un test en `test/parser-es.test.mjs` con los
+importes de la factura (y, si procede, otro en `test/app.test.mjs` que compruebe que el formulario
+reconstruye el total).
+
 ### Curva de consumo horario (CSV o Excel)
 
 La factura sólo da el total de kWh (o, en el mejor de los casos, las lecturas por periodo), así que

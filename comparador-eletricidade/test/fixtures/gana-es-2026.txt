@@ -1,0 +1,126 @@
+¡Hola, Nombre!
+Esta es tu factura de Electricidad
+Total a pagar
+Dirección de facturación
+Calle Ejemplo 12 2, dch,
+33208, Gijón 93,53 €
+Asturias
+Nº Factura: N_26000000000 Fecha emisión: 20/11/2026 Nº Cobro: 10000000 Periodo facturación: 20/10/2026 a 19/11/2026
+1. Tu historial de consumo
+50€ por cada
+amigo que invites
+353 kWh
+Consigue 50€ para ti y 25€ para
+264 kWh cada persona que traigas con tu
+código. A partir de la 3ª, tu
+176 kWh recompensa sube a 75€. A repartir
+en 10 facturas. IVA incluido.
+88 kWh
+0 kWh DIC ENE FEB MAR ABR MAY JUN JUL AGO SEP OCT NOV
+2025 2026 2026 2026 2026 2026 2026 2026 2026 2026 2026 2026
+2000000XxX0
+2. El resumen de tu factura Puedes ver el detalle en la siguiente página →
+Para entender mejor tu
+Por potencia contratada 25,50€ factura, te explicamos
+algunas palabras:
+Por energía consumida 45,53€
+Otros conceptos 2,55€
+Potencia contratada:
+Impuesto Eléctrico (5,112696%) 3,72€ Es la cantidad de electricidad que
+puedes usar al mismo tiempo sin que
+Base imponible 77,30€ salten los plomos. Es importante tener
+contratada la que realmente necesitas
+IVA (21%) 16,23€
+para aumentar tu ahorro.
+Total importe factura 93,53 €
+Energía consumida:
+Es la electricidad que has gastado.
+Otros conceptos:
+3. Tus datos de contacto y del suministro Son importes regulados, como el Bono
+Social, Alquiler del contador...
+Datos del cliente Datos del suministro Impuesto Eléctrico:
+Es un impuesto aplicado por ley sobre
+Nombre: Nombre Apellido Apellido CUPS: ES0021000000000000AB los importes de Potencia, Energía y
+NIF: 00000000T Dirección: Calle Ejemplo 12 Piso 2, Puerta Dch, Bono Social, tras restar descuentos.
+Número de contrato: 2000000 Gijón, Asturias, 33208
+Forma de pago: Domiciliado Potencia contratada: P1 4,6kW, P2 4,6kW
+IVA
+IBAN: ****** **** ** ********0000 Tarifa de acceso: 2.0TD
+Gaolania Servicios S.L CIF: B98717457 Calle Colón 60, 5, 46004 Valencia Inscrita en el RM de Valencia el 5/03/2015, Tomo 9928, Hoja: V-164136 Es el impuesto general que se aplica
+Titular: Nombre Apellido Apellido Distribuidora: EDP - HIDROCANTABRICO DIST.
+sobre la Base Imponible.
+Dirección facturación: Calle ELECTRICA S.A.U.
+Ejemplo 12 Piso 2, Puerta Dch, Nº Contrato distribuidora: 6100000000
+Gijón, Asturias, 33208 Fecha fin contrato: 16/09/2027 Sin Permanencia CUPS
+Tarifa: Tarifa 24 horas Número de contador: 40000000 Es el código único que identifica cada
+punto de suministro. Puedes
+necesitarlo para algunas gestiones.
+Sigue en la siguiente página →
+4. Tu factura detallada kW o Kilovatios:
+Es la unidad de medida de la Potencia.
+Potencia contratada kWh o Kilovatios por hora:
+Período de facturación Potencia Precio kW/día Total Es la unidad de medida de la Energía.
+Del 20-10-2026 al 19-11-2026 (Total 31 días) P1: 4,6 kW 0,089434€ 12,75€
+Del 20-10-2026 al 19-11-2026 (Total 31 días) P2: 4,6 kW 0,089434€ 12,75€ Periodos de energía:
+Son las franjas horarias en las que se
+Energía consumida
+divide la electricidad que consumes.
+Período de facturación Energía Precio kWh Total
+Periodo Punta
+Del 20-10-2026 al 19-11-2026 (Total 31 días) P1: 65 kWh 0,129000 € 8,38 € P1 De lunes a viernes: de 10:00h a 14:00 y de 18:
+00 a 22:00
+Del 20-10-2026 al 19-11-2026 (Total 31 días) P2: 72 kWh 0,129000 € 9,29 €
+Del 20-10-2026 al 19-11-2026 (Total 31 días) P3: 216 kWh 0,129000 € 27,86 € Periodo Llano
+P2 De lunes a viernes: de 8:00h a 10:00, de 14:
+00 a 18:00 y de 22:00h a 00:00
+Otros conceptos
+Periodo Valle
+B. Social Orden TED/634/2026 0,77 € P3 De lunes a viernes: de 00:00 a 08:00, fines
+de semana y festivos nacionales: todo el día.
+Alquiler de Equipos del 20-10-2026 al 19-11-2026 31 días 0,83 €
+Aportación Regulada por Ley al Sistema Nacional de Obligaciones de Eficiencia Energética 0,95 €
+Periodos de la potencia:
+Impuesto Eléctrico La potencia también se divide en
+5,112696% sobre 72,75x1,00 3,72 € franjas: P1 (de lunes a viernes 08:00h a
+00:00h) y P2 (lunes a viernes de 00:
+IVA 00h a 08:00h, fines de semana y
+21% sobre Base imponible 77,30€ 16,23 € festivos).
+Total importe factura 93,53 €
+5. ¿Dónde va lo que pagas? 6. Lectura de tu contador 7. Tu potencia máxima
+51,96% Energía Nº contador: 40000000 Esta es la potencia máxima que has
+El contador es el aparato que mide la utilizado en los últimos 12 meses según
+26,44% Impuestos energía que consumes. Puedes ver tu la distribuidora.
+consumo diario en el Área Cliente, la
+12,95% Peajes de transporte y distribución app o en la web de tu distribuidora.
+P1 3,91 kW
+Lectura Anterior Lectura Actual Consumo
+7,80% Otros cargos* 20/10/2026 19/11/2026 total
+P2 3,91 kW
+P1 7386,00kWh 7451,00kWh 65,00kWh
+0,85% Alquiler de contador P2 6928,00kWh 7000,00kWh 72,00kWh
+P3 11422,00kWh 11638,00kWh 216,00kWh
+*Recore 41,20%, Déficit 46,23%, TNP 12,31%, Otros
+En el código QR o en el Origen de la electricidad Impacto ambiental
+enlace
+https://comparador.cnmc.
+gob.es puedes consultar y 258 g/kWh
+Origen Mix nac. Gana Emisiones de CO2
+comparar las distintas
+● Renovable 55,2% 4,9% (media nacional 107 g
+ofertas vigentes de las
+/kWh)
+comercializadoras de ● Nuclear 19,2% 39,3%
+Gaolania Servicios S.L CIF: B98717457 Calle Colón 60, 5, 46004 Valencia Inscrita en el RM de Valencia el 5/03/2015, Tomo 9928, Hoja: V-164136 energía eléctricas en el ● CC Gas Natural 17,4% 37,1% 951 μg/kWh
+mercado libre. Las ● Cogen alta eficiencia 1,5% 1,0% Residuos radioactivos
+reclamaciones relativas a ● Carbón 0,6% 5,0% (media nacional 464 μg
+la facturación /kWh)
+● Fuel/Gas 1,1% 2,3%
+● Otras no renovables 5,0% 10,4%
+o al contrato que no hayan sido atendidas por Gana Energía
+en el plazo de quince días podrán dirigirse a la Junta Arbitral
+Nacional: https://consumo.gob.es/es/consumo Datos del año 2025. Fuente: CNMC
+/juntasArbitrales/nacional
+El origen de la lectura en kWh mostrado es: Real CCH // El consumo medio de tu código postal para el mismo periodo de facturación ha sido de 172,70 kWh // El importe de los peajes y cargos del 20/10/2026 al 19/11/2026 del término de potencia es 11,11€ (peajes
+9,29 € y cargos 1,82 €); y de término de la energía es de 9,16€ (peajes 3,36€ y cargos 5,80€).
+Teléfono Email Averías
+¿Tienes dudas? 900 535 689 clientes@ganaenergia.com 900 907 001
